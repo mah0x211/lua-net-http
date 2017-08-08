@@ -17,7 +17,6 @@ dependencies = {
 build = {
     type = "builtin",
     modules = {
-        ['net.http.connection'] = "lib/connection.lua",
         ['net.http.parser'] = "lib/parser.lua",
         ['net.http.server'] = "lib/server.lua",
         ['net.http.status'] = "lib/status.lua",
