@@ -28,6 +28,9 @@
 
 --- assign to local
 local ParseRequest = require('net.http.parser').request;
+--- constants
+local REQUEST_TIMEOUT = require('net.http.status').REQUEST_TIMEOUT;
+local INTERNAL_SERVER_ERROR = require('net.http.status').INTERNAL_SERVER_ERROR;
 
 
 --- class Connection
@@ -47,10 +50,14 @@ end
 --- recv
 -- @return req
 --  method
+--  scheme (optional)
+--  host (optional)
+--  port (optional)
 --  path
+--  ver
 --  header
+-- @return rc
 -- @return err
--- @return timeout
 function Connection:recv()
     local sock = self.sock;
     local buf = self.buf;
@@ -69,7 +76,6 @@ function Connection:recv()
 
         -- parsed
         if cur > 0 then
-            self.ver = 1; -- req.minor_version;
             -- remove bytes used
             self.buf = buf:sub( cur );
             return req;
@@ -77,8 +83,12 @@ function Connection:recv()
         elseif cur == -2 then
             local str, perr, timeout = sock:recv();
 
-            if perr or timeout then
-                return nil, perr, timeout;
+            -- 500 internal server error
+            if perr then
+                return nil, INTERNAL_SERVER_ERROR, perr;
+            -- 408 request timedout
+            elseif timeout then
+                return nil, REQUEST_TIMEOUT;
             -- closed by peer
             elseif not str then
                 return;
@@ -87,7 +97,7 @@ function Connection:recv()
             buf = buf .. str;
         -- invalid request
         else
-            return nil, err;
+            return nil, -cur, err;
         end
     end
 end
