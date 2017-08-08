@@ -32,7 +32,7 @@ local UnixServer = require('net.stream.unix').server;
 local Connection = require('net.http.connection');
 
 
---- calss Server
+--- class Server
 local Server = {};
 
 

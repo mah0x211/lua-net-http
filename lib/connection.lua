@@ -27,11 +27,10 @@
 --]]
 
 --- assign to local
--- local inspect = require('util').inspect;
 local ParseRequest = require('net.http.parser').request;
 
 
---- calss Connection
+--- class Connection
 local Connection = {};
 
 
@@ -48,7 +47,6 @@ end
 --- recv
 -- @return req
 --  method
---  minor_version
 --  path
 --  header
 -- @return err
