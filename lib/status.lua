@@ -107,15 +107,30 @@ end
 -- @param ver
 -- @return msg
 local function toline( code, ver )
+    local msg;
+
+    assert( type( code ) == 'number', 'code must be number' );
     if not ver then
-        return STATUS_MSG[code];
-    -- http/1.0
-    elseif ver == 0 then
-        return STATUS_LINE10[code];
-    -- http/1.1
-    elseif ver == 1 then
-        return STATUS_LINE11[code];
+        msg = STATUS_MSG[code];
+    else
+        assert( type( ver ) == 'number', 'ver must be number' );
+        -- http/1.0
+        if ver == 0 then
+            msg = STATUS_LINE10[code];
+        -- http/1.1
+        elseif ver == 1 then
+            msg = STATUS_LINE11[code];
+        -- invalid version number
+        else
+            error( ('unsupported version %q'):format( ver ) );
+        end
     end
+
+    if not msg then
+        error( ('unsupported status code %q'):format( code ) );
+    end
+
+    return msg;
 end
 
 
@@ -188,4 +203,5 @@ return {
     NOT_EXTENDED = 510,
     NETWORK_AUTHENTICATION_REQUIRED = 511,
 };
+
 
