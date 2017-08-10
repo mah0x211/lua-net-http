@@ -105,12 +105,30 @@ function Connection:recv()
 end
 
 
+--- sendHeader
+-- @param msg
+-- @return len
+-- @return err
+-- @return timeout
+function Connection:sendHeader( msg )
+    if not self.cork then
+        self.cork = self.sock:tcpcork( true );
+    end
+
+    return self.sock:send( msg );
+end
+
+
 --- send
 -- @param msg
 -- @return len
 -- @return err
 -- @return timeout
 function Connection:send( msg )
+    if self.cork then
+        self.cork = self.sock:tcpcork( false );
+    end
+
     return self.sock:send( msg );
 end
 
@@ -122,6 +140,7 @@ local function createConnection( sock )
     return setmetatable({
         sock = sock,
         buf = '',
+        cork = false,
     },{
         __index = Connection
     });
