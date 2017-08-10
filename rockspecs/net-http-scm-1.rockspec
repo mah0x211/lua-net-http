@@ -18,6 +18,7 @@ build = {
     type = "builtin",
     modules = {
         ['net.http.parser'] = "lib/parser.lua",
+        ['net.http.response'] = "lib/response.lua",
         ['net.http.server'] = "lib/server.lua",
         ['net.http.status'] = "lib/status.lua",
     }
