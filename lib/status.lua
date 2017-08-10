@@ -27,6 +27,7 @@
 --]]
 
 --- constants
+local CRLF = '\r\n';
 local STATUS_MSG = {
     -- 1×× Informational
     [100] = '100 Continue',
@@ -97,8 +98,8 @@ local STATUS_MSG = {
 local STATUS_LINE10 = {};
 local STATUS_LINE11 = {};
 for k, v in pairs( STATUS_MSG ) do
-    STATUS_LINE10[k] = 'HTTP/1.0 ' .. v;
-    STATUS_LINE11[k] = 'HTTP/1.1 ' .. v;
+    STATUS_LINE10[k] = 'HTTP/1.0 ' .. v .. CRLF;
+    STATUS_LINE11[k] = 'HTTP/1.1 ' .. v .. CRLF;
 end
 
 
