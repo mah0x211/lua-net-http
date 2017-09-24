@@ -72,6 +72,7 @@ function Connection:recv()
         local cur = -2;
         local err;
 
+        -- parse buffered message
         if #buf > 0 then
             cur, err = ParseRequest( req, buf );
         end
@@ -185,7 +186,6 @@ end
 --      port
 --      reuseaddr
 --      reuseport
---      nodelay
 -- @return server
 -- @return err
 local function new( opts )
@@ -200,7 +200,6 @@ local function new( opts )
             port = opts.port or opts.tlscfg and 443 or 80,
             reuseaddr = opts.reuseaddr,
             reuseport = opts.reuseport,
-            nodelay = opts.nodelay == nil and true or opts.nodelay
         });
     end
 
