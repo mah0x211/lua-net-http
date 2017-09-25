@@ -29,123 +29,7 @@
 --- assign to local
 local InetServer = require('net.stream.inet').server;
 local UnixServer = require('net.stream.unix').server;
-local ParseRequest = require('net.http.parser').request;
---- constants
-local REQUEST_TIMEOUT = require('net.http.status').REQUEST_TIMEOUT;
-local INTERNAL_SERVER_ERROR = require('net.http.status').INTERNAL_SERVER_ERROR;
-
-
---- class Connection
-local Connection = {};
-
-
---- close
--- @return err
-function Connection:close()
-    local err = self.sock:close();
-
-    self.sock = nil;
-    return err;
-end
-
-
---- recv
--- @return req
---  method
---  scheme (optional)
---  host (optional)
---  port (optional)
---  path
---  ver
---  header
--- @return rc
--- @return err
-function Connection:recv()
-    local sock = self.sock;
-    local buf = self.buf;
-    local hdr = {};
-    local req = {
-        header = hdr
-    };
-
-    while true do
-        local cur = -2;
-        local err;
-
-        -- parse buffered message
-        if #buf > 0 then
-            cur, err = ParseRequest( req, buf );
-        end
-
-        -- parsed
-        if cur > 0 then
-            -- remove bytes used
-            self.buf = buf:sub( cur );
-            return req;
-        -- more bytes need
-        elseif cur == -2 then
-            local str, perr, timeout = sock:recv();
-
-            -- 500 internal server error
-            if perr then
-                return nil, INTERNAL_SERVER_ERROR, perr;
-            -- 408 request timedout
-            elseif timeout then
-                return nil, REQUEST_TIMEOUT;
-            -- closed by peer
-            elseif not str then
-                return;
-            end
-
-            buf = buf .. str;
-        -- invalid request
-        else
-            return nil, -cur, err;
-        end
-    end
-end
-
-
---- sendHeader
--- @param msg
--- @return len
--- @return err
--- @return timeout
-function Connection:sendHeader( msg )
-    if not self.cork then
-        self.cork = self.sock:tcpcork( true );
-    end
-
-    return self.sock:send( msg );
-end
-
-
---- send
--- @param msg
--- @return len
--- @return err
--- @return timeout
-function Connection:send( msg )
-    if self.cork then
-        self.cork = self.sock:tcpcork( false );
-    end
-
-    return self.sock:send( msg );
-end
-
-
---- createConnection
--- @param sock
--- @return conn
-local function createConnection( sock )
-    return setmetatable({
-        sock = sock,
-        buf = '',
-        cork = false,
-    },{
-        __index = Connection
-    });
-end
+local Connection = require('net.http.connection');
 
 
 --- class Server
@@ -172,7 +56,7 @@ function Server:accept()
         return nil, err;
     end
 
-    return createConnection( sock );
+    return Connection.new( sock );
 end
 
 
