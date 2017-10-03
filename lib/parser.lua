@@ -62,13 +62,110 @@ local METHOD_LEN_MAX = #METHOD.CONNECT;
 local AUTHORITY_LEN_MAX = 258;
 -- maximum uri length (include CRLF)
 local URI_LEN_MAX = 4096;
--- muximum version length: 8 (HTTP/x.x);
+-- muximum version length: 8 (HTTP/x.x)
 local VERSION_LEN_MAX = 8;
 -- maximum header length (include CRLF)
 local HEADER_LEN_MAX = 4096;
 --- defaults
 -- number of headers
-local HEADER_NUM_MAX = 20;
+local HEADER_NUM_MAX = 127;
+local REQ_HEADER_NUM_MAX = 31;
+
+
+--- header
+-- @param hdr
+-- @param msg
+-- @param cur
+-- @param maxhdr
+-- @return consumed
+-- @return err
+local function header( hdr, msg, cur, maxhdr )
+    local nhdr = 0;
+    local head, tail;
+
+    if cur == nil then
+        cur = 1;
+    end
+
+    if maxhdr == nil then
+        maxhdr = DEFAULT_HEADER_NUM_MAX;
+    end
+
+    -- parse header
+    head, tail = msg:find( '\r?\n', cur );
+
+    if not head then
+        -- more bytes need
+        if ( #msg - cur ) <= HEADER_LEN_MAX then
+            return EAGAIN;
+        end
+
+        -- invalid header-length
+        return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
+    end
+
+    -- parse headers
+    while head ~= cur do
+        -- limit number of headers exceeded
+        if nhdr > maxhdr then
+            return BAD_REQUEST, 'too many headers';
+        else
+            local line = msg:sub( cur, head - 1 );
+            local key, val;
+
+            -- update cursor
+            cur = tail + 1;
+            -- find separater
+            head = line:find( ':', 1, true );
+            if not head then
+                -- invalid header
+                return BAD_REQUEST, 'invalid header format';
+            end
+
+            -- verify key
+            key = isFieldName( line:sub( 1, head - 1 ) );
+            if not key then
+                -- invalid header-name
+                return BAD_REQUEST, 'invalid header-name';
+            end
+            key = key:lower();
+
+            -- verify val
+            val = isFieldValue( line:sub( head + 1 ) );
+            if not val then
+                -- invalid header-value
+                return BAD_REQUEST, 'invalid header-value';
+            end
+
+            -- duplicated
+            if hdr[key] then
+                hdr[key] = {
+                    hdr[key],
+                    val
+                };
+            else
+                hdr[key] = val;
+            end
+
+            -- find next line
+            head, tail = msg:find( '\r?\n', cur );
+            if not head then
+                -- more bytes need
+                if ( #msg - cur ) <= HEADER_LEN_MAX then
+                    return EAGAIN;
+                end
+
+                -- invalid header-length
+                return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
+            end
+
+            -- count number of headers
+            nhdr = nhdr + 1;
+        end
+    end
+
+    return tail;
+end
 
 
 --- request
@@ -79,8 +176,6 @@ local HEADER_NUM_MAX = 20;
 local function request( req, msg )
     -- skip leading CRLF
     local cur = CRLF_SKIPS[msg:byte(1)] or 1;
-    local header = req.header;
-    local nhdr = 0;
     local head, tail;
 
     -- find tail of method
@@ -226,84 +321,13 @@ local function request( req, msg )
     req.ver = VERSION[req.ver];
     cur = tail + 1;
 
-
     -- parse header
-    head, tail = msg:find( '\r?\n', cur );
-    if not head then
-        -- more bytes need
-        if ( #msg - cur ) <= HEADER_LEN_MAX then
-            return EAGAIN;
-        end
-
-        -- invalid header-length
-        return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
-    end
-
-    -- parse headers
-    while head ~= cur do
-        -- limit number of headers exceeded
-        if nhdr > HEADER_NUM_MAX then
-            return BAD_REQUEST, 'too many headers';
-        else
-            local line = msg:sub( cur, head - 1 );
-            local key, val;
-
-            -- update cursor
-            cur = tail + 1;
-            -- find separater
-            head = line:find( ':', 1, true );
-            if not head then
-                -- invalid header
-                return BAD_REQUEST, 'invalid header format';
-            end
-
-            -- verify key
-            key = isFieldName( line:sub( 1, head - 1 ) );
-            if not key then
-                -- invalid header-name
-                return BAD_REQUEST, 'invalid header-name';
-            end
-            key = key:lower();
-
-            -- verify val
-            val = isFieldValue( line:sub( head + 1 ) );
-            if not val then
-                -- invalid header-value
-                return BAD_REQUEST, 'invalid header-value';
-            end
-
-            -- duplicated
-            if header[key] then
-                header[key] = {
-                    header[key],
-                    val
-                };
-            else
-                header[key] = val;
-            end
-
-            -- find next line
-            head, tail = msg:find( '\r?\n', cur );
-            if not head then
-                -- more bytes need
-                if ( #msg - cur ) <= HEADER_LEN_MAX then
-                    return EAGAIN;
-                end
-
-                -- invalid header-length
-                return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
-            end
-
-            -- count number of headers
-            nhdr = nhdr + 1;
-        end
-    end
-
-    return cur;
+    return header( req.header, msg, cur, REQ_HEADER_NUM_MAX );
 end
 
 
 return {
-    request = request
+    header = header,
+    request = request,
 };
 
