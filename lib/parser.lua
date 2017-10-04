@@ -415,7 +415,7 @@ local function response( res, msg, limits )
     cur = tail + 1;
 
     -- parse status
-    head, tail, res.ver = msg:find( '^([1-5][0-9][0-9]) ', cur );
+    head, tail, res.status = msg:find( '^([1-5][0-9][0-9]) ', cur );
     if not head then
         -- more bytes need
         if ( #msg - cur ) < STATUS_LEN_MAX then
