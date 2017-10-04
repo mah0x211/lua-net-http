@@ -88,7 +88,7 @@ local VERSION_LEN_MAX = 8;
 local STATUS_LEN_MAX = 3;
 --- defaults
 -- muximum reason length: 127
-local REASON_LEN_MAX = 3;
+local REASON_LEN_MAX = 127;
 -- maximum uri length (include CRLF)
 local URI_LEN_MAX = 4096;
 -- maximum header length (include CRLF)
