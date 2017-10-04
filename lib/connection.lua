@@ -27,10 +27,35 @@
 --]]
 
 --- assign to local
-local ParseRequest = require('net.http.parser').request;
+local Parser = require('net.http.parser');
+local Status = require('net.http.status');
+local ParseRequest = Parser.request;
 --- constants
-local REQUEST_TIMEOUT = require('net.http.status').REQUEST_TIMEOUT;
-local INTERNAL_SERVER_ERROR = require('net.http.status').INTERNAL_SERVER_ERROR;
+local REQUEST_TIMEOUT = Status.REQUEST_TIMEOUT;
+local INTERNAL_SERVER_ERROR = Status.INTERNAL_SERVER_ERROR;
+-- need more bytes
+local EAGAIN = Parser.EAGAIN;
+--- parse error code to http status code
+local PERR2STATUS = {
+    -- method not implemented
+    EMETHOD = Status.NOT_IMPLEMENTED,
+    -- invalid uri string
+    EURIFMT = Status.BAD_REQUEST,
+    -- uri-length too large
+    EURILEN = Status.REQUEST_URI_TOO_LONG,
+    -- version not support
+    EVERSION = Status.HTTP_VERSION_NOT_SUPPORTED,
+    -- header-length too large
+    EHDRLEN = Status.REQUEST_HEADER_FIELDS_TOO_LARGE,
+    -- too many headers
+    EHDRNUM = Status.REQUEST_HEADER_FIELDS_TOO_LARGE,
+    -- invalid header format
+    EHDRFMT = Status.BAD_REQUEST,
+    -- invalid header field-name
+    EHDRNAME = Status.BAD_REQUEST,
+    -- invalid header field-value
+    EHDRVAL = Status.BAD_REQUEST
+};
 
 
 --- class Connection
@@ -61,32 +86,30 @@ end
 function Connection:recv()
     local sock = self.sock;
     local buf = self.buf;
-    local hdr = {};
     local req = {
-        header = hdr
+        header = {}
     };
 
     while true do
-        local cur = -2;
-        local err;
+        local cur = EAGAIN;
 
         -- parse buffered message
         if #buf > 0 then
-            cur, err = ParseRequest( req, buf );
+            cur = ParseRequest( req, buf );
         end
 
         -- parsed
         if cur > 0 then
             -- remove bytes used
-            self.buf = buf:sub( cur );
+            self.buf = buf:sub( cur + 1 );
             return req;
         -- more bytes need
-        elseif cur == -2 then
-            local str, perr, timeout = sock:recv();
+        elseif cur == EAGAIN then
+            local str, err, timeout = sock:recv();
 
             -- 500 internal server error
-            if perr then
-                return nil, INTERNAL_SERVER_ERROR, perr;
+            if err then
+                return nil, INTERNAL_SERVER_ERROR, err;
             -- 408 request timedout
             elseif timeout then
                 return nil, REQUEST_TIMEOUT;
@@ -98,7 +121,7 @@ function Connection:recv()
             buf = buf .. str;
         -- invalid request
         else
-            return nil, -cur, err;
+            return nil, PERR2STATUS[cur];
         end
     end
 end
