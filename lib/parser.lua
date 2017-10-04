@@ -82,39 +82,46 @@ local METHOD = {
 local METHOD_LEN_MAX = #METHOD.CONNECT;
 -- maximum authority length: 253 (domain-name length) + 5 (16-bit port-number)
 local AUTHORITY_LEN_MAX = 258;
--- maximum uri length (include CRLF)
-local URI_LEN_MAX = 4096;
 -- muximum version length: 8 (HTTP/x.x)
 local VERSION_LEN_MAX = 8;
 -- muximum status-code length: 3 (1xx - 5xx)
 local STATUS_LEN_MAX = 3;
+--- defaults
 -- muximum reason length: 127
 local REASON_LEN_MAX = 3;
+-- maximum uri length (include CRLF)
+local URI_LEN_MAX = 4096;
 -- maximum header length (include CRLF)
 local HEADER_LEN_MAX = 4096;
---- defaults
 -- number of headers
 local HEADER_NUM_MAX = 127;
-local REQ_HEADER_NUM_MAX = 31;
-local RES_HEADER_NUM_MAX = 31;
+--- default limits
+local DEFAULT_LIMITS = {
+    REASON_LEN_MAX = REASON_LEN_MAX,
+    URI_LEN_MAX = URI_LEN_MAX,
+    HEADER_LEN_MAX = HEADER_LEN_MAX,
+    HEADER_NUM_MAX = HEADER_NUM_MAX
+};
 
 
 --- header
 -- @param hdr
 -- @param msg
 -- @param cur
--- @param maxhdr
+-- @param limits
 -- @return consumed
-local function header( hdr, msg, cur, maxhdr )
+local function header( hdr, msg, cur, limits )
     local nhdr = 0;
     local head, tail;
 
+    -- use default cursor posision
     if cur == nil then
         cur = 1;
     end
 
-    if maxhdr == nil then
-        maxhdr = HEADER_NUM_MAX;
+    -- use default limits
+    if limits == nil then
+        limits = DEFAULT_LIMITS;
     end
 
     -- parse header
@@ -122,7 +129,7 @@ local function header( hdr, msg, cur, maxhdr )
 
     if not head then
         -- more bytes need
-        if ( #msg - cur ) <= HEADER_LEN_MAX then
+        if ( #msg - cur ) <= limits.HEADER_LEN_MAX then
             return EAGAIN;
         end
 
@@ -133,7 +140,7 @@ local function header( hdr, msg, cur, maxhdr )
     -- parse headers
     while head ~= cur do
         -- limit number of headers exceeded
-        if nhdr > maxhdr then
+        if nhdr > limits.HEADER_NUM_MAX then
             return EHDRNUM;
         else
             local line = msg:sub( cur, head - 1 );
@@ -181,7 +188,7 @@ local function header( hdr, msg, cur, maxhdr )
             head, tail = msg:find( '\r?\n', cur );
             if not head then
                 -- more bytes need
-                if ( #msg - cur ) <= HEADER_LEN_MAX then
+                if ( #msg - cur ) <= limits.HEADER_LEN_MAX then
                     return EAGAIN;
                 end
 
@@ -201,11 +208,17 @@ end
 --- request
 -- @param req
 -- @param msg
+-- @param limits
 -- @return consumed
-local function request( req, msg )
+local function request( req, msg, limits )
     -- skip leading CRLF
     local cur = CRLF_SKIPS[msg:byte(1)] or 1;
     local head, tail;
+
+    -- use default-limits
+    if limits == nil then
+        limits = DEFAULT_LIMITS;
+    end
 
     -- find tail of method
     head = msg:find(' ', cur, true );
@@ -233,14 +246,14 @@ local function request( req, msg )
         head = msg:find( ' ', cur + 1, true );
         if not head then
             -- more bytes need
-            if ( #msg - cur ) <= URI_LEN_MAX then
+            if ( #msg - cur ) <= limits.URI_LEN_MAX then
                 return EAGAIN;
             end
 
             -- uri too long
             return EURILEN;
         -- uri too long
-        elseif ( head - cur ) > URI_LEN_MAX then
+        elseif ( head - cur ) > limits.URI_LEN_MAX then
             return EURILEN;
         end
 
@@ -313,14 +326,14 @@ local function request( req, msg )
             head = msg:find( ' ', cur, true );
             if not head then
                 -- more bytes need
-                if ( cur - top ) <= URI_LEN_MAX then
+                if ( cur - top ) <= limits.URI_LEN_MAX then
                     return EAGAIN;
                 end
 
                 -- uri too long
                 return EURILEN;
             -- uri too long
-            elseif ( head - top ) > URI_LEN_MAX then
+            elseif ( head - top ) > limits.URI_LEN_MAX then
                 return EURILEN;
             end
 
@@ -351,16 +364,22 @@ local function request( req, msg )
     cur = tail + 1;
 
     -- parse header
-    return header( req.header, msg, cur, REQ_HEADER_NUM_MAX );
+    return header( req.header, msg, cur, limits );
 end
 
 
 --- response
 -- @param res
 -- @param msg
+-- @param limits
 -- @return consumed
-local function response( res, msg )
+local function response( res, msg, limits )
     local head, tail, cur;
+
+    -- use default-limits
+    if limits == nil then
+        limits = DEFAULT_LIMITS;
+    end
 
     -- parse version
     head, tail, res.ver = msg:find( '^HTTP/(1.[01]) ', 1 );
@@ -394,7 +413,7 @@ local function response( res, msg )
     head, tail = msg:find( '\r?\n', cur );
     if not head then
         -- more bytes need
-        if ( #msg - cur ) < REASON_LEN_MAX then
+        if ( #msg - cur ) < limits.REASON_LEN_MAX then
             return EAGAIN;
         end
 
@@ -411,7 +430,7 @@ local function response( res, msg )
         return EREASONFMT;
     end
 
-    return header( res.header, msg, cur, RES_HEADER_NUM_MAX )
+    return header( res.header, msg, cur, limits )
 end
 
 
