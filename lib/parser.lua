@@ -104,6 +104,19 @@ local DEFAULT_LIMITS = {
 };
 
 
+--- getlimits
+-- @param limits
+-- @return limits
+local function getlimits( limits )
+    return {
+        REASON_LEN_MAX = limits.REASON_LEN_MAX or DEFAULT_LIMITS.REASON_LEN_MAX,
+        URI_LEN_MAX = limits.URI_LEN_MAX or DEFAULT_LIMITS.URI_LEN_MAX,
+        HEADER_LEN_MAX = limits.HEADER_LEN_MAX or DEFAULT_LIMITS.HEADER_LEN_MAX,
+        HEADER_NUM_MAX = limits.HEADER_NUM_MAX or DEFAULT_LIMITS.HEADER_NUM_MAX
+    };
+end
+
+
 --- header
 -- @param hdr
 -- @param msg
@@ -438,6 +451,7 @@ return {
     header = header,
     request = request,
     response = response,
+    getlimits = getlimits,
     --- error constants
     -- need more bytes
     EAGAIN = EAGAIN,
