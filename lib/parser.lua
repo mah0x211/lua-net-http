@@ -148,6 +148,9 @@ local function header( hdr, msg, cur, limits )
 
         -- invalid header-length
         return EHDRLEN;
+    -- invalid header-length
+    elseif ( head - cur ) > limits.HEADER_LEN_MAX then
+        return EHDRLEN;
     end
 
     -- parse headers
@@ -206,6 +209,9 @@ local function header( hdr, msg, cur, limits )
                 end
 
                 -- invalid header-length
+                return EHDRLEN;
+            -- invalid header-length
+            elseif ( head - cur ) > limits.HEADER_LEN_MAX then
                 return EHDRLEN;
             end
 
