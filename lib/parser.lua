@@ -31,8 +31,34 @@ local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isHostname = require('rfcvalid.1035').isHostname;
 local isUInt16 = require('rfcvalid.1035').isUInt16;
+--- error constants
+-- need more bytes
+local EAGAIN = -1;
+-- method not implemented
+local EMETHOD = -2;
+-- invalid uri string
+local EURIFMT = -3;
+-- uri-length too large
+local EURILEN = -4;
+-- version not support
+local EVERSION = -5;
+-- header-length too large
+local EHDRLEN = -6;
+-- too many headers
+local EHDRNUM = -7;
+-- invalid header format
+local EHDRFMT = -8;
+-- invalid header field-name
+local EHDRNAME = -9;
+-- invalid header field-value
+local EHDRVAL = -10;
+-- invalid status code
+local ESTATUS = -11;
+-- invalid reason-phrase length
+local EREASONLEN = -12;
+-- invalid reason-phrase format
+local EREASONFMT = -13;
 --- constants
-local EAGAIN = -2;
 local Status = require('net.http.status');
 local BAD_REQUEST = -Status.BAD_REQUEST;
 local REQUEST_URI_TOO_LONG = -Status.REQUEST_URI_TOO_LONG;
@@ -395,6 +421,33 @@ end
 return {
     header = header,
     request = request,
-    response = response
+    response = response,
+    --- error constants
+    -- need more bytes
+    EAGAIN = EAGAIN,
+    -- method not implemented
+    EMETHOD = EMETHOD,
+    -- invalid uri string
+    EURIFMT = EURIFMT,
+    -- uri-length too large
+    EURILEN = EURILEN,
+    -- version not support
+    EVERSION = EVERSION,
+    -- header-length too large
+    EHDRLEN = EHDRLEN,
+    -- too many headers
+    EHDRNUM = EHDRNUM,
+    -- invalid header format
+    EHDRFMT = EHDRFMT,
+    -- invalid header field-name
+    EHDRNAME = EHDRNAME,
+    -- invalid header field-value
+    EHDRVAL = EHDRVAL,
+    -- invalid status code
+    ESTATUS = ESTATUS,
+    -- invalid reason-phrase length
+    EREASONLEN = EREASONLEN,
+    -- invalid reason-phrase format
+    EREASONFMT = EREASONFMT
 };
 
