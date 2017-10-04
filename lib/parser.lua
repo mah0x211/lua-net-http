@@ -27,6 +27,7 @@
 --]]
 
 --- asign to local
+local strtrim = require('rfcvalid.util').strtrim;
 local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isHostname = require('rfcvalid.1035').isHostname;
@@ -156,20 +157,24 @@ local function header( hdr, msg, cur, maxhdr )
             key = key:lower();
 
             -- verify val
-            val = isFieldValue( line:sub( head + 1 ) );
-            if not val then
-                -- invalid header-value
-                return EHDRVAL;
-            end
+            val = strtrim( line:sub( head + 1 ) );
+            -- ignore empty val
+            if #val > 0 then
+                val = isFieldValue( line:sub( head + 1 ) );
+                if not val then
+                    -- invalid header-value
+                    return EHDRVAL;
+                end
 
-            -- duplicated
-            if hdr[key] then
-                hdr[key] = {
-                    hdr[key],
-                    val
-                };
-            else
-                hdr[key] = val;
+                -- duplicated
+                if hdr[key] then
+                    hdr[key] = {
+                        hdr[key],
+                        val
+                    };
+                else
+                    hdr[key] = val;
+                end
             end
 
             -- find next line
