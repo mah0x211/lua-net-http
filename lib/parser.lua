@@ -64,12 +64,17 @@ local AUTHORITY_LEN_MAX = 258;
 local URI_LEN_MAX = 4096;
 -- muximum version length: 8 (HTTP/x.x)
 local VERSION_LEN_MAX = 8;
+-- muximum status-code length: 3 (1xx - 5xx)
+local STATUS_LEN_MAX = 3;
+-- muximum reason length: 127
+local REASON_LEN_MAX = 3;
 -- maximum header length (include CRLF)
 local HEADER_LEN_MAX = 4096;
 --- defaults
 -- number of headers
 local HEADER_NUM_MAX = 127;
 local REQ_HEADER_NUM_MAX = 31;
+local RES_HEADER_NUM_MAX = 31;
 
 
 --- header
@@ -326,8 +331,70 @@ local function request( req, msg )
 end
 
 
+--- response
+-- @param res
+-- @param msg
+-- @return consumed
+-- @return err
+local function response( res, msg )
+    local head, tail, cur;
+
+    -- parse version
+    head, tail, res.ver = msg:find( '^HTTP/(1.[01]) ', 1 );
+    if not head then
+        -- more bytes need
+        if #msg < VERSION_LEN_MAX then
+            return EAGAIN;
+        end
+
+        -- invalid version or version-length
+        return BAD_REQUEST, 'invalid version';
+    end
+    res.ver = VERSION[res.ver];
+    cur = tail + 1;
+
+    -- parse status
+    head, tail, res.ver = msg:find( '^([1-5][0-9][0-9]) ', cur );
+    if not head then
+        -- more bytes need
+        if ( #msg - cur ) < STATUS_LEN_MAX then
+            return EAGAIN;
+        end
+
+        -- invalid status-length
+        return BAD_REQUEST, 'invalid status-code';
+    end
+    res.status = tonumber( res.status );
+    cur = tail + 1;
+
+    -- parse reason-phrase
+    head, tail = msg:find( '\r?\n', cur );
+    if not head then
+        -- more bytes need
+        if ( #msg - cur ) < REASON_LEN_MAX then
+            return EAGAIN;
+        end
+
+        -- invalid reason-length
+        return BAD_REQUEST, 'invalid reason-length';
+    end
+    res.reason = msg:sub( cur, head - 1 );
+    cur = tail + 1;
+
+    -- reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
+    -- VCHAR          = %x21-7E
+    if res.reason:find( '[^ \t%w%p]' ) then
+        -- invalid reason-phrase
+        return BAD_REQUEST, 'invalid reason-phrase';
+    end
+
+    return header( res.header, msg, cur, RES_HEADER_NUM_MAX )
+end
+
+
 return {
     header = header,
     request = request,
+    response = response
 };
 
