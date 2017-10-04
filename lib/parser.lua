@@ -59,11 +59,6 @@ local EREASONLEN = -12;
 -- invalid reason-phrase format
 local EREASONFMT = -13;
 --- constants
-local Status = require('net.http.status');
-local BAD_REQUEST = -Status.BAD_REQUEST;
-local REQUEST_URI_TOO_LONG = -Status.REQUEST_URI_TOO_LONG;
-local REQUEST_HEADER_FIELDS_TOO_LARGE = -Status.REQUEST_HEADER_FIELDS_TOO_LARGE;
-local NOT_IMPLEMENTED = -Status.NOT_IMPLEMENTED;
 local SLASH = string.byte('/');
 local CRLF_SKIPS = {
     [('\n'):byte(1)] = 2,
@@ -109,7 +104,6 @@ local RES_HEADER_NUM_MAX = 31;
 -- @param cur
 -- @param maxhdr
 -- @return consumed
--- @return err
 local function header( hdr, msg, cur, maxhdr )
     local nhdr = 0;
     local head, tail;
@@ -119,7 +113,7 @@ local function header( hdr, msg, cur, maxhdr )
     end
 
     if maxhdr == nil then
-        maxhdr = DEFAULT_HEADER_NUM_MAX;
+        maxhdr = HEADER_NUM_MAX;
     end
 
     -- parse header
@@ -132,14 +126,14 @@ local function header( hdr, msg, cur, maxhdr )
         end
 
         -- invalid header-length
-        return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
+        return EHDRLEN;
     end
 
     -- parse headers
     while head ~= cur do
         -- limit number of headers exceeded
         if nhdr > maxhdr then
-            return BAD_REQUEST, 'too many headers';
+            return EHDRNUM;
         else
             local line = msg:sub( cur, head - 1 );
             local key, val;
@@ -149,15 +143,15 @@ local function header( hdr, msg, cur, maxhdr )
             -- find separater
             head = line:find( ':', 1, true );
             if not head then
-                -- invalid header
-                return BAD_REQUEST, 'invalid header format';
+                -- invalid header-format
+                return EHDRFMT;
             end
 
             -- verify key
             key = isFieldName( line:sub( 1, head - 1 ) );
             if not key then
                 -- invalid header-name
-                return BAD_REQUEST, 'invalid header-name';
+                return EHDRNAME;
             end
             key = key:lower();
 
@@ -165,7 +159,7 @@ local function header( hdr, msg, cur, maxhdr )
             val = isFieldValue( line:sub( head + 1 ) );
             if not val then
                 -- invalid header-value
-                return BAD_REQUEST, 'invalid header-value';
+                return EHDRVAL;
             end
 
             -- duplicated
@@ -187,7 +181,7 @@ local function header( hdr, msg, cur, maxhdr )
                 end
 
                 -- invalid header-length
-                return REQUEST_HEADER_FIELDS_TOO_LARGE, 'invalid header-length';
+                return EHDRLEN;
             end
 
             -- count number of headers
@@ -203,7 +197,6 @@ end
 -- @param req
 -- @param msg
 -- @return consumed
--- @return err
 local function request( req, msg )
     -- skip leading CRLF
     local cur = CRLF_SKIPS[msg:byte(1)] or 1;
@@ -218,14 +211,14 @@ local function request( req, msg )
         end
 
         -- unsupported method
-        return NOT_IMPLEMENTED, 'unsupported method';
+        return EMETHOD;
     end
 
     -- extract method
     req.method = msg:sub( cur, head - 1 );
-    -- invalid method
+    -- unsupported method
     if not METHOD[req.method] then
-        return NOT_IMPLEMENTED, 'unsupported method';
+        return EMETHOD;
     end
     cur = head + 1;
 
@@ -240,10 +233,10 @@ local function request( req, msg )
             end
 
             -- uri too long
-            return REQUEST_URI_TOO_LONG, 'uri too long';
+            return EURILEN;
         -- uri too long
         elseif ( head - cur ) > URI_LEN_MAX then
-            return REQUEST_URI_TOO_LONG, 'uri too long';
+            return EURILEN;
         end
 
         -- extract path
@@ -267,7 +260,7 @@ local function request( req, msg )
         -- scheme = alpha *( alpha / digit / "+" / "-" / "." )
         -- invalid scheme
         if not req.scheme:find('^(%a[%w+.-]*)$') then
-            return BAD_REQUEST, 'invalid scheme format';
+            return EURIFMT;
         end
         cur = tail + 1;
 
@@ -281,10 +274,10 @@ local function request( req, msg )
             end
 
             -- invalid authority-length
-            return BAD_REQUEST, 'invalid authority-length';
+            return EURIFMT;
         -- invalid authority-length
         elseif #authority > AUTHORITY_LEN_MAX then
-            return BAD_REQUEST, 'invalid authority-length';
+            return EURIFMT;
         end
         cur = tail + 1;
 
@@ -296,7 +289,7 @@ local function request( req, msg )
             -- verify port
             if not req.port or not isUInt16( req.port ) then
                 -- invalid port or port-range
-                return BAD_REQUEST, 'invalid port';
+                return EURIFMT;
             end
             req.host = authority:sub( 1, head - 1 );
         else
@@ -306,7 +299,7 @@ local function request( req, msg )
         -- verify host
         if not isHostname( req.host ) then
             -- invalid hostname
-            return BAD_REQUEST, 'invalid host';
+            return EURIFMT;
         end
 
         -- found SLASH
@@ -320,10 +313,10 @@ local function request( req, msg )
                 end
 
                 -- uri too long
-                return REQUEST_URI_TOO_LONG, 'uri too long';
+                return EURILEN;
             -- uri too long
             elseif ( head - top ) > URI_LEN_MAX then
-                return REQUEST_URI_TOO_LONG, 'uri too long';
+                return EURILEN;
             end
 
             -- extract path
@@ -347,7 +340,7 @@ local function request( req, msg )
         end
 
         -- invalid version or version-length
-        return BAD_REQUEST, 'invalid version';
+        return EVERSION;
     end
     req.ver = VERSION[req.ver];
     cur = tail + 1;
@@ -361,7 +354,6 @@ end
 -- @param res
 -- @param msg
 -- @return consumed
--- @return err
 local function response( res, msg )
     local head, tail, cur;
 
@@ -374,7 +366,7 @@ local function response( res, msg )
         end
 
         -- invalid version or version-length
-        return BAD_REQUEST, 'invalid version';
+        return EVERSION;
     end
     res.ver = VERSION[res.ver];
     cur = tail + 1;
@@ -387,8 +379,8 @@ local function response( res, msg )
             return EAGAIN;
         end
 
-        -- invalid status-length
-        return BAD_REQUEST, 'invalid status-code';
+        -- invalid status-code
+        return ESTATUS;
     end
     res.status = tonumber( res.status );
     cur = tail + 1;
@@ -402,7 +394,7 @@ local function response( res, msg )
         end
 
         -- invalid reason-length
-        return BAD_REQUEST, 'invalid reason-length';
+        return EREASONLEN;
     end
     res.reason = msg:sub( cur, head - 1 );
     cur = tail + 1;
@@ -411,7 +403,7 @@ local function response( res, msg )
     -- VCHAR          = %x21-7E
     if res.reason:find( '[^ \t%w%p]' ) then
         -- invalid reason-phrase
-        return BAD_REQUEST, 'invalid reason-phrase';
+        return EREASONFMT;
     end
 
     return header( res.header, msg, cur, RES_HEADER_NUM_MAX )
