@@ -180,15 +180,12 @@ local function header( hdr, msg, cur, limits )
             key = key:lower();
 
             -- verify val
-            val = strtrim( line:sub( head + 1 ) );
+            val = isFieldValue( line:sub( head + 1 ) );
+            if not val then
+                -- invalid header-value
+                return EHDRVAL;
             -- ignore empty val
-            if #val > 0 then
-                val = isFieldValue( line:sub( head + 1 ) );
-                if not val then
-                    -- invalid header-value
-                    return EHDRVAL;
-                end
-
+            elseif #val > 0 then
                 -- duplicated
                 if hdr[key] then
                     hdr[key] = {

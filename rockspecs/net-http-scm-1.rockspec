@@ -12,7 +12,7 @@ description = {
 dependencies = {
     "lua >= 5.1",
     "net >= 0.18.0",
-    "rfcvalid >= 0.4.0"
+    "rfcvalid >= 0.4.1"
 }
 build = {
     type = "builtin",
