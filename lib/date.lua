@@ -29,12 +29,12 @@
 --- assign to local
 local date = os.date;
 --- file scope variables
-local CURRENT_DATE = date('!Date: %a, %d %b %Y %H:%M:%S GMT');
+local CURRENT_DATE = date('!%a, %d %b %Y %H:%M:%S GMT');
 
 
 --- update
 local function update()
-    CURRENT_DATE = date('!Date: %a, %d %b %Y %H:%M:%S GMT');
+    CURRENT_DATE = date('!%a, %d %b %Y %H:%M:%S GMT');
 end
 
 
