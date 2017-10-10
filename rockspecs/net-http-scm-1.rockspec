@@ -19,6 +19,7 @@ build = {
     modules = {
         ['net.http.connection'] = "lib/connection.lua",
         ['net.http.date'] = "lib/date.lua",
+        ['net.http.header'] = "lib/header.lua",
         ['net.http.parser'] = "lib/parser.lua",
         ['net.http.response'] = "lib/response.lua",
         ['net.http.server'] = "lib/server.lua",

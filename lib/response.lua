@@ -27,95 +27,8 @@
 --]]
 
 --- assign to local
-local isFieldName = require('rfcvalid.7230').isFieldName;
-local isFieldValue = require('rfcvalid.7230').isFieldValue;
-local isCookieValue = require('rfcvalid.6265').isCookieValue;
+local Header = require('net.http.header');
 local toline = require('net.http.status').toline;
---- constants
-local CRLF = '\r\n';
---- static variables
-local HEADERS = setmetatable({}, {
-    __mode = 'k'
-});
-
-
---- class Header
-local Header = {};
-
-
---- tostring
-function Header:__tostring()
-    local tbl = HEADERS[self];
-
-    if tbl then
-        local str = '';
-
-        for k, v in pairs( tbl ) do
-            str = str .. k .. ': ' .. v .. CRLF;
-        end
-
-        return str .. CRLF;
-    end
-end
-
-
---- index
-function Header:__index( k )
-    local tbl = HEADERS[self];
-
-    if tbl then
-        return tbl[k];
-    end
-end
-
-
---- newindex
-function Header:__newindex( k, v )
-    local tbl = HEADERS[self];
-
-    if tbl then
-        -- verify name
-        k = isFieldName( k );
-        if k then
-            -- verify value
-            if v ~= nil then
-                if type( v ) ~= 'string' then
-                    v = tostring( v );
-                end
-
-                -- verify value
-                if k:lower() ~= 'set-cookie' then
-                    v = isFieldValue( v );
-                else
-                    v = isCookieValue( v );
-                end
-
-                if not v then
-                    error( 'field-value must be rfc valid value', 2 );
-                end
-            end
-
-            tbl[k] = v;
-        else
-            error( 'field-name must be rfc valid name', 2 );
-        end
-    end
-end
-
-
---- createHeader
--- @return header
-local function createHeader()
-    local self = setmetatable( {}, Header );
-
-    -- create header table
-    HEADERS[self] = {
-        Server = 'lua-net-http',
-        ['Content-Type'] = 'text/plain'
-    };
-
-    return self;
-end
 
 
 --- class Response
@@ -130,7 +43,7 @@ local Response = {};
 -- @return timeout
 function Response:sendHeader( status, ver )
     return self.conn:sendHeader( toline( status, ver or 1 ) ..
-                                 tostring( self.header ) );
+                                 self.header:getlines() );
 end
 
 
@@ -147,10 +60,11 @@ end
 --- new
 -- @param conn
 -- @return res
+-- @return err
 local function new( conn )
     return setmetatable({
         conn = conn,
-        header = createHeader()
+        header = Header.new()
     },{
         __index = Response
     });
