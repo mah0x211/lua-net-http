@@ -27,7 +27,6 @@
 --]]
 
 --- asign to local
-local strtrim = require('rfcvalid.util').strtrim;
 local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isHostname = require('rfcvalid.1035').isHostname;
