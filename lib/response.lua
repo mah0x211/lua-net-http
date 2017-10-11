@@ -62,9 +62,10 @@ end
 -- @param conn
 -- @return res
 -- @return err
-local function new( conn )
+local function new( conn, ver )
     return setmetatable({
         conn = conn,
+        ver = ver or 1.1,
         header = Header.new()
     },{
         __index = Response
