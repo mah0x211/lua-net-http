@@ -29,7 +29,6 @@
 --- assign to local
 local Parser = require('net.http.parser');
 local Status = require('net.http.status');
-local ParseRequest = Parser.request;
 --- constants
 local REQUEST_TIMEOUT = Status.REQUEST_TIMEOUT;
 local INTERNAL_SERVER_ERROR = Status.INTERNAL_SERVER_ERROR;
@@ -73,20 +72,27 @@ end
 
 
 --- recv
--- @return req
---  method
---  scheme (optional)
---  host (optional)
---  port (optional)
---  path
---  ver
---  header
+-- @return entity
+--  request-entity
+--      method
+--      scheme (optional)
+--      host (optional)
+--      port (optional)
+--      path
+--      ver
+--      header
+--  response-entity
+--      ver
+--      status
+--      reasons
+--      header
 -- @return rc
 -- @return err
 function Connection:recv()
     local sock = self.sock;
+    local parser = self.parser;
     local buf = self.buf;
-    local req = {
+    local entity = {
         header = {}
     };
 
@@ -95,14 +101,14 @@ function Connection:recv()
 
         -- parse buffered message
         if #buf > 0 then
-            cur = ParseRequest( req, buf );
+            cur = parser( entity, buf );
         end
 
         -- parsed
         if cur > 0 then
             -- remove bytes used
             self.buf = buf:sub( cur + 1 );
-            return req;
+            return entity;
         -- more bytes need
         elseif cur == EAGAIN then
             local str, err, timeout = sock:recv();
@@ -140,9 +146,10 @@ end
 --- createConnection
 -- @param sock
 -- @return conn
-local function new( sock )
+local function new( sock, parser )
     return setmetatable({
         sock = sock,
+        parser = parser,
         buf = ''
     },{
         __index = Connection

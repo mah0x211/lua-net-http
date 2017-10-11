@@ -30,6 +30,7 @@
 local InetServer = require('net.stream.inet').server;
 local UnixServer = require('net.stream.unix').server;
 local Connection = require('net.http.connection');
+local ParseRequest = require('net.http.parser').request;
 
 
 --- class Server
@@ -56,7 +57,7 @@ function Server:accept()
         return nil, err;
     end
 
-    return Connection.new( sock );
+    return Connection.new( sock, ParseRequest );
 end
 
 
