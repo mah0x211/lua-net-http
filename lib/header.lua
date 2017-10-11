@@ -27,12 +27,13 @@
 --]]
 
 --- assign to local
--- local isFieldName = require('rfcvalid.7230').isFieldName;
--- local isFieldValue = require('rfcvalid.7230').isFieldValue;
--- local isCookieValue = require('rfcvalid.6265').isCookieValue;
+local createtable = require('net.http.util.implc').createtable;
 local concat = table.concat;
 --- constants
+local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
+local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
 local CRLF = '\r\n';
+local DELIM = ': ';
 
 
 --- class Header
@@ -43,70 +44,59 @@ local Header = {};
 -- @param key
 -- @return ok
 function Header:del( k )
-    assert( type( k ) == 'string', 'key must be string' );
-    local key = k:lower();
-    local idx = self.vidx[key];
+    if type( k ) == 'string' then
+        local key = k:lower();
+        local idx = self.dict[key];
 
-    if idx then
-        local nval = self.nval;
-        local vals = self.vals;
-        local vidx = self.vidx;
+        if idx then
+            local vals = self.vals;
+            local dict = self.dict;
+            local tail = #vals;
 
-        vidx[key] = nil;
-        -- fill holes by last value
-        if nval ~= idx then
-            vals[idx] = vals[nval];
-            vals[nval] = nil;
+            dict[key] = nil;
+            if idx == tail then
+                vals[idx] = nil;
+                dict[idx] = nil;
+            -- fill holes by last value
+            else
+                dict[dict[tail]] = idx;
+                vals[idx] = vals[tail];
+                vals[tail] = nil;
+            end
 
-            vidx[idx] = vidx[nval];
-            vidx[vidx[nval]] = idx;
-            vidx[nval] = nil;
-        -- remove value
-        else
-            vals[idx] = nil;
-            vidx[idx] = nil;
+            return true;
         end
 
-        -- update number of values
-        nval = nval - 1;
-        self.nval = nval;
-
-        return true;
+        return false;
     end
 
-    return false;
+    error( 'key must be string' );
 end
 
 
---- setval
--- @param vals
--- @param key
+--- checkval
 -- @param val
--- @param idx
--- @return ok
-local function tostr( key, val )
+-- @param tbl2str
+-- @return val
+-- @return len
+local function checkval( val, tbl2str )
     local t = type( val );
 
     if t == 'string' then
-        return key .. ': ' .. val .. CRLF;
-    -- set multiple value
-    elseif t == 'table' then
-        local arr = {};
+        return val;
+    elseif t ~= 'table' or tbl2str == true then
+        return tostring( val );
+    else
+        local len = #val;
 
-        -- ignore empty array
-        if #val > 0 then
-            for i = 1, #val do
-                if type( val[i] ) == 'string' then
-                    arr[i] = key .. ': ' .. val[i];
-                else
-                    arr[i] = key .. ': ' .. tostring( val[i] );
-                end
+        if len > 0 then
+            if len == 1 then
+                return checkval( val[1], true );
             end
 
-            return concat( arr, CRLF ) .. CRLF;
+            -- multiple value
+            return val, len;
         end
-    else
-        return key .. ': ' .. tostring( val ) .. CRLF;
     end
 end
 
@@ -114,58 +104,67 @@ end
 --- set
 -- @param key
 -- @param val
--- @return ok
-function Header:set( k, val )
-    assert( type( k ) == 'string', 'key must be string' );
-    assert( val ~= nil, 'val must not be nil' );
-    val = tostr( k, val );
-    if val then
-        local key = k:lower();
-        local idx = self.vidx[key];
+function Header:set( k, v )
+    if type( k ) == 'string' then
+        if v ~= nil then
+            local val, len = checkval( v );
 
-        -- update current value
-        if idx then
-            self.vals[idx] = val;
+            if val then
+                local vals = self.vals;
+                local dict = self.dict;
+                local key = k:lower();
+                local idx = dict[key];
+
+                -- add value
+                if not idx then
+                    idx = #vals + 1;
+                    dict[idx] = key;
+                    dict[key] = idx;
+                end
+
+                -- add value
+                if not len then
+                    vals[idx] = k .. DELIM .. val .. CRLF;
+                else
+                    local arr = {};
+
+                    for i = 1, len do
+                        arr[i] = k .. DELIM .. checkval( val[i], true ) .. CRLF;
+                    end
+
+                    vals[idx] = concat( arr );
+                end
+            end
         else
-            -- add new value
-            local nval = self.nval + 1;
-
-            self.vals[nval] = val;
-            self.nval = nval;
-            -- update index
-            self.vidx[nval] = key;
-            self.vidx[key] = nval;
+            error( 'val must not be nil' );
         end
-
-        return true;
+    else
+        error( 'key must be string' );
     end
-
-    return false;
-end
-
-
---- getlines
--- @return lines
-function Header:getlines()
-    return concat( self.vals );
 end
 
 
 --- new
 -- @return header
 local function new()
+    local vals = createtable( 15 );
+    local dict = createtable( 15, 15 );
+
+    -- reserved for first-line
+    vals[1] = '';
+    vals[2] = DEFAULT_SERVER;
+    vals[3] = DEFAULT_CONTENT_TYPE;
+
+    -- reserved for first-line
+    dict[1] = false
+    dict[2] = 'server'
+    dict[3] = 'content-type'
+    dict.server = 2
+    dict['content-type'] = 3
+
     return setmetatable({
-        vidx = {
-            'server',
-            'content-type',
-            server = 1,
-            ['content-type'] = 2,
-        },
-        vals = {
-            'Server: lua-net-http',
-            'Content-Type: text/plain'
-        },
-        nval = 2;
+        vals = vals,
+        dict = dict,
     }, {
         __index = Header,
     });
