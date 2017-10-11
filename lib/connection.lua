@@ -133,10 +133,6 @@ end
 -- @return err
 -- @return timeout
 function Connection:send( msg )
-    if self.cork then
-        self.cork = self.sock:tcpcork( false );
-    end
-
     return self.sock:send( msg );
 end
 
@@ -147,8 +143,7 @@ end
 local function new( sock )
     return setmetatable({
         sock = sock,
-        buf = '',
-        cork = false,
+        buf = ''
     },{
         __index = Connection
     });
