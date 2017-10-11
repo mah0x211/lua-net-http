@@ -24,6 +24,9 @@ build = {
         ['net.http.response'] = "lib/response.lua",
         ['net.http.server'] = "lib/server.lua",
         ['net.http.status'] = "lib/status.lua",
+        ['net.http.util.implc'] = {
+            sources = { "src/implc.c" }
+        },
     }
 }
 
