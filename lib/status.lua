@@ -116,10 +116,10 @@ local function toline( code, ver )
     else
         assert( type( ver ) == 'number', 'ver must be number' );
         -- http/1.0
-        if ver == 0 then
+        if ver == 1.0 then
             msg = STATUS_LINE10[code];
         -- http/1.1
-        elseif ver == 1 then
+        elseif ver == 1.1 then
             msg = STATUS_LINE11[code];
         -- invalid version number
         else
