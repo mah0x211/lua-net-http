@@ -29,21 +29,32 @@
 --- assign to local
 local Header = require('net.http.header');
 local toline = require('net.http.status').toline;
+local concat = table.concat;
+--- concstants
+local CRLF = '\r\n';
 
 
 --- class Response
 local Response = {};
 
 
-
-
 --- send
+-- @param status
 -- @param msg
 -- @return len
 -- @return err
 -- @return timeout
-function Response:send( msg )
-    return self.conn:send( msg );
+function Response:send( status, msg )
+    local vals = self.header.vals;
+    local nval;
+
+    self.header:set( 'Content-Length', #msg );
+    nval = #vals;
+    vals[1] = toline( status, self.ver );
+    vals[nval + 1] = CRLF;
+    vals[nval + 2] = msg;
+
+    return self.conn:send( concat( vals ) );
 end
 
 
