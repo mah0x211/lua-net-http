@@ -29,6 +29,8 @@
 --- assign to local
 local Parser = require('net.http.parser');
 local Status = require('net.http.status');
+local setmetatable = setmetatable;
+local strsub = string.sub;
 --- constants
 local REQUEST_TIMEOUT = Status.REQUEST_TIMEOUT;
 local INTERNAL_SERVER_ERROR = Status.INTERNAL_SERVER_ERROR;
@@ -107,7 +109,7 @@ function Connection:recv()
         -- parsed
         if cur > 0 then
             -- remove bytes used
-            self.buf = buf:sub( cur + 1 );
+            self.buf = strsub( buf, cur + 1 );
             return entity;
         -- more bytes need
         elseif cur == EAGAIN then

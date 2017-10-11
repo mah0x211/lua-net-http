@@ -32,6 +32,11 @@ local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isHostname = require('rfcvalid.1035').isHostname;
 local isUInt16 = require('rfcvalid.1035').isUInt16;
 local isVchar = require('rfcvalid.implc').isvchar;
+local tonumber = tonumber;
+local strfind = string.find;
+local strsub = string.sub;
+local strbyte = string.byte;
+local strlower = string.lower;
 --- error constants
 -- need more bytes
 local EAGAIN = -1;
@@ -60,10 +65,10 @@ local EREASONLEN = -12;
 -- invalid reason-phrase format
 local EREASONFMT = -13;
 --- constants
-local SLASH = string.byte('/');
+local SLASH = strbyte('/');
 local CRLF_SKIPS = {
-    [('\n'):byte(1)] = 2,
-    [('\r'):byte(1)] = 3
+    [strbyte('\n')] = 2,
+    [strbyte('\r')] = 3
 };
 local VERSION = {
     ['1.0'] = 1.0,
@@ -138,7 +143,7 @@ local function header( hdr, msg, cur, limits )
     end
 
     -- parse header
-    head, tail = msg:find( '\r?\n', cur );
+    head, tail = strfind( msg, '\r?\n', cur );
 
     if not head then
         -- more bytes need
@@ -159,28 +164,28 @@ local function header( hdr, msg, cur, limits )
         if nhdr > limits.HEADER_NUM_MAX then
             return EHDRNUM;
         else
-            local line = msg:sub( cur, head - 1 );
+            local line = strsub( msg, cur, head - 1 );
             local key, val;
 
             -- update cursor
             cur = tail + 1;
             -- find separater
-            head = line:find( ':', 1, true );
+            head = strfind( line, ':', 1, true );
             if not head then
                 -- invalid header-format
                 return EHDRFMT;
             end
 
             -- verify key
-            key = isFieldName( line:sub( 1, head - 1 ) );
+            key = isFieldName( strsub( line, 1, head - 1 ) );
             if not key then
                 -- invalid header-name
                 return EHDRNAME;
             end
-            key = key:lower();
+            key = strlower( key );
 
             -- verify val
-            val = isFieldValue( line:sub( head + 1 ) );
+            val = isFieldValue( strsub( line, head + 1 ) );
             if not val then
                 -- invalid header-value
                 return EHDRVAL;
@@ -198,7 +203,7 @@ local function header( hdr, msg, cur, limits )
             end
 
             -- find next line
-            head, tail = msg:find( '\r?\n', cur );
+            head, tail = strfind( msg, '\r?\n', cur );
             if not head then
                 -- more bytes need
                 if ( #msg - cur ) <= limits.HEADER_LEN_MAX then
@@ -228,7 +233,7 @@ end
 -- @return consumed
 local function request( req, msg, limits )
     -- skip leading CRLF
-    local cur = CRLF_SKIPS[msg:byte(1)] or 1;
+    local cur = CRLF_SKIPS[strbyte( msg, 1 )] or 1;
     local head, tail;
 
     -- use default-limits
@@ -237,7 +242,7 @@ local function request( req, msg, limits )
     end
 
     -- find tail of method
-    head = msg:find(' ', cur, true );
+    head = strfind( msg, ' ', cur, true );
     if not head then
         -- more bytes need
         if #msg < METHOD_LEN_MAX then
@@ -249,7 +254,7 @@ local function request( req, msg, limits )
     end
 
     -- extract method
-    req.method = msg:sub( cur, head - 1 );
+    req.method = strsub( msg, cur, head - 1 );
     -- unsupported method
     if not METHOD[req.method] then
         return EMETHOD;
@@ -257,9 +262,9 @@ local function request( req, msg, limits )
     cur = head + 1;
 
     -- parse absolute-path
-    if msg:byte( cur ) == SLASH then
+    if strbyte( msg, cur ) == SLASH then
         -- find tail of path
-        head = msg:find( ' ', cur + 1, true );
+        head = strfind( msg, ' ', cur + 1, true );
         if not head then
             -- more bytes need
             if ( #msg - cur ) <= limits.URI_LEN_MAX then
@@ -274,7 +279,7 @@ local function request( req, msg, limits )
         end
 
         -- extract path
-        req.path = msg:sub( cur, head - 1 );
+        req.path = strsub( msg, cur, head - 1 );
         cur = head + 1;
 
     -- parse scheme and authority
@@ -283,24 +288,24 @@ local function request( req, msg, limits )
         local authority;
 
         -- find tail of scheme
-        head, tail = msg:find( '://', cur, true );
+        head, tail = strfind( msg, '://', cur, true );
         -- more bytes need
         if not head then
             return EAGAIN;
         end
 
         -- extract scheme
-        req.scheme = msg:sub( cur, head - 1 );
+        req.scheme = strsub( msg, cur, head - 1 );
         -- scheme = alpha *( alpha / digit / "+" / "-" / "." )
         -- invalid scheme
-        if not req.scheme:find('^(%a[%w+.-]*)$') then
+        if not strfind( req.scheme, '^(%a[%w+.-]*)$' ) then
             return EURIFMT;
         end
         cur = tail + 1;
 
         -- parse authority
         -- find tail of authority (SLASH or SP)
-        head, tail, authority = msg:find( '^([^/ ]+)', cur );
+        head, tail, authority = strfind( msg, '^([^/ ]+)', cur );
         if not head then
             -- more bytes need
             if ( #msg - cur ) <= AUTHORITY_LEN_MAX then
@@ -316,16 +321,16 @@ local function request( req, msg, limits )
         cur = tail + 1;
 
         -- find port separater
-        head = authority:find( ':', 1, true );
+        head = strfind( authority, ':', 1, true );
         if head then
             -- extract port
-            req.port = tonumber( authority:sub( head + 1 ) );
+            req.port = tonumber( strsub( authority, head + 1 ) );
             -- verify port
             if not req.port or not isUInt16( req.port ) then
                 -- invalid port or port-range
                 return EURIFMT;
             end
-            req.host = authority:sub( 1, head - 1 );
+            req.host = strsub( authority, 1, head - 1 );
         else
             req.host = authority;
         end
@@ -337,9 +342,9 @@ local function request( req, msg, limits )
         end
 
         -- found SLASH
-        if msg:byte( cur ) == SLASH then
+        if strbyte( msg, cur ) == SLASH then
             -- find tail of path
-            head = msg:find( ' ', cur, true );
+            head = strfind( msg, ' ', cur, true );
             if not head then
                 -- more bytes need
                 if ( cur - top ) <= limits.URI_LEN_MAX then
@@ -354,7 +359,7 @@ local function request( req, msg, limits )
             end
 
             -- extract path
-            req.path = msg:sub( cur, head - 1 );
+            req.path = strsub( msg, cur, head - 1 );
             cur = head + 1;
         -- found SP
         else
@@ -366,7 +371,7 @@ local function request( req, msg, limits )
     -- TODO: verify path
 
     -- parse version
-    head, tail, req.ver = msg:find( '^HTTP/(1.[01])\r?\n', cur );
+    head, tail, req.ver = strfind( msg, '^HTTP/(1.[01])\r?\n', cur );
     if not head then
         -- more bytes need
         if ( #msg - cur ) < VERSION_LEN_MAX then
@@ -398,7 +403,7 @@ local function response( res, msg, limits )
     end
 
     -- parse version
-    head, tail, res.ver = msg:find( '^HTTP/(1.[01]) ', 1 );
+    head, tail, res.ver = strfind( msg, '^HTTP/(1.[01]) ', 1 );
     if not head then
         -- more bytes need
         if #msg < VERSION_LEN_MAX then
@@ -412,7 +417,7 @@ local function response( res, msg, limits )
     cur = tail + 1;
 
     -- parse status
-    head, tail, res.status = msg:find( '^([1-5][0-9][0-9]) ', cur );
+    head, tail, res.status = strfind( msg, '^([1-5][0-9][0-9]) ', cur );
     if not head then
         -- more bytes need
         if ( #msg - cur ) < STATUS_LEN_MAX then
@@ -426,7 +431,7 @@ local function response( res, msg, limits )
     cur = tail + 1;
 
     -- parse reason-phrase
-    head, tail = msg:find( '\r?\n', cur );
+    head, tail = strfind( msg, '\r?\n', cur );
     if not head then
         -- more bytes need
         if ( #msg - cur ) < limits.REASON_LEN_MAX then
@@ -436,7 +441,7 @@ local function response( res, msg, limits )
         -- invalid reason-length
         return EREASONLEN;
     end
-    res.reason = msg:sub( cur, head - 1 );
+    res.reason = strsub( msg, cur, head - 1 );
     cur = tail + 1;
 
     -- reason-phrase  = *( HTAB / SP / VCHAR / obs-text )

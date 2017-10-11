@@ -30,6 +30,7 @@
 local Header = require('net.http.header');
 local toline = require('net.http.status').toline;
 local concat = table.concat;
+local setmetatable = setmetatable;
 --- concstants
 local CRLF = '\r\n';
 

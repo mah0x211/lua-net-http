@@ -31,6 +31,7 @@ local InetServer = require('net.stream.inet').server;
 local UnixServer = require('net.stream.unix').server;
 local Connection = require('net.http.connection');
 local ParseRequest = require('net.http.parser').request;
+local setmetatable = setmetatable;
 
 
 --- class Server

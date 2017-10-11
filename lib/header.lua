@@ -29,6 +29,11 @@
 --- assign to local
 local createtable = require('net.http.util.implc').createtable;
 local concat = table.concat;
+local type = type;
+local error = error;
+local tostring = tostring;
+local setmetatable = setmetatable;
+local strlower = string.lower;
 --- constants
 local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
 local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
@@ -45,7 +50,7 @@ local Header = {};
 -- @return ok
 function Header:del( k )
     if type( k ) == 'string' then
-        local key = k:lower();
+        local key = strlower( k );
         local idx = self.dict[key];
 
         if idx then
@@ -112,7 +117,7 @@ function Header:set( k, v )
             if val then
                 local vals = self.vals;
                 local dict = self.dict;
-                local key = k:lower();
+                local key = strlower( k );
                 local idx = dict[key];
 
                 -- add value
