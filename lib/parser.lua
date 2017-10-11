@@ -31,6 +31,7 @@ local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isHostname = require('rfcvalid.1035').isHostname;
 local isUInt16 = require('rfcvalid.1035').isUInt16;
+local isVchar = require('rfcvalid.implc').isvchar;
 --- error constants
 -- need more bytes
 local EAGAIN = -1;
@@ -440,7 +441,8 @@ local function response( res, msg, limits )
 
     -- reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
     -- VCHAR          = %x21-7E
-    if res.reason:find( '[^ \t%w%p]' ) then
+    res.reasons = isVchar( res.reason );
+    if not res.reason then
         -- invalid reason-phrase
         return EREASONFMT;
     end
