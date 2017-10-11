@@ -35,16 +35,6 @@ local toline = require('net.http.status').toline;
 local Response = {};
 
 
---- sendHeader
--- @param status
--- @param ver
--- @return len
--- @return err
--- @return timeout
-function Response:sendHeader( status, ver )
-    return self.conn:sendHeader( toline( status, ver or 1 ) ..
-                                 self.header:getlines() );
-end
 
 
 --- send
