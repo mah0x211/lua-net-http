@@ -64,6 +64,47 @@ end
 local Request = {};
 
 
+--- line
+-- @return str
+function Request:line()
+    local arr = {
+        self.method,
+        ' '
+    };
+    local narr = 4;
+
+    -- create request line
+    if self.scheme then
+        arr[3] = self.scheme;
+        arr[4] = '://';
+        arr[5] = self.host;
+        if self.port then
+            arr[6] = ':';
+            arr[7] = self.port;
+            arr[8] = self.path;
+            narr = 9;
+        else
+            arr[6] = self.path;
+            narr = 7;
+        end
+    else
+        arr[3] = self.path;
+    end
+
+    -- append query-string
+    if self.query then
+        arr[narr] = '?';
+        arr[narr + 1] = self.query;
+        narr = narr + 2;
+    end
+
+    -- set version
+    arr[narr] = ' HTTP/1.1\r\n';
+
+    return concat( arr );
+end
+
+
 --- setQuery
 -- @param qry
 function Request:setQuery( qry )
