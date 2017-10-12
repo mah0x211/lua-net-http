@@ -87,6 +87,12 @@ function Request:setQuery( qry )
 end
 
 
+--- unsetQuery
+function Request:unsetQuery()
+    self.query = nil;
+end
+
+
 --- new
 -- @param method
 -- @param uri
