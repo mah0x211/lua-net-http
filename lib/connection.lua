@@ -27,7 +27,9 @@
 --]]
 
 --- assign to local
+local InetClient = require('net.stream.inet').client;
 local Parser = require('net.http.parser');
+local ParseResponse = Parser.response;
 local Status = require('net.http.status');
 local setmetatable = setmetatable;
 local strsub = string.sub;
@@ -151,7 +153,28 @@ local function new( sock, parser )
 end
 
 
+--- open
+-- @param host
+-- @param port
+-- @return conn
+-- @return err
+local function open( host, port )
+    local sock, err = InetClient.new({
+        host = host,
+        port = port,
+    });
+
+    if err then
+        return nil, err;
+    end
+
+    return new( sock, ParseResponse );
+end
+
+
+
 return {
-    new = new
+    new = new,
+    open = open
 };
 
