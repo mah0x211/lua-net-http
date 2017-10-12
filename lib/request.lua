@@ -56,6 +56,10 @@ for k, v in pairs({
 end
 
 
+--- class Request
+local Request = {};
+
+
 --- new
 -- @param method
 -- @param uri
@@ -109,7 +113,9 @@ local function new( method, uri )
 
     req.method = method;
 
-    return req;
+    return setmetatable( req, {
+        __index = Request
+    });
 end
 
 
