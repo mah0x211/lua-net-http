@@ -32,8 +32,6 @@ local Status = require('net.http.status');
 local setmetatable = setmetatable;
 local strsub = string.sub;
 --- constants
-local REQUEST_TIMEOUT = Status.REQUEST_TIMEOUT;
-local INTERNAL_SERVER_ERROR = Status.INTERNAL_SERVER_ERROR;
 -- need more bytes
 local EAGAIN = Parser.EAGAIN;
 --- parse error code to http status code
@@ -88,8 +86,9 @@ end
 --      status
 --      reasons
 --      header
--- @return rc
 -- @return err
+-- @return timeout
+-- @return perr
 function Connection:recv()
     local sock = self.sock;
     local parser = self.parser;
@@ -115,21 +114,14 @@ function Connection:recv()
         elseif cur == EAGAIN then
             local str, err, timeout = sock:recv();
 
-            -- 500 internal server error
-            if err then
-                return nil, INTERNAL_SERVER_ERROR, err;
-            -- 408 request timedout
-            elseif timeout then
-                return nil, REQUEST_TIMEOUT;
-            -- closed by peer
-            elseif not str then
-                return;
+            if not str or err or timeout then
+                return nil, err, timeout;
             end
 
             buf = buf .. str;
-        -- invalid request
+        -- parse error
         else
-            return nil, PERR2STATUS[cur];
+            return nil, nil, nil, PERR2STATUS[cur];
         end
     end
 end
