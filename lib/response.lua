@@ -31,7 +31,9 @@ local Header = require('net.http.header');
 local toline = require('net.http.status').toline;
 local concat = table.concat;
 local setmetatable = setmetatable;
---- concstants
+--- constants
+local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
+local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
 local CRLF = '\r\n';
 
 
@@ -64,6 +66,22 @@ end
 -- @return res
 -- @return err
 local function new( conn, ver )
+    local header = Header.new( 15, 15 );
+    local vals = header.vals;
+    local dict = header.dict;
+
+    -- reserved for first-line
+    vals[1] = '';
+    vals[2] = DEFAULT_SERVER;
+    vals[3] = DEFAULT_CONTENT_TYPE;
+
+    -- reserved for first-line
+    dict[1] = false;
+    dict[2] = 'server';
+    dict[3] = 'content-type';
+    dict.server = 2;
+    dict['content-type'] = 3;
+
     return setmetatable({
         conn = conn,
         ver = ver or 1.1,

@@ -35,8 +35,8 @@ local tostring = tostring;
 local setmetatable = setmetatable;
 local strlower = string.lower;
 --- constants
-local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
-local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
+local DEFAULT_NARR = 15;
+local DEFAULT_NREC = 15;
 local CRLF = '\r\n';
 local DELIM = ': ';
 
@@ -151,25 +151,10 @@ end
 
 --- new
 -- @return header
-local function new()
-    local vals = createtable( 15 );
-    local dict = createtable( 15, 15 );
-
-    -- reserved for first-line
-    vals[1] = '';
-    vals[2] = DEFAULT_SERVER;
-    vals[3] = DEFAULT_CONTENT_TYPE;
-
-    -- reserved for first-line
-    dict[1] = false
-    dict[2] = 'server'
-    dict[3] = 'content-type'
-    dict.server = 2
-    dict['content-type'] = 3
-
+local function new( narr, nrec )
     return setmetatable({
-        vals = vals,
-        dict = dict,
+        vals = createtable( narr or DEFAULT_NARR ),
+        dict = createtable( narr or DEFAULT_NARR, nrec or DEFAULT_NREC )
     }, {
         __index = Header,
     });
