@@ -11,8 +11,10 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
+    "idna >= 1.0.0",
     "net >= 0.18.0",
-    "rfcvalid >= 0.4.1"
+    "rfcvalid >= 0.4.1",
+    "url >= 1.1.0",
 }
 build = {
     type = "builtin",
@@ -21,6 +23,7 @@ build = {
         ['net.http.date'] = "lib/date.lua",
         ['net.http.header'] = "lib/header.lua",
         ['net.http.parser'] = "lib/parser.lua",
+        ['net.http.request'] = "lib/request.lua",
         ['net.http.response'] = "lib/response.lua",
         ['net.http.server'] = "lib/server.lua",
         ['net.http.status'] = "lib/status.lua",
