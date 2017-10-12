@@ -38,7 +38,8 @@ local tonumber = tonumber;
 local concat = table.concat;
 local strfind = string.find;
 --- constants
-local DEFAULT_AGENT = 'User-Agent: lua-net-http\r\n';
+local CRLF = '\r\n';
+local DEFAULT_AGENT = 'User-Agent: lua-net-http' .. CRLF;
 local SCHEME_LUT = {
     http = 80,
     https = 443
@@ -102,7 +103,10 @@ end
 -- @return res
 -- @return err
 local function new( method, uri )
-    local req, header, vals, dict, err;
+    local header = Header.new();
+    local vals = header.vals;
+    local dict = header.dict;
+    local req, hostname, err;
 
     -- check arguments
     method = METHOD_LUT[method];
@@ -114,18 +118,30 @@ local function new( method, uri )
     req, err = parseURI( uri );
     if err then
         return nil, err;
-    elseif req.scheme then
+    end
+    req.header = header;
+    req.method = method;
+
+    if req.scheme then
+        local port = SCHEME_LUT[req.scheme];
+
         -- unknown scheme
-        if not SCHEME_LUT[req.scheme] then
+        if not port then
             return nil, 'unsupported scheme';
         -- host undefined
         elseif not req.host then
             return nil, 'hostname undefined';
-        elseif req.port then
-            local port = tonumber( req.port );
-
+        -- append default port
+        elseif not req.port then
+            req.port = port;
+        -- verify port
+        else
+            port = tonumber( req.port );
             if not isUInt16( port ) then
                 return nil, 'invalid port-range'
+            -- append port-number to host header if not well-known port
+            elseif port ~= 80 and port ~= 443 then
+                hostname = port;
             end
 
             req.port = port;
@@ -145,22 +161,25 @@ local function new( method, uri )
                 return nil, err;
             end
         end
+
+        -- set host header
+        if hostname then
+            vals[3] = 'Host: ' .. req.host .. ':' .. hostname .. CRLF;
+        else
+            vals[3] = 'Host: ' .. req.host .. CRLF;
+        end
+        dict[3] = 'host';
+        dict.host = 3;
     end
 
-    -- create request header
-    header = Header.new();
-    vals = header.vals;
-    dict = header.dict;
+    -- set default headers
     -- reserved for first-line
-    vals[1] = '';
+    vals[1] = false;
     vals[2] = DEFAULT_AGENT;
     -- reserved for first-line
     dict[1] = false;
     dict[2] = 'user-agent';
     dict['user-agent'] = 2;
-
-    req.header = header;
-    req.method = method;
 
     return setmetatable( req, {
         __index = Request

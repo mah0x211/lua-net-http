@@ -71,7 +71,7 @@ local function new( conn, ver )
     local dict = header.dict;
 
     -- reserved for first-line
-    vals[1] = '';
+    vals[1] = false;
     vals[2] = DEFAULT_SERVER;
     vals[3] = DEFAULT_CONTENT_TYPE;
 
