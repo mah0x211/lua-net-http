@@ -13,7 +13,7 @@ dependencies = {
     "lua >= 5.1",
     "idna >= 1.0.0",
     "net >= 0.18.0",
-    "rfcvalid >= 0.4.1",
+    "rfcvalid >= 0.5.1",
     "url >= 1.1.0",
 }
 build = {
