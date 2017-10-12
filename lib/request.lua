@@ -31,11 +31,13 @@ local encodeURI = require('url').encodeURI;
 local decodeURI = require('url').decodeURI;
 local encodeIdna = require('idna').encode;
 local isUInt16 = require('rfcvalid.util').isUInt16;
+local Header = require('net.http.header');
 local type = type;
 local assert = assert;
 local tonumber = tonumber;
 local strfind = string.find;
 --- constants
+local DEFAULT_AGENT = 'User-Agent: lua-net-http\r\n';
 local SCHEME_LUT = {
     http = 80,
     https = 443
@@ -99,7 +101,7 @@ end
 -- @return res
 -- @return err
 local function new( method, uri )
-    local req, err;
+    local req, header, vals, dict, err;
 
     -- check arguments
     method = METHOD_LUT[method];
@@ -144,6 +146,19 @@ local function new( method, uri )
         end
     end
 
+    -- create request header
+    header = Header.new();
+    vals = header.vals;
+    dict = header.dict;
+    -- reserved for first-line
+    vals[1] = '';
+    vals[2] = DEFAULT_AGENT;
+    -- reserved for first-line
+    dict[1] = false;
+    dict[2] = 'user-agent';
+    dict.server = 2;
+
+    req.header = header;
     req.method = method;
 
     return setmetatable( req, {
