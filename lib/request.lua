@@ -75,7 +75,7 @@ local function new( method, uri )
 
     -- parse url
     uri = assert( encodeURI( uri ) );
-    req, err = parseURI( uri, true );
+    req, err = parseURI( uri );
     if err then
         return nil, err;
     elseif req.scheme then
