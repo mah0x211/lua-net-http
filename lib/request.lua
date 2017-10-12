@@ -35,6 +35,7 @@ local Header = require('net.http.header');
 local type = type;
 local assert = assert;
 local tonumber = tonumber;
+local concat = table.concat;
 local strfind = string.find;
 --- constants
 local DEFAULT_AGENT = 'User-Agent: lua-net-http\r\n';
