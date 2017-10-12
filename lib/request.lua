@@ -156,7 +156,7 @@ local function new( method, uri )
     -- reserved for first-line
     dict[1] = false;
     dict[2] = 'user-agent';
-    dict.server = 2;
+    dict['user-agent'] = 2;
 
     req.header = header;
     req.method = method;
