@@ -62,7 +62,7 @@ end
 -- @return res
 -- @return err
 local function new( method, uri )
-    local req, port, err;
+    local req, err;
 
     -- check arguments
     method = METHOD_LUT[method];
@@ -74,42 +74,40 @@ local function new( method, uri )
     req, err = parseURI( uri, true );
     if err then
         return nil, err;
-    elseif not req.scheme then
-        return nil, 'scheme undefined';
+    elseif req.scheme then
+        -- unknown scheme
+        if not SCHEME_LUT[req.scheme] then
+            return nil, 'unsupported scheme';
+        -- host undefined
+        elseif not req.host then
+            return nil, 'hostname undefined';
+        elseif req.port then
+            local port = tonumber( req.port );
+
+            if not isUInt16( port ) then
+                return nil, 'invalid port-range'
+            end
+
+            req.port = port;
+        end
+
+        -- hostname should encode by punycode
+        if strfind( req.host, '%', 1, true ) then
+            local host;
+
+            host, err = decodeURI( req.host );
+            if err then
+                return nil, err;
+            end
+
+            req.host, err = encodeIdna( host );
+            if err then
+                return nil, err;
+            end
+        end
     end
+
     req.method = method;
-
-    port = SCHEME_LUT[req.scheme];
-    -- unknown scheme
-    if not port then
-        return nil, 'unsupported scheme';
-    -- host undefined
-    elseif not req.host then
-        return nil, 'hostname undefined';
-    -- use default port
-    elseif not req.port then
-        req.port = port;
-    else
-        req.port = tonumber( req.port );
-        if not isUInt16( req.port ) then
-            return nil, 'invalid port-range'
-        end
-    end
-
-    -- hostname should encode by punycode
-    if strfind( req.host, '%', 1, true ) then
-        local host;
-
-        host, err = decodeURI( req.host );
-        if err then
-            return nil, err;
-        end
-
-        req.host, err = encodeIdna( host );
-        if err then
-            return nil, err;
-        end
-    end
 
     return req;
 end
