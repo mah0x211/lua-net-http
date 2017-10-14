@@ -105,6 +105,14 @@ function Request:line()
 end
 
 
+--- setMethod
+-- @param data
+-- @param len
+function Request:setMethod( method )
+    self.method = assert( METHOD_LUT[method], 'invalid method' );
+end
+
+
 --- setQuery
 -- @param qry
 function Request:setQuery( qry )
@@ -150,8 +158,7 @@ local function new( method, uri )
     local req, hostname, err;
 
     -- check arguments
-    method = METHOD_LUT[method];
-    assert( method, 'invalid method' );
+    method = assert( METHOD_LUT[method], 'invalid method' );
     assert( type( uri ) == 'string', 'uri must be string' );
 
     -- parse url
