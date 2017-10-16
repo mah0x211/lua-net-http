@@ -170,6 +170,13 @@ function Response:unsetBody()
 end
 
 
+--- line
+-- @return line
+function Response:line()
+    return toline( self.status, self.ver );
+end
+
+
 --- new
 -- @param conn
 -- @return res
