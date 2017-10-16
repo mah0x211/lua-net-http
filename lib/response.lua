@@ -28,19 +28,19 @@
 
 --- assign to local
 local Header = require('net.http.header');
-local Body = require('net.http.body');
 local toline = require('net.http.status').toline;
-local concat = table.concat;
+local Entity = require('net.http.entity');
+local send = Entity.send;
 local setmetatable = setmetatable;
-local strformat = string.format;
 --- constants
 local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
-local DEFAULT_READSIZ = 4096;
-local CRLF = '\r\n';
 
 
 --- class Response
-local Response = {};
+local Response = {
+    setBody = Entity.setBody,
+    unsetBody = Entity.unsetBody
+};
 
 
 --- send
@@ -49,124 +49,8 @@ local Response = {};
 -- @return err
 -- @return timeout
 function Response:send( status )
-    local vals = self.header.vals;
-    local nval = #vals;
-    local body = self.body;
-
-    vals[1] = toline( status, self.ver );
-
-    if body then
-        vals[nval + 1] = CRLF;
-        if not self.chunked then
-            vals[nval + 2] = body:read();
-        else
-            --
-            -- 4.1.  Chunked Transfer Coding
-            -- https://tools.ietf.org/html/rfc7230#section-4.1
-            --
-            --  chunked-body   = *chunk
-            --                   last-chunk
-            --                   trailer-part
-            --                   CRLF
-            --
-            --  chunk          = chunk-size [ chunk-ext ] CRLF
-            --                   chunk-data CRLF
-            --  chunk-size     = 1*HEXDIG
-            --  last-chunk     = 1*("0") [ chunk-ext ] CRLF
-            --
-            --  chunk-data     = 1*OCTET ; a sequence of chunk-size octets
-            --
-            --  chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
-            --  chunk-ext-name = token
-            --  chunk-ext-val  = token / quoted-string
-            --
-            --  trailer-part   = *( header-field CRLF )
-            --
-            local total = 0;
-            local idx = nval + 2;
-            local arr = {};
-
-            repeat
-                local data = body:read( DEFAULT_READSIZ );
-                local bytes = data and #data or 0;
-                local len, err, timeout;
-
-                vals[idx] = strformat( '%x\r\n', bytes );
-                if bytes > 0 then
-                    vals[idx + 1] = data;
-                    vals[idx + 2] = CRLF;
-                else
-                    vals[idx + 1] = CRLF;
-                end
-
-                len, err, timeout = self.conn:send( concat( vals ) );
-                if not len or err or timeout then
-                    return total, err, timeout;
-                else
-                    total = total + len;
-                    idx = 1;
-                    vals = arr;
-                    vals[3] = nil;
-                end
-            until data == nil;
-
-            return total;
-        end
-
-    end
-
-    return self.conn:send( concat( vals ) );
-end
-
-
---- setBody
--- @param data
--- @param len
--- @param ctype
-function Response:setBody( data, len, ctype )
-    if len ~= nil then
-        if self.chunked then
-            self.chunked = nil;
-            self.header:del( 'Transfer-Encoding' );
-        end
-        self.header:set( 'Content-Length', len );
-    -- chunked transfer coding
-    else
-        if self.body and not self.chunked then
-            self.header:del( 'Content-Length' );
-        end
-        self.chunked = true;
-        self.header:set( 'Transfer-Encoding', 'chunked' );
-    end
-
-    -- set content-type header
-    if ctype then
-        self.ctype = true;
-        self.header:set( 'Content-Type', ctype );
-    end
-
-    self.body = Body.new( data );
-end
-
-
---- unsetBody
-function Response:unsetBody()
-    if self.body then
-        self.body = nil;
-        -- unset related header
-        if self.chunked then
-            self.chunked = nil;
-            self.header:del( 'Transfer-Encoding' );
-        else
-            self.header:del( 'Content-Length' );
-        end
-
-        -- unset content-type header
-        if self.ctype then
-            self.ctype = nil;
-            self.header:del( 'Content-Type' );
-        end
-    end
+    self.status = status;
+    return send( self, self.conn );
 end
 
 
