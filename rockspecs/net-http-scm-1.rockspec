@@ -23,6 +23,7 @@ build = {
         ['net.http.body'] = "lib/body.lua",
         ['net.http.connection'] = "lib/connection.lua",
         ['net.http.date'] = "lib/date.lua",
+        ['net.http.entity'] = "lib/entity.lua",
         ['net.http.header'] = "lib/header.lua",
         ['net.http.parser'] = "lib/parser.lua",
         ['net.http.request'] = "lib/request.lua",
