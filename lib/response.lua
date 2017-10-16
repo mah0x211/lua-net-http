@@ -28,6 +28,7 @@
 
 --- assign to local
 local Header = require('net.http.header');
+local Body = require('net.http.body');
 local toline = require('net.http.status').toline;
 local concat = table.concat;
 local setmetatable = setmetatable;
@@ -58,6 +59,33 @@ function Response:send( status, msg )
     vals[nval + 2] = msg;
 
     return self.conn:send( concat( vals ) );
+end
+
+
+--- setBody
+-- @param data
+-- @param len
+function Response:setBody( data, len )
+    self.body = Body.new( data );
+
+    if len == nil then
+        self.chunked = true;
+        self.header:set('Transfer-Encoding', 'chunked' );
+    else
+        self.header:set('Content-Length', len );
+        if self.chunked then
+            self.chunked = nil;
+            self.header:del('Transfer-Encoding' );
+        end
+    end
+end
+
+
+--- unsetBody
+function Response:unsetBody()
+    self.body = nil;
+    self.header:del( self.chunked and 'Transfer-Encoding' or 'Content-Length' );
+    self.chunked = nil;
 end
 
 
