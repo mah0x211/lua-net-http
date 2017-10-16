@@ -446,7 +446,7 @@ local function response( res, msg, limits )
 
     -- reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
     -- VCHAR          = %x21-7E
-    res.reasons = isVchar( res.reason );
+    res.reason = isVchar( res.reason );
     if not res.reason then
         -- invalid reason-phrase
         return EREASONFMT;
