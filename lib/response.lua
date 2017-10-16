@@ -144,9 +144,12 @@ end
 
 --- unsetBody
 function Response:unsetBody()
-    self.body = nil;
-    self.header:del( self.chunked and 'Transfer-Encoding' or 'Content-Length' );
-    self.chunked = nil;
+    if self.body then
+        self.body = nil;
+        self.header:del( self.chunked and 'Transfer-Encoding' or
+                         'Content-Length' );
+        self.chunked = nil;
+    end
 end
 
 
