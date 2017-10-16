@@ -123,8 +123,6 @@ end
 -- @param data
 -- @param len
 function Response:setBody( data, len )
-    local body = Body.new( data );
-
     if len ~= nil then
         if self.chunked then
             self.chunked = nil;
@@ -140,7 +138,7 @@ function Response:setBody( data, len )
         self.header:set( 'Transfer-Encoding', 'chunked' );
     end
 
-    self.body = body;
+    self.body = Body.new( data );
 end
 
 
