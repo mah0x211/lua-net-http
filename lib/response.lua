@@ -61,6 +61,28 @@ function Response:send( status )
         if not self.chunked then
             vals[nval + 2] = body:read();
         else
+            --
+            -- 4.1.  Chunked Transfer Coding
+            -- https://tools.ietf.org/html/rfc7230#section-4.1
+            --
+            --  chunked-body   = *chunk
+            --                   last-chunk
+            --                   trailer-part
+            --                   CRLF
+            --
+            --  chunk          = chunk-size [ chunk-ext ] CRLF
+            --                   chunk-data CRLF
+            --  chunk-size     = 1*HEXDIG
+            --  last-chunk     = 1*("0") [ chunk-ext ] CRLF
+            --
+            --  chunk-data     = 1*OCTET ; a sequence of chunk-size octets
+            --
+            --  chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+            --  chunk-ext-name = token
+            --  chunk-ext-val  = token / quoted-string
+            --
+            --  trailer-part   = *( header-field CRLF )
+            --
             local total = 0;
             local idx = nval + 2;
             local arr = {};
