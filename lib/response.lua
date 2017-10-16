@@ -122,7 +122,8 @@ end
 --- setBody
 -- @param data
 -- @param len
-function Response:setBody( data, len )
+-- @param ctype
+function Response:setBody( data, len, ctype )
     if len ~= nil then
         if self.chunked then
             self.chunked = nil;
@@ -138,6 +139,12 @@ function Response:setBody( data, len )
         self.header:set( 'Transfer-Encoding', 'chunked' );
     end
 
+    -- set content-type header
+    if ctype then
+        self.ctype = true;
+        self.header:set( 'Content-Type', ctype );
+    end
+
     self.body = Body.new( data );
 end
 
@@ -146,9 +153,19 @@ end
 function Response:unsetBody()
     if self.body then
         self.body = nil;
-        self.header:del( self.chunked and 'Transfer-Encoding' or
-                         'Content-Length' );
-        self.chunked = nil;
+        -- unset related header
+        if self.chunked then
+            self.chunked = nil;
+            self.header:del( 'Transfer-Encoding' );
+        else
+            self.header:del( 'Content-Length' );
+        end
+
+        -- unset content-type header
+        if self.ctype then
+            self.ctype = nil;
+            self.header:del( 'Content-Type' );
+        end
     end
 end
 
