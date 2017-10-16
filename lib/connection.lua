@@ -73,6 +73,16 @@ function Connection:close()
 end
 
 
+--- send
+-- @param msg
+-- @return len
+-- @return err
+-- @return timeout
+function Connection:send( msg )
+    return self.sock:send( msg );
+end
+
+
 --- recv
 -- @return entity
 --  request-entity
@@ -126,16 +136,6 @@ function Connection:recv()
             return nil, nil, nil, PERR2STATUS[cur];
         end
     end
-end
-
-
---- send
--- @param msg
--- @return len
--- @return err
--- @return timeout
-function Connection:send( msg )
-    return self.sock:send( msg );
 end
 
 
