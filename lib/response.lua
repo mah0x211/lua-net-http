@@ -35,7 +35,6 @@ local setmetatable = setmetatable;
 local strformat = string.format;
 --- constants
 local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
-local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
 local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
 
@@ -165,14 +164,11 @@ local function new( conn, ver )
     -- reserved for first-line
     vals[1] = false;
     vals[2] = DEFAULT_SERVER;
-    vals[3] = DEFAULT_CONTENT_TYPE;
 
     -- reserved for first-line
     dict[1] = false;
     dict[2] = 'server';
-    dict[3] = 'content-type';
     dict.server = 2;
-    dict['content-type'] = 3;
 
     return setmetatable({
         conn = conn,
