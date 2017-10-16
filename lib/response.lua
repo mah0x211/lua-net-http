@@ -32,9 +32,11 @@ local Body = require('net.http.body');
 local toline = require('net.http.status').toline;
 local concat = table.concat;
 local setmetatable = setmetatable;
+local strformat = string.format;
 --- constants
 local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
 local DEFAULT_CONTENT_TYPE = 'Content-Type: text/plain\r\n';
+local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
 
 
@@ -44,19 +46,53 @@ local Response = {};
 
 --- send
 -- @param status
--- @param msg
 -- @return len
 -- @return err
 -- @return timeout
-function Response:send( status, msg )
+function Response:send( status )
     local vals = self.header.vals;
-    local nval;
+    local nval = #vals;
+    local body = self.body;
 
-    self.header:set( 'Content-Length', #msg );
-    nval = #vals;
     vals[1] = toline( status, self.ver );
-    vals[nval + 1] = CRLF;
-    vals[nval + 2] = msg;
+
+    if body then
+        vals[nval + 1] = CRLF;
+        if not self.chunked then
+            vals[nval + 2] = body:read();
+        else
+            local total = 0;
+            local idx = nval + 2;
+            local arr = {};
+
+            repeat
+                local data = body:read( DEFAULT_READSIZ );
+                local bytes = data and #data or 0;
+                local len, err, timeout;
+
+                vals[idx] = strformat( '%x\r\n', bytes );
+                if bytes > 0 then
+                    vals[idx + 1] = data;
+                    vals[idx + 2] = CRLF;
+                else
+                    vals[idx + 1] = CRLF;
+                end
+
+                len, err, timeout = self.conn:send( concat( vals ) );
+                if not len or err or timeout then
+                    return total, err, timeout;
+                else
+                    total = total + len;
+                    idx = 1;
+                    vals = arr;
+                    vals[3] = nil;
+                end
+            until data == nil;
+
+            return total;
+        end
+
+    end
 
     return self.conn:send( concat( vals ) );
 end
