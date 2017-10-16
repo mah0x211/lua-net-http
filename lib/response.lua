@@ -124,18 +124,24 @@ end
 -- @param data
 -- @param len
 function Response:setBody( data, len )
-    self.body = Body.new( data );
+    local body = Body.new( data );
 
-    if len == nil then
-        self.chunked = true;
-        self.header:set('Transfer-Encoding', 'chunked' );
-    else
-        self.header:set('Content-Length', len );
+    if len ~= nil then
         if self.chunked then
             self.chunked = nil;
-            self.header:del('Transfer-Encoding' );
+            self.header:del( 'Transfer-Encoding' );
         end
+        self.header:set( 'Content-Length', len );
+    -- chunked transfer coding
+    else
+        if self.body and not self.chunked then
+            self.header:del( 'Content-Length' );
+        end
+        self.chunked = true;
+        self.header:set( 'Transfer-Encoding', 'chunked' );
     end
+
+    self.body = body;
 end
 
 
