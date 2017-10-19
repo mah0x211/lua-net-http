@@ -27,11 +27,13 @@
 --]]
 
 --- assign to local
+local chunksize = require('rfcvalid.implc').chunksize;
 local InetClient = require('net.stream.inet').client;
 local Parser = require('net.http.parser');
 local ParseResponse = Parser.response;
 local Status = require('net.http.status');
 local setmetatable = setmetatable;
+local concat = table.concat;
 local strsub = string.sub;
 --- constants
 -- need more bytes
@@ -134,6 +136,130 @@ function Connection:recv()
         -- parse error
         else
             return nil, nil, nil, PERR2STATUS[cur];
+        end
+    end
+end
+
+
+--- readn
+-- @param sock
+-- @param n
+-- @param buf
+-- @param len
+-- @return data
+-- @return remains
+-- @return err
+-- @return timeout
+local function readn( sock, n, buf, len )
+    local arr = {
+        buf
+    };
+    local idx = 1;
+
+    while true do
+        local data, err, timeout = sock:recv();
+
+        -- fail
+        if not data or err or timeout then
+            return nil, '', err, timeout;
+        end
+
+        -- decrease
+        n = n - len;
+        len = #data;
+
+        -- done
+        if len >= n then
+            arr[idx + 1] = strsub( data, 1, n );
+            return concat( arr ), strsub( data, n + 3 );
+        end
+
+        idx = idx + 1;
+        arr[idx] = data;
+    end
+end
+
+
+--- drain
+-- @return body
+-- @return err
+-- @return timeout
+function Connection:drain()
+    if self.remains then
+        local remains = self.remains;
+        local buf = self.buf;
+        local len = #buf;
+
+        self.remains = nil;
+
+        -- chunked encoded data
+        if remains == -1 then
+            local sock = self.sock;
+            local arr = {};
+            local idx = 0;
+
+            while true do
+                local consumed, clen = chunksize( buf );
+
+                -- got chunk size
+                if consumed > 0 then
+                    -- done
+                    if clen == 0 then
+                        -- remove chunk-header and chunk data
+                        self.buf = strsub( buf, consumed + 3 );
+                        return concat( arr );
+                    end
+
+                    -- remove chunk-header
+                    buf = strsub( buf, consumed + 1 );
+                    len = #buf;
+
+                    -- slice
+                    if len > clen then
+                        idx = idx + 1;
+                        arr[idx] = strsub( buf, 1, clen );
+                        buf = strsub( buf, clen + 3 );
+                    -- need more bytes
+                    else
+                        local data, err, timeout;
+
+                        data, buf, err, timeout = readn( sock, clen, buf, len );
+                        -- fail
+                        if not data or err or timeout then
+                            self.buf = buf;
+                            return nil, err, timeout;
+                        end
+
+                        idx = idx + 1;
+                        arr[idx] = data;
+                    end
+                -- need more bytes
+                elseif consumed == -1 then
+                    local data, err, timeout = sock:recv();
+
+                    -- fail
+                    if not data or err or timeout then
+                        self.buf = buf;
+                        return nil, err, timeout;
+                    end
+
+                    buf = buf .. data;
+                -- invalid line
+                else
+                    return nil, 'invalid chunk-size';
+                end
+            end
+        -- recv already
+        elseif len >= remains then
+            self.buf = strsub( buf, remains + 1 );
+            return strsub( buf, 1, remains );
+        -- recv remains of data
+        else
+            local data, err, timeout;
+
+            data, self.buf, err, timeout = readn( self.sock, remains, buf, len );
+
+            return data, err, timeout;
         end
     end
 end

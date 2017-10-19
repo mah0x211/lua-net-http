@@ -14,7 +14,7 @@ dependencies = {
     "idna >= 1.0.0",
     "gcfn >= 0.1.0",
     "net >= 0.18.0",
-    "rfcvalid >= 0.5.1",
+    "rfcvalid >= 0.6.0",
     "url >= 1.1.0",
 }
 build = {
