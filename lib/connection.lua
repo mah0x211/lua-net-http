@@ -27,10 +27,12 @@
 --]]
 
 --- assign to local
+local tointeger = require('tointeger');
 local chunksize = require('rfcvalid.implc').chunksize;
 local InetClient = require('net.stream.inet').client;
 local Parser = require('net.http.parser');
 local ParseResponse = Parser.response;
+local ParseTransferEncoding = Parser.tencoding;
 local Status = require('net.http.status');
 local setmetatable = setmetatable;
 local concat = table.concat;
@@ -38,12 +40,13 @@ local strsub = string.sub;
 --- constants
 -- need more bytes
 local EAGAIN = Parser.EAGAIN;
+local BAD_REQUEST = Status.BAD_REQUEST;
 --- parse error code to http status code
 local PERR2STATUS = {
     -- method not implemented
     EMETHOD = Status.NOT_IMPLEMENTED,
     -- invalid uri string
-    EURIFMT = Status.BAD_REQUEST,
+    EURIFMT = BAD_REQUEST,
     -- uri-length too large
     EURILEN = Status.REQUEST_URI_TOO_LONG,
     -- version not support
@@ -53,11 +56,11 @@ local PERR2STATUS = {
     -- too many headers
     EHDRNUM = Status.REQUEST_HEADER_FIELDS_TOO_LARGE,
     -- invalid header format
-    EHDRFMT = Status.BAD_REQUEST,
+    EHDRFMT = BAD_REQUEST,
     -- invalid header field-name
-    EHDRNAME = Status.BAD_REQUEST,
+    EHDRNAME = BAD_REQUEST,
     -- invalid header field-value
-    EHDRVAL = Status.BAD_REQUEST
+    EHDRVAL = BAD_REQUEST
 };
 
 
@@ -107,9 +110,16 @@ function Connection:recv()
     local sock = self.sock;
     local parser = self.parser;
     local buf = self.buf;
+    local header = {};
     local entity = {
-        header = {}
+        header = header
     };
+    -- drain body data
+    local _, err, timeout = self:drain();
+
+    if err or timeout then
+        return nil, err, timeout;
+    end
 
     while true do
         local cur = EAGAIN;
@@ -121,13 +131,46 @@ function Connection:recv()
 
         -- parsed
         if cur > 0 then
+            local clen = header['content-length'];
+            local tenc = header['transfer-encoding'];
+
+            if clen then
+                -- multiple content-length headers does not allowed
+                if type( clen ) == 'table' then
+                    return nil, nil, nil, BAD_REQUEST;
+                end
+
+                clen = tointeger( clen );
+                -- invalid length format
+                if not clen then
+                    return nil, nil, nil, BAD_REQUEST;
+                end
+            end
+
+            -- parse transfer-encoding
+            if tenc then
+                tenc = ParseTransferEncoding( tenc );
+                header['transfer-encoding'] = tenc;
+                -- set remaining length
+                if tenc.chunked then
+                    self.remains = -1;
+                    clen = nil;
+                end
+            end
+
+            -- set remaining length
+            if clen then
+                self.remains = clen;
+            end
+
             -- remove bytes used
             self.buf = strsub( buf, cur + 1 );
             return entity;
         -- more bytes need
         elseif cur == EAGAIN then
-            local str, err, timeout = sock:recv();
+            local str;
 
+            str, err, timeout = sock:recv();
             if not str or err or timeout then
                 return nil, err, timeout;
             end
