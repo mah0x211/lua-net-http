@@ -32,6 +32,7 @@ local chunksize = require('rfcvalid.implc').chunksize;
 local InetClient = require('net.stream.inet').client;
 local Parser = require('net.http.parser');
 local ParseResponse = Parser.response;
+local ParseHeader = Parser.header;
 local ParseTransferEncoding = Parser.tencoding;
 local Status = require('net.http.status');
 local setmetatable = setmetatable;
@@ -225,8 +226,10 @@ end
 
 --- drain
 -- @return body
+-- @return trailer
 -- @return err
 -- @return timeout
+-- @return perr
 function Connection:drain()
     if self.remains then
         local remains = self.remains;
@@ -235,7 +238,28 @@ function Connection:drain()
 
         self.remains = nil;
 
-        -- chunked encoded data
+        --
+        -- 4.1.  Chunked Transfer Coding
+        -- https://tools.ietf.org/html/rfc7230#section-4.1
+        --
+        -- chunked-body   = *chunk
+        --                  last-chunk
+        --                  trailer-part
+        --                  CRLF
+        --
+        -- chunk          = chunk-size [ chunk-ext ] CRLF
+        --                  chunk-data CRLF
+        -- chunk-size     = 1*HEXDIG
+        -- last-chunk     = 1*("0") [ chunk-ext ] CRLF
+        --
+        -- chunk-data     = 1*OCTET ; a sequence of chunk-size octets
+        --
+        -- chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+        -- chunk-ext-name = token
+        -- chunk-ext-val  = token / quoted-string
+        --
+        -- trailer-part   = *( header-field CRLF )
+        --
         if remains == -1 then
             local sock = self.sock;
             local arr = {};
@@ -246,11 +270,32 @@ function Connection:drain()
 
                 -- got chunk size
                 if consumed > 0 then
-                    -- done
+                    -- got last-chunk
                     if clen == 0 then
-                        -- remove chunk-header and chunk data
-                        self.buf = strsub( buf, consumed + 3 );
-                        return concat( arr );
+                        local trailer = {};
+
+                        -- parse trailer-part
+                        while true do
+                            consumed = ParseHeader( trailer, buf, consumed + 1 );
+                            -- parsed
+                            if consumed > 0 then
+                                -- remove bytes used
+                                self.buf = strsub( buf, consumed + 1 );
+                                return concat( arr ), trailer;
+                            -- more bytes need
+                            elseif consumed == EAGAIN then
+                                local data, err, timeout = sock:recv();
+
+                                if not data or err or timeout then
+                                    return nil, nil, err, timeout;
+                                end
+
+                                buf = buf .. data;
+                            -- parse error
+                            else
+                                return nil, nil, nil, PERR2STATUS[consumed];
+                            end
+                        end
                     end
 
                     -- remove chunk-header
@@ -270,7 +315,7 @@ function Connection:drain()
                         -- fail
                         if not data or err or timeout then
                             self.buf = buf;
-                            return nil, err, timeout;
+                            return nil, nil, err, timeout;
                         end
 
                         idx = idx + 1;
@@ -283,13 +328,13 @@ function Connection:drain()
                     -- fail
                     if not data or err or timeout then
                         self.buf = buf;
-                        return nil, err, timeout;
+                        return nil, nil, err, timeout;
                     end
 
                     buf = buf .. data;
                 -- invalid line
                 else
-                    return nil, 'invalid chunk-size';
+                    return nil, nil, 'invalid chunk-size';
                 end
             end
         -- recv already
@@ -302,7 +347,7 @@ function Connection:drain()
 
             data, self.buf, err, timeout = readn( self.sock, remains, buf, len );
 
-            return data, err, timeout;
+            return data, nil, err, timeout;
         end
     end
 end
