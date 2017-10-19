@@ -116,7 +116,7 @@ function Connection:recv()
         header = header
     };
     -- drain body data
-    local _, err, timeout = self:drain();
+    local _, _, err, timeout = self:drain();
 
     if err or timeout then
         return nil, err, timeout;
