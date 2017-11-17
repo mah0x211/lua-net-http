@@ -31,12 +31,10 @@ local parseURI = require('url').parse;
 local encodeURI = require('url').encodeURI;
 local decodeURI = require('url').decodeURI;
 local encodeIdna = require('idna').encode;
-local isUInt16 = require('rfcvalid.util').isUInt16;
 local Header = require('net.http.header');
 local Entity = require('net.http.entity');
 local type = type;
 local assert = assert;
-local tonumber = tonumber;
 local concat = table.concat;
 local strfind = string.find;
 --- constants
@@ -79,27 +77,27 @@ function Request:line()
     local narr = 4;
 
     -- create request line
-    if self.scheme then
-        arr[3] = self.scheme;
+    if self.url.scheme then
+        arr[3] = self.url.scheme;
         arr[4] = '://';
-        arr[5] = self.host;
-        if self.port then
+        arr[5] = self.url.hostname;
+        if self.url.port then
             arr[6] = ':';
-            arr[7] = self.port;
-            arr[8] = self.path;
+            arr[7] = self.url.port;
+            arr[8] = self.url.path;
             narr = 9;
         else
-            arr[6] = self.path;
+            arr[6] = self.url.path;
             narr = 7;
         end
     else
-        arr[3] = self.path;
+        arr[3] = self.url.path;
     end
 
     -- append query-string
-    if self.query then
+    if self.url.query then
         arr[narr] = '?';
-        arr[narr + 1] = self.query;
+        arr[narr + 1] = self.url.query;
         narr = narr + 2;
     end
 
@@ -160,69 +158,66 @@ local function new( method, uri )
     local header = Header.new();
     local vals = header.vals;
     local dict = header.dict;
-    local req, hostname, err;
+    local req = {
+        header = header
+    };
+    local wellknown, err, _;
 
     -- check arguments
-    method = assert( METHOD_LUT[method], 'invalid method' );
+    req.method = assert( METHOD_LUT[method], 'invalid method' );
     assert( type( uri ) == 'string', 'uri must be string' );
 
     -- parse url
     uri = assert( encodeURI( uri ) );
-    req, err = parseURI( uri );
+    req.url, _, err = parseURI( uri );
     if err then
         return nil, err;
+    -- scheme required
+    elseif not req.url.scheme then
+        return nil, 'invalid uri - scheme required';
+    -- unknown scheme
+    elseif not SCHEME_LUT[req.url.scheme] then
+        return nil, 'invalid uri - unsupported scheme';
+    -- hostname undefined
+    elseif not req.url.hostname then
+        return nil, 'invalid uri - hostname required';
+    -- set to default port
+    elseif not req.url.port or req.url.port == SCHEME_LUT[req.url.scheme] then
+        req.url.port = SCHEME_LUT[req.url.scheme];
+        wellknown = true;
     end
-    req.header = header;
-    req.method = method;
 
-    if req.scheme then
-        local port = SCHEME_LUT[req.scheme];
+    -- hostname should encode by punycode
+    if strfind( req.url.hostname, '%', 1, true ) then
+        local host;
 
-        -- unknown scheme
-        if not port then
-            return nil, 'unsupported scheme';
-        -- host undefined
-        elseif not req.host then
-            return nil, 'hostname undefined';
-        -- append default port
-        elseif not req.port then
-            req.port = port;
-        -- verify port
-        else
-            port = tonumber( req.port );
-            if not isUInt16( port ) then
-                return nil, 'invalid port-range'
-            -- append port-number to host header if not well-known port
-            elseif port ~= 80 and port ~= 443 then
-                hostname = port;
-            end
-
-            req.port = port;
+        host, err = decodeURI( req.url.hostname );
+        if err then
+            return nil, 'invalid uri - ' .. err;
         end
 
-        -- hostname should encode by punycode
-        if strfind( req.host, '%', 1, true ) then
-            local host;
-
-            host, err = decodeURI( req.host );
-            if err then
-                return nil, err;
-            end
-
-            req.host, err = encodeIdna( host );
-            if err then
-                return nil, err;
-            end
+        req.url.hostname, err = encodeIdna( host );
+        if err then
+            return nil, err;
         end
 
-        -- set host header
-        if hostname then
-            vals[3] = 'Host: ' .. req.host .. ':' .. hostname .. CRLF;
-        else
-            vals[3] = 'Host: ' .. req.host .. CRLF;
-        end
-        dict[3] = 'host';
-        dict.host = 3;
+        req.url.host = req.url.hostname .. ':' .. req.url.port;
+    end
+
+    -- set host header
+    -- without port-number
+    if wellknown then
+        vals[3] = 'Host: ' .. req.url.hostname .. CRLF;
+    -- with port-number
+    else
+        vals[3] = 'Host: ' .. req.url.host .. CRLF;
+    end
+    dict[3] = 'host';
+    dict.host = 3;
+
+    -- set default path
+    if not req.url.path then
+        req.url.path = '/';
     end
 
     -- set default headers

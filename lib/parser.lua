@@ -29,9 +29,8 @@
 --- asign to local
 local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
-local isHostname = require('rfcvalid.1035').isHostname;
-local isUInt16 = require('rfcvalid.util').isUInt16;
 local isVchar = require('rfcvalid.implc').isvchar;
+local parseURL = require('url').parse;
 local tonumber = tonumber;
 local strfind = string.find;
 local strsub = string.sub;
@@ -65,7 +64,6 @@ local EREASONLEN = -12;
 -- invalid reason-phrase format
 local EREASONFMT = -13;
 --- constants
-local SLASH = strbyte('/');
 local CRLF_SKIPS = {
     [strbyte('\n')] = 2,
     [strbyte('\r')] = 3
@@ -85,8 +83,6 @@ local METHOD = {
     CONNECT = 'connect',
 };
 local METHOD_LEN_MAX = #METHOD.CONNECT;
--- maximum authority length: 253 (domain-name length) + 5 (16-bit port-number)
-local AUTHORITY_LEN_MAX = 258;
 -- muximum version length: 8 (HTTP/x.x)
 local VERSION_LEN_MAX = 8;
 -- muximum status-code length: 3 (1xx - 5xx)
@@ -262,7 +258,7 @@ end
 local function request( req, msg, limits )
     -- skip leading CRLF
     local cur = CRLF_SKIPS[strbyte( msg, 1 )] or 1;
-    local head, tail;
+    local head, tail, err;
 
     -- use default-limits
     if limits == nil then
@@ -287,118 +283,22 @@ local function request( req, msg, limits )
     if not METHOD[req.method] then
         return EMETHOD;
     end
-    cur = head + 1;
 
-    -- parse absolute-path
-    if strbyte( msg, cur ) == SLASH then
-        -- find tail of path
-        head = strfind( msg, ' ', cur + 1, true );
-        if not head then
-            -- more bytes need
-            if ( #msg - cur ) <= limits.URI_LEN_MAX then
-                return EAGAIN;
-            end
-
-            -- uri too long
-            return EURILEN;
-        -- uri too long
-        elseif ( head - cur ) > limits.URI_LEN_MAX then
-            return EURILEN;
-        end
-
-        -- extract path
-        req.path = strsub( msg, cur, head - 1 );
-        cur = head + 1;
-
-    -- parse scheme and authority
-    else
-        local top = cur;
-        local authority;
-
-        -- find tail of scheme
-        head, tail = strfind( msg, '://', cur, true );
-        -- more bytes need
-        if not head then
-            return EAGAIN;
-        end
-
-        -- extract scheme
-        req.scheme = strsub( msg, cur, head - 1 );
-        -- scheme = alpha *( alpha / digit / "+" / "-" / "." )
-        -- invalid scheme
-        if not strfind( req.scheme, '^(%a[%w+.-]*)$' ) then
-            return EURIFMT;
-        end
-        cur = tail + 1;
-
-        -- parse authority
-        -- find tail of authority (SLASH or SP)
-        head, tail, authority = strfind( msg, '^([^/ ]+)', cur );
-        if not head then
-            -- more bytes need
-            if ( #msg - cur ) <= AUTHORITY_LEN_MAX then
-                return EAGAIN;
-            end
-
-            -- invalid authority-length
-            return EURIFMT;
-        -- invalid authority-length
-        elseif #authority > AUTHORITY_LEN_MAX then
-            return EURIFMT;
-        end
-        cur = tail + 1;
-
-        -- find port separater
-        head = strfind( authority, ':', 1, true );
-        if head then
-            -- extract port
-            req.port = tonumber( strsub( authority, head + 1 ) );
-            -- verify port
-            if not req.port or not isUInt16( req.port ) then
-                -- invalid port or port-range
-                return EURIFMT;
-            end
-            req.host = strsub( authority, 1, head - 1 );
-        else
-            req.host = authority;
-        end
-
-        -- verify host
-        if not isHostname( req.host ) then
-            -- invalid hostname
-            return EURIFMT;
-        end
-
-        -- found SLASH
-        if strbyte( msg, cur ) == SLASH then
-            -- find tail of path
-            head = strfind( msg, ' ', cur, true );
-            if not head then
-                -- more bytes need
-                if ( cur - top ) <= limits.URI_LEN_MAX then
-                    return EAGAIN;
-                end
-
-                -- uri too long
-                return EURILEN;
-            -- uri too long
-            elseif ( head - top ) > limits.URI_LEN_MAX then
-                return EURILEN;
-            end
-
-            -- extract path
-            req.path = strsub( msg, cur, head - 1 );
-            cur = head + 1;
-        -- found SP
-        else
-            req.path = '/';
-            cur = cur + 1;
-        end
+    -- parse url
+    req.url, cur, err = parseURL( msg, false, head );
+    -- more bytes need
+    if not err then
+        return EAGAIN;
+    -- invalid url
+    elseif err ~= ' ' then
+        return EURIFMT;
+    -- uri too long
+    elseif ( #msg - cur ) > limits.URI_LEN_MAX then
+        return EURILEN;
     end
 
-    -- TODO: verify path
-
     -- parse version
+    cur = cur + 2;
     head, tail, req.ver = strfind( msg, '^HTTP/(1.[01])\r?\n', cur );
     if not head then
         -- more bytes need
