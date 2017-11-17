@@ -11,7 +11,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host = 'example.com',
@@ -26,7 +28,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -43,7 +47,9 @@ describe("test net.http.parser.request", function()
                        "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -61,7 +67,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -78,7 +86,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -95,7 +105,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -112,7 +124,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -129,7 +143,9 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -205,7 +221,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host = 'example.com',
@@ -220,7 +238,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -237,7 +257,9 @@ describe("test net.http.parser.request", function()
                        "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -255,7 +277,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -272,7 +296,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -289,7 +315,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host2 = 'example.com',
@@ -306,7 +334,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
@@ -323,7 +353,9 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    path = '/foo/bar/baz',
+                    url = {
+                        path = '/foo/bar/baz',
+                    },
                     ver = 1.0,
                     header = {
                         host1 = 'example.com',
