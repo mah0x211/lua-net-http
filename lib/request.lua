@@ -37,6 +37,7 @@ local type = type;
 local assert = assert;
 local concat = table.concat;
 local strfind = string.find;
+local strupper = string.upper;
 --- constants
 local CRLF = '\r\n';
 local DEFAULT_AGENT = 'User-Agent: lua-net-http' .. CRLF;
@@ -44,20 +45,16 @@ local SCHEME_LUT = {
     http = 80,
     https = 443
 };
-local METHOD_LUT = {};
-for k, v in pairs({
-    connect = 'CONNECT',
-    delete = 'DELETE',
-    get = 'GET',
-    head = 'HEAD',
-    options = 'OPTIONS',
-    post = 'POST',
-    put = 'PUT',
-    trace = 'TRACE',
-}) do
-    METHOD_LUT[k] = v;
-    METHOD_LUT[k:upper()] = v;
-end
+local METHOD_LUT = {
+    CONNECT = 'CONNECT',
+    DELETE = 'DELETE',
+    GET = 'GET',
+    HEAD = 'HEAD',
+    OPTIONS = 'OPTIONS',
+    POST = 'POST',
+    PUT = 'PUT',
+    TRACE = 'TRACE',
+};
 
 
 --- class Request
@@ -112,7 +109,7 @@ end
 -- @param data
 -- @param len
 function Request:setMethod( method )
-    self.method = assert( METHOD_LUT[method], 'invalid method' );
+    self.method = assert( METHOD_LUT[strupper(method)], 'invalid method' );
 end
 
 
@@ -159,15 +156,13 @@ local function new( method, uri )
     local vals = header.vals;
     local dict = header.dict;
     local req = {
+        method = assert( METHOD_LUT[method], 'invalid method' ),
         header = header
     };
     local wellknown, err, _;
 
-    -- check arguments
-    req.method = assert( METHOD_LUT[method], 'invalid method' );
-    assert( type( uri ) == 'string', 'uri must be string' );
-
     -- parse url
+    assert( type( uri ) == 'string', 'uri must be string' );
     uri = assert( encodeURI( uri ) );
     req.url, _, err = parseURI( uri );
     if err then
