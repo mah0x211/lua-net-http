@@ -93,9 +93,8 @@ function Request:line()
 
     -- append query-string
     if self.url.query then
-        arr[narr] = '?';
-        arr[narr + 1] = self.url.query;
-        narr = narr + 2;
+        arr[narr] = self.url.query;
+        narr = narr + 1;
     end
 
     -- set version
@@ -132,10 +131,10 @@ function Request:setQuery( qry )
 
     -- set new query-string
     if idx > 1 then
-        self.query = concat( arr, nil, 2 );
+        self.url.query = '?' .. concat( arr, nil, 2 );
     -- remove query-string
     else
-        self.query = nil;
+        self.url.query = nil;
     end
 end
 
