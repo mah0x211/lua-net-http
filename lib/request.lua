@@ -155,10 +155,16 @@ local function new( method, uri )
     local vals = header.vals;
     local dict = header.dict;
     local req = {
-        method = assert( METHOD_LUT[method], 'invalid method' ),
         header = header
     };
     local wellknown, err, _;
+
+    -- check method
+    assert( type( method ) == 'string', 'method must be string' );
+    req.method = METHOD_LUT[strupper(method)];
+    if not req.method then
+        return nil, 'invalid method - unsuppoerted method';
+    end
 
     -- parse url
     assert( type( uri ) == 'string', 'uri must be string' );
