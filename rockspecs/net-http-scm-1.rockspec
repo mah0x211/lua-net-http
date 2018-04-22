@@ -12,11 +12,10 @@ description = {
 dependencies = {
     "lua >= 5.1",
     "idna >= 1.0.0",
-    "gcfn >= 0.1.0",
-    "net >= 0.18.0",
+    "net >= 0.21.1",
     "rfcvalid >= 0.6.0",
     "tointeger >= 0.1.0",
-    "url >= 1.2.0",
+    "url >= 1.2.1",
 }
 build = {
     type = "builtin",
