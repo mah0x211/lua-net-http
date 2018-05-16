@@ -3,7 +3,7 @@ local parser = require('net.http.parser');
 
 describe("test net.http.parser.request", function()
     it("can parse line terminated by CRLF", function()
-        for idx, msg in ipairs({
+        for _, msg in ipairs({
             {
                 res = 0,
                 val = "HTTP/1.0 200 OK\r\n" ..
@@ -53,7 +53,7 @@ describe("test net.http.parser.request", function()
 
 
     it("can parse line terminated by LF", function()
-        for idx, msg in ipairs({
+        for _, msg in ipairs({
             {
                 res = 0,
                 val = "HTTP/1.0 200 OK\n" ..
