@@ -2,5 +2,6 @@ codefromstrings = false
 runreport = true
 deletestats = false
 modules = {
-   ["net.http.header"] = "lib/header.lua"
+   ["net.http.header"] = "lib/header.lua",
+   ["net.http.parser"] = "lib/parser.lua",
 }
