@@ -1,0 +1,6 @@
+codefromstrings = false
+runreport = true
+deletestats = false
+modules = {
+   ["net.http.header"] = "lib/header.lua"
+}
