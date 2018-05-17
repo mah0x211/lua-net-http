@@ -149,6 +149,22 @@ function Header:set( k, v )
 end
 
 
+--- get
+-- @param key
+-- @return val
+function Header:get( k )
+    if type( k ) == 'string' then
+        local idx = self.dict[strlower( k )];
+
+        if idx then
+            return self.vals[idx];
+        end
+    else
+        error( 'key must be string' );
+    end
+end
+
+
 --- new
 -- @return header
 local function new( narr, nrec )
