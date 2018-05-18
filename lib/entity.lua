@@ -36,79 +36,88 @@ local CRLF = '\r\n';
 
 
 --- send
--- @param self
+-- @param msg
 -- @param conn
 -- @return len
 -- @return err
 -- @return timeout
-local function send( self, conn )
-    local vals = self.header.vals;
-    local body = self.body;
-    local nval = #vals;
+local function send( msg, conn )
+    local vals = msg.header.vals;
+    local body = msg.body;
+    local clen = body and body:length();
 
-    vals[1] = self:line();
-    vals[nval + 1] = CRLF;
+    -- append request-line or status-line
+    vals[1] = msg:line();
 
-    if body then
-        if not self.chunked then
-            vals[nval + 2] = body:read();
-        else
-            --
-            -- 4.1.  Chunked Transfer Coding
-            -- https://tools.ietf.org/html/rfc7230#section-4.1
-            --
-            --  chunked-body   = *chunk
-            --                   last-chunk
-            --                   trailer-part
-            --                   CRLF
-            --
-            --  chunk          = chunk-size [ chunk-ext ] CRLF
-            --                   chunk-data CRLF
-            --  chunk-size     = 1*HEXDIG
-            --  last-chunk     = 1*("0") [ chunk-ext ] CRLF
-            --
-            --  chunk-data     = 1*OCTET ; a sequence of chunk-size octets
-            --
-            --  chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
-            --  chunk-ext-name = token
-            --  chunk-ext-val  = token / quoted-string
-            --
-            --  trailer-part   = *( header-field CRLF )
-            --
-            local total = 0;
-            local idx = nval + 2;
-            local arr = {};
+    if not body then
+        vals[#vals + 1] = CRLF;
+        return conn:send( concat( vals ) );
+    elseif clen then
+        local nval = #vals + 1;
 
-            repeat
-                local data = body:read( DEFAULT_READSIZ );
-                local bytes = data and #data or 0;
-                local len, err, timeout;
+        msg.header:set( 'Content-Length', clen );
+        vals[nval + 1] = CRLF;
+        vals[nval + 2] = body:read();
+        return conn:send( concat( vals ) );
+    else
+        --
+        -- 4.1.  Chunked Transfer Coding
+        -- https://tools.ietf.org/html/rfc7230#section-4.1
+        --
+        --  chunked-body   = *chunk
+        --                   last-chunk
+        --                   trailer-part
+        --                   CRLF
+        --
+        --  chunk          = chunk-size [ chunk-ext ] CRLF
+        --                   chunk-data CRLF
+        --  chunk-size     = 1*HEXDIG
+        --  last-chunk     = 1*("0") [ chunk-ext ] CRLF
+        --
+        --  chunk-data     = 1*OCTET ; a sequence of chunk-size octets
+        --
+        --  chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+        --  chunk-ext-name = token
+        --  chunk-ext-val  = token / quoted-string
+        --
+        --  trailer-part   = *( header-field CRLF )
+        --
+        local total = 0;
+        local arr = {};
+        local idx;
 
-                vals[idx] = strformat( '%x\r\n', bytes );
-                if bytes > 0 then
-                    vals[idx + 1] = data;
-                    vals[idx + 2] = CRLF;
-                else
-                    vals[idx + 1] = CRLF;
-                end
+        msg.header:set( 'Transfer-Encoding', 'chunked', true );
+        vals[#vals + 1] = CRLF;
+        idx = #vals + 1;
 
-                len, err, timeout = conn:send( concat( vals ) );
-                if not len or err or timeout then
-                    return nil, err, timeout;
-                else
-                    total = total + len;
-                    idx = 1;
-                    vals = arr;
-                    vals[3] = nil;
-                end
-            until data == nil;
+        repeat
+            local data = body:read( DEFAULT_READSIZ );
+            local bytes = data and #data or 0;
+            local len, err, timeout;
 
-            return total;
-        end
+            -- add chunk-size
+            vals[idx] = strformat( '%x\r\n', bytes );
+            -- add chunk
+            if bytes > 0 then
+                vals[idx + 1] = data;
+                vals[idx + 2] = CRLF;
+            else
+                vals[idx + 1] = CRLF;
+            end
 
+            len, err, timeout = conn:send( concat( vals ) );
+            if not len or err or timeout then
+                return total, err, timeout;
+            else
+                total = total + len;
+                idx = 1;
+                vals = arr;
+                vals[3] = nil;
+            end
+        until data == nil;
+
+        return total;
     end
-
-    return conn:send( concat( vals ) );
 end
 
 
