@@ -4,7 +4,7 @@ local header = require('net.http.header')
 describe('test net.http.header', function()
     local h
 
-    setup(function()
+    before_each(function()
         h = header.new()
     end)
 
@@ -91,9 +91,17 @@ describe('test net.http.header', function()
             'field-name: hello\r\n',
             h:get('field-name')
         )
+
         h:set('field-name', 'world', true)
         assert.is_equal(
             'field-name: hello\r\nfield-name: world\r\n',
+            h:get('field-name')
+        )
+
+        h:set('field-name', { 'foo', 'bar' }, true)
+        assert.is_equal(
+            'field-name: hello\r\nfield-name: world\r\n' ..
+            'field-name: foo\r\nfield-name: bar\r\n',
             h:get('field-name')
         )
     end)
