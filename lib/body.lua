@@ -64,6 +64,16 @@ local function readstream( self, len )
 end
 
 
+--- length
+local function length( self )
+    if type( self.data ) == 'string' then
+        return #self.data;
+    end
+
+    return nil;
+end
+
+
 --- new
 -- @param body
 -- @return body
@@ -84,11 +94,11 @@ local function new( data )
         data = data
     },{
         __index = {
-            read = readfn
+            read = readfn,
+            length = length,
         }
     });
 end
-
 
 
 return {
