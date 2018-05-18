@@ -29,7 +29,6 @@
 --- assign to local
 local type = type;
 local error = error;
-local getmetatable = getmetatable;
 local setmetatable = setmetatable;
 local strsub = string.sub;
 
@@ -85,8 +84,7 @@ local function new( data )
 
     if t == 'string' then
         readfn = readstr;
-    elseif t == 'table' and getmetatable( data ) and
-           type( data.read ) == 'function' then
+    elseif t == 'table' and type( data.read ) == 'function' then
         readfn = readstream
     else
         error( 'data must be either string or object that has a read method' );
