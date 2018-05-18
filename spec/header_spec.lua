@@ -58,6 +58,26 @@ describe('test net.http.header', function()
             'field-name: value1\r\nfield-name: value2\r\n',
             h:get('field-name')
         )
+        h:set('field-name', {
+            'value1',
+        })
+        assert.is_equal(
+            'field-name: value1\r\n',
+            h:get('field-name')
+        )
+    end)
+
+    it('can append field-values to existing value', function()
+        h:set('field-name', 'hello')
+        assert.is_equal(
+            'field-name: hello\r\n',
+            h:get('field-name')
+        )
+        h:set('field-name', 'world', true)
+        assert.is_equal(
+            'field-name: hello\r\nfield-name: world\r\n',
+            h:get('field-name')
+        )
     end)
 
     it('cannot delete the value with non-string field-name', function()
@@ -75,13 +95,16 @@ describe('test net.http.header', function()
     end)
 
     it('can delete the specified field-name', function()
-        h:set('field-name', 'value')
+        h:set('field-foo', 'foo')
+        h:set('field-bar', 'bar')
+        h:set('field-baz', 'baz')
         assert.is_equal(
-            'field-name: value\r\n',
-            h:get('field-name')
+            'field-foo: foo\r\n',
+            h:get('field-foo')
         )
-        assert.True( h:del('field-name') )
-        assert.is_nil(h:get('field-name'))
+        assert.True( h:del('field-foo') )
+        assert.False( h:del('field-foo') )
+        assert.is_nil(h:get('field-foo'))
     end)
 end)
 
