@@ -180,8 +180,12 @@ end
 --- new
 -- @return header
 local function new( narr, nrec )
+    local vals = createtable( narr or DEFAULT_NARR );
+
+    -- reserve for request-line or status-line
+    vals[1] = '';
     return setmetatable({
-        vals = createtable( narr or DEFAULT_NARR ),
+        vals = vals,
         dict = createtable( narr or DEFAULT_NARR, nrec or DEFAULT_NREC )
     }, {
         __index = Header,
