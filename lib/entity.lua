@@ -113,53 +113,29 @@ end
 
 
 --- setBody
--- @param self
+-- @param msg
 -- @param data
--- @param len
 -- @param ctype
-local function setBody( self, data, len, ctype )
-    if len ~= nil then
-        if self.chunked then
-            self.chunked = nil;
-            self.header:del( 'Transfer-Encoding' );
-        end
-        self.header:set( 'Content-Length', len );
-    -- chunked transfer coding
-    else
-        if self.body and not self.chunked then
-            self.header:del( 'Content-Length' );
-        end
-        self.chunked = true;
-        self.header:set( 'Transfer-Encoding', 'chunked' );
-    end
-
+local function setBody( msg, data, ctype )
     -- set content-type header
     if ctype then
-        self.ctype = true;
-        self.header:set( 'Content-Type', ctype );
+        msg.ctype = true;
+        msg.header:set( 'Content-Type', ctype );
     end
 
-    self.body = Body.new( data );
+    msg.body = Body.new( data );
 end
 
 
 --- unsetBody
--- @param self
-local function unsetBody( self )
-    if self.body then
-        self.body = nil;
-        -- unset related header
-        if self.chunked then
-            self.chunked = nil;
-            self.header:del( 'Transfer-Encoding' );
-        else
-            self.header:del( 'Content-Length' );
-        end
-
+-- @param msg
+local function unsetBody( msg )
+    if msg.body then
+        msg.body = nil;
         -- unset content-type header
-        if self.ctype then
-            self.ctype = nil;
-            self.header:del( 'Content-Type' );
+        if msg.ctype then
+            msg.ctype = nil;
+            msg.header:del( 'Content-Type' );
         end
     end
 end
