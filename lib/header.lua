@@ -109,7 +109,8 @@ end
 --- set
 -- @param key
 -- @param val
-function Header:set( k, v )
+-- @param append
+function Header:set( k, v, append )
     if type( k ) == 'string' then
         if v ~= nil then
             local val, len = checkval( v );
@@ -129,7 +130,13 @@ function Header:set( k, v )
 
                 -- add value
                 if not len then
-                    vals[idx] = k .. DELIM .. val .. CRLF;
+                    -- append
+                    if append then
+                        vals[idx] = ( vals[idx] or '' ) ..
+                                    k .. DELIM .. val .. CRLF;
+                    else
+                        vals[idx] = k .. DELIM .. val .. CRLF;
+                    end
                 else
                     local arr = {};
 
@@ -137,7 +144,12 @@ function Header:set( k, v )
                         arr[i] = k .. DELIM .. checkval( val[i], true ) .. CRLF;
                     end
 
-                    vals[idx] = concat( arr );
+                    -- append
+                    if append then
+                        vals[idx] = ( vals[idx] or '' ) .. concat( arr );
+                    else
+                        vals[idx] = concat( arr );
+                    end
                 end
             end
         else
