@@ -67,6 +67,24 @@ describe('test net.http.header', function()
         )
     end)
 
+    it('cannot get field-value with non-string field-name', function()
+        for _, name in ipairs({
+            true,
+            false,
+            0,
+            function()end,
+            coroutine.create(function()end),
+        }) do
+            assert.has_error(function()
+                h:get(name)
+            end)
+        end
+
+        assert.has_error(function()
+            h:get(nil)
+        end)
+    end)
+
     it('can append field-values to existing value', function()
         h:set('field-name', 'hello')
         assert.is_equal(
@@ -103,6 +121,9 @@ describe('test net.http.header', function()
             h:get('field-foo')
         )
         assert.True( h:del('field-foo') )
+        assert.True( h:del('field-bar') )
+        assert.True( h:del('field-baz') )
+
         assert.False( h:del('field-foo') )
         assert.is_nil(h:get('field-foo'))
     end)
