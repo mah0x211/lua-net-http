@@ -29,14 +29,15 @@
 --- assign to local
 local parseURI = require('url').parse;
 local encodeURI = require('url').encodeURI;
-local decodeURI = require('url').decodeURI;
-local encodeIdna = require('idna').encode;
+-- local decodeURI = require('url').decodeURI;
+-- local encodeIdna = require('idna').encode;
 local Header = require('net.http.header');
 local Entity = require('net.http.entity');
+local setmetatable = setmetatable;
 local type = type;
 local assert = assert;
 local concat = table.concat;
-local strfind = string.find;
+-- local strfind = string.find;
 local strupper = string.upper;
 --- constants
 local CRLF = '\r\n';
@@ -187,22 +188,22 @@ local function new( method, uri )
         wellknown = true;
     end
 
-    -- hostname should encode by punycode
-    if strfind( req.url.hostname, '%', 1, true ) then
-        local host;
+    -- TODO: hostname should encode by punycode
+    -- if strfind( req.url.hostname, '%', 1, true ) then
+    --     local host;
 
-        host, err = decodeURI( req.url.hostname );
-        if err then
-            return nil, 'invalid uri - ' .. err;
-        end
+    --     host, err = decodeURI( req.url.hostname );
+    --     if err then
+    --         return nil, 'invalid uri - ' .. err;
+    --     end
 
-        req.url.hostname, err = encodeIdna( host );
-        if err then
-            return nil, err;
-        end
+    --     req.url.hostname, err = encodeIdna( host );
+    --     if err then
+    --         return nil, err;
+    --     end
 
-        req.url.host = req.url.hostname .. ':' .. req.url.port;
-    end
+    --     req.url.host = req.url.hostname .. ':' .. req.url.port;
+    -- end
 
     -- set host header
     -- without port-number
