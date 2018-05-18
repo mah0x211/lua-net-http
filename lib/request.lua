@@ -116,33 +116,32 @@ end
 --- setQuery
 -- @param qry
 function Request:setQuery( qry )
-    local arr = {};
-    local idx = 1;
+    if qry == nil then
+        self.url.query = nil;
+    elseif type( qry ) == 'table' then
+        local arr = {};
+        local idx = 1;
 
-    assert( type( qry ) == 'table', 'qry must be table' );
-    for k, v in pairs( qry ) do
-        if type( k ) == 'string' and type( v ) == 'string' then
-            arr[idx] = '&';
-            arr[idx + 1] = encodeURI( k );
-            arr[idx + 2] = '=';
-            arr[idx + 3] = encodeURI( v );
-            idx = idx + 4;
+        for k, v in pairs( qry ) do
+            if type( k ) == 'string' and type( v ) == 'string' then
+                arr[idx] = '&';
+                arr[idx + 1] = encodeURI( k );
+                arr[idx + 2] = '=';
+                arr[idx + 3] = encodeURI( v );
+                idx = idx + 4;
+            end
+        end
+
+        -- set new query-string
+        if idx > 1 then
+            self.url.query = '?' .. concat( arr, nil, 2 );
+        -- remove query-string
+        else
+            self.url.query = nil;
         end
     end
 
-    -- set new query-string
-    if idx > 1 then
-        self.url.query = '?' .. concat( arr, nil, 2 );
-    -- remove query-string
-    else
-        self.url.query = nil;
-    end
-end
-
-
---- unsetQuery
-function Request:unsetQuery()
-    self.query = nil;
+    error( 'qry must be table or nil' );
 end
 
 
