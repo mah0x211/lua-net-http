@@ -51,6 +51,8 @@ local function readstr( self, len )
 
         return strsub( data, 1, len );
     end
+
+    return nil;
 end
 
 
