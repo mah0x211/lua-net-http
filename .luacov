@@ -3,6 +3,7 @@ runreport = true
 deletestats = false
 modules = {
    ["net.http.body"] = "lib/body.lua",
+   ["net.http.entity"] = "lib/entity.lua",
    ["net.http.header"] = "lib/header.lua",
    ["net.http.parser"] = "lib/parser.lua",
 }
