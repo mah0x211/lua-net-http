@@ -75,7 +75,7 @@ end
 
 
 --- new
--- @param body
+-- @param data
 -- @return body
 local function new( data )
     local t = type( data );
@@ -83,11 +83,11 @@ local function new( data )
 
     if t == 'string' then
         readfn = readstr;
-    elseif t == 'table' or getmetatable( data ) and
+    elseif t == 'table' and getmetatable( data ) and
            type( data.read ) == 'function' then
         readfn = readstream
     else
-        error( 'body must be either string or object that has a read method' );
+        error( 'data must be either string or object that has a read method' );
     end
 
     return setmetatable({
