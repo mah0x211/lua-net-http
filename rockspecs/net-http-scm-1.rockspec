@@ -11,7 +11,6 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
-    "idna >= 1.0.0",
     "net >= 0.22.0",
     "rfcvalid >= 0.6.0",
     "tointeger >= 0.1.0",
