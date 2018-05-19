@@ -39,6 +39,13 @@ describe('test net.http.entity', function()
     end)
 
     it('unset a message body', function()
+        entity.setBody( msg, 'hello', 'text/plain' )
+        assert.is_not_nil( msg.body )
+        assert.is_true( msg.ctype )
+        assert.is_equal(
+            'Content-Type: text/plain\r\n',
+            msg.header:get('content-type')
+        )
         entity.unsetBody( msg )
         assert.is_nil( msg.body )
         assert.is_nil( msg.ctype )
