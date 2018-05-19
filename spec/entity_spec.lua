@@ -134,5 +134,49 @@ describe('test net.http.entity', function()
         assert.is_equal( #table.concat( expect ), entity.send( msg, conn ) )
         assert.are.same( expect, chunks )
     end)
+
+    it('can abort sending chunked messages', function()
+        local nchunk = 3
+        local n = 0
+        local chunks = {}
+        local conn = setmetatable({},{
+            __index = {
+                send = function( _, val )
+                    if n == 3 then
+                        return nil, 'abort'
+                    end
+                    chunks[#chunks + 1] = val
+                    return #val
+                end
+            }
+        })
+        local expect = {
+            [1] = 'message-line\r\n' ..
+                    'my-header: hello\r\n' ..
+                    'my-header: world\r\n' ..
+                    'Transfer-Encoding: chunked\r\n' ..
+                    '\r\n' ..
+                    'e\r\n' ..
+                    'chunked-data-1\r\n',
+            [2] = 'e\r\n' ..
+                    'chunked-data-2\r\n',
+        }
+
+        entity.setBody( msg, {
+            read = function()
+                n = n + 1
+                if n > nchunk then
+                    return nil
+                end
+
+                return 'chunked-data-' .. n
+            end
+        })
+
+        local len, err = entity.send( msg, conn )
+        assert.is_equal( #table.concat( expect ), len )
+        assert.are.same( expect, chunks )
+        assert.is_equal( 'abort', err )
+    end)
 end)
 
