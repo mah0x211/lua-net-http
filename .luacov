@@ -7,4 +7,5 @@ modules = {
    ["net.http.entity"] = "lib/entity.lua",
    ["net.http.header"] = "lib/header.lua",
    ["net.http.parser"] = "lib/parser.lua",
+   ["net.http.status"] = "lib/status.lua",
 }
