@@ -116,7 +116,7 @@ local function toline( code, ver )
     local msg;
 
     assert( type( code ) == 'number', 'code must be number' );
-    if not ver then
+    if ver == nil then
         msg = STATUS_MSG[code];
     else
         assert( type( ver ) == 'number', 'ver must be number' );
