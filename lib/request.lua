@@ -163,7 +163,7 @@ local function new( method, uri )
     assert( type( method ) == 'string', 'method must be string' );
     req.method = METHOD_LUT[strupper(method)];
     if not req.method then
-        return nil, 'invalid method - unsuppoerted method';
+        return nil, 'invalid method - unsupported method';
     end
 
     -- parse url
