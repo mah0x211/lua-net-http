@@ -90,6 +90,12 @@ describe('test net.http.request', function()
         assert.is_not_nil( err )
     end)
 
+    it('returns an error if uri without hostname', function()
+        local req, err = request.new( 'get', 'http:///pathname' )
+        assert.is_nil( req )
+        assert.is_not_nil( err )
+    end)
+
     it('can use a custom port-number', function()
         local req, err = request.new( 'get', 'http://example.com' )
         assert.is_not_nil( req )
@@ -186,9 +192,19 @@ describe('test net.http.request', function()
         assert.is_nil( err )
         assert.is_equal( '?hello=world', req.url.query )
 
-        local line = req:line()
         assert.is_equal(
-            'GET http://example.com:80/?hello=world HTTP/1.1\r\n', line
+            'GET http://example.com/?hello=world HTTP/1.1\r\n', req:line()
+        )
+    end)
+
+    it('returns the request-line with port-number', function()
+        local req, err = request.new( 'get', 'http://example.com:80?hello=world' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( '?hello=world', req.url.query )
+
+        assert.is_equal(
+            'GET http://example.com:80/?hello=world HTTP/1.1\r\n', req:line()
         )
     end)
 end)
