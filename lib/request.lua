@@ -71,27 +71,23 @@ local Request = {
 function Request:line()
     local arr = {
         self.method,
-        ' '
+        ' ',
+        self.url.scheme,
+        '://',
+        self.url.hostname,
     };
-    local narr = 4;
+    local narr = 6;
 
-    -- create request line
-    if self.url.scheme then
-        arr[3] = self.url.scheme;
-        arr[4] = '://';
-        arr[5] = self.url.hostname;
-        if self.url.port then
-            arr[6] = ':';
-            arr[7] = self.url.port;
-            arr[8] = self.url.path;
-            narr = 9;
-        else
-            arr[6] = self.url.path;
-            narr = 7;
-        end
-    else
-        arr[3] = self.url.path;
+    -- set port-number
+    if not self.withoutPort then
+        arr[6] = ':';
+        arr[7] = self.url.port;
+        narr = 8;
     end
+
+    -- set pathname
+    arr[narr] = self.url.path;
+    narr = narr + 1;
 
     -- append query-string
     if self.url.query then
@@ -187,8 +183,11 @@ local function new( method, uri )
     elseif not SCHEME_LUT[req.url.scheme] then
         return nil, 'invalid uri - unsupported scheme';
     -- set to default port
-    elseif not req.url.port or req.url.port == SCHEME_LUT[req.url.scheme] then
+    elseif not req.url.port then
         req.url.port = SCHEME_LUT[req.url.scheme];
+        req.withoutPort = true;
+        wellknown = true;
+    elseif req.url.port == SCHEME_LUT[req.url.scheme] then
         wellknown = true;
     end
 
