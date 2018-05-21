@@ -39,6 +39,7 @@ local assert = assert;
 local concat = table.concat;
 -- local strfind = string.find;
 local strupper = string.upper;
+local strformat = string.format;
 --- constants
 local CRLF = '\r\n';
 local DEFAULT_AGENT = 'User-Agent: lua-net-http' .. CRLF;
@@ -157,7 +158,7 @@ local function new( method, uri )
     local req = {
         header = header
     };
-    local wellknown, err, _;
+    local wellknown, offset, err;
 
     -- check method
     assert( type( method ) == 'string', 'method must be string' );
@@ -169,9 +170,11 @@ local function new( method, uri )
     -- parse url
     assert( type( uri ) == 'string', 'uri must be string' );
     uri = assert( encodeURI( uri ) );
-    req.url, _, err = parseURI( uri );
+    req.url, offset, err = parseURI( uri );
     if err then
-        return nil, err;
+        return nil, strformat(
+            'invalid uri - found illegal byte sequence %q at %d', err, offset
+        );
     -- scheme required
     elseif not req.url.scheme then
         return nil, 'invalid uri - scheme required';
