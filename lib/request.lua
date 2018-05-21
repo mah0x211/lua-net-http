@@ -178,9 +178,6 @@ local function new( method, uri )
     -- unknown scheme
     elseif not SCHEME_LUT[req.url.scheme] then
         return nil, 'invalid uri - unsupported scheme';
-    -- hostname undefined
-    elseif not req.url.hostname then
-        return nil, 'invalid uri - hostname required';
     -- set to default port
     elseif not req.url.port or req.url.port == SCHEME_LUT[req.url.scheme] then
         req.url.port = SCHEME_LUT[req.url.scheme];
