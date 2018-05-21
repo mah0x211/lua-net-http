@@ -107,10 +107,16 @@ end
 
 
 --- setMethod
--- @param data
--- @param len
+-- @param method
+-- @return err
 function Request:setMethod( method )
-    self.method = assert( METHOD_LUT[strupper(method)], 'invalid method' );
+    assert( type( method ) == 'string', 'method must be string' );
+    method = METHOD_LUT[strupper(method)];
+    if not method then
+        return 'unsupported method';
+    end
+
+    self.method = method;
 end
 
 
@@ -161,10 +167,9 @@ local function new( method, uri )
     local wellknown, offset, err;
 
     -- check method
-    assert( type( method ) == 'string', 'method must be string' );
-    req.method = METHOD_LUT[strupper(method)];
-    if not req.method then
-        return nil, 'invalid method - unsupported method';
+    err = Request.setMethod( req, method );
+    if err then
+        return nil, err;
     end
 
     -- parse url
