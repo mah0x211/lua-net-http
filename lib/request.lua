@@ -239,8 +239,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function trace( ... )
-    return new( 'TRACE', ... );
+local function trace( uri )
+    return new( 'TRACE', uri );
 end
 
 
@@ -248,8 +248,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function put( ... )
-    return new( 'PUT', ... );
+local function put( uri )
+    return new( 'PUT', uri );
 end
 
 
@@ -257,8 +257,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function post( ... )
-    return new( 'POST', ... );
+local function post( uri )
+    return new( 'POST', uri );
 end
 
 
@@ -266,8 +266,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function options( ... )
-    return new( 'OPTIONS', ... );
+local function options( uri )
+    return new( 'OPTIONS', uri );
 end
 
 
@@ -275,8 +275,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function head( ... )
-    return new( 'HEAD', ... );
+local function head( uri )
+    return new( 'HEAD', uri );
 end
 
 
@@ -284,8 +284,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function get( ... )
-    return new( 'GET', ... );
+local function get( uri )
+    return new( 'GET', uri );
 end
 
 
@@ -293,8 +293,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function delete( ... )
-    return new( 'DELETE', ... );
+local function delete( uri )
+    return new( 'DELETE', uri );
 end
 
 
@@ -302,8 +302,8 @@ end
 -- @param uri
 -- @return req
 -- @return err
-local function connect( ... )
-    return new( 'CONNECT', ... );
+local function connect( uri )
+    return new( 'CONNECT', uri );
 end
 
 
