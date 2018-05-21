@@ -1,5 +1,6 @@
 local request = require('net.http.request')
 local tolower = string.lower
+local toupper = string.upper
 
 
 describe('test net.http.request', function()
@@ -45,6 +46,24 @@ describe('test net.http.request', function()
         end
     end)
 
+    it('can create request via helper functions', function()
+        for _, method in ipairs({
+            'connect',
+            'delete',
+            'get',
+            'head',
+            'options',
+            'post',
+            'put',
+            'trace'
+        }) do
+            local req, err = request[method]( 'http://example.com/' )
+            assert.is_not_nil( req )
+            assert.is_nil( err )
+            assert.is_equal( req.method, toupper( method ) )
+        end
+    end)
+
     it('cannot call with non-string uri', function()
         for _, uri in ipairs({
             true,
@@ -81,6 +100,96 @@ describe('test net.http.request', function()
         assert.is_not_nil( req )
         assert.is_nil( err )
         assert.is_equal( '8080', req.url.port )
+    end)
+
+    it('can change the method', function()
+        local req, err = request.new( 'get', 'http://example.com' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( 'GET', req.method )
+
+        req:setMethod('post')
+        assert.is_equal( 'POST', req.method )
+    end)
+
+    it('cannot change the method to un unsupported method', function()
+        local req, err = request.new( 'get', 'http://example.com' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( 'GET', req.method )
+
+        assert.is_not_nil( req:setMethod('hello') )
+        assert.is_equal( 'GET', req.method )
+    end)
+
+    it('can change the query', function()
+        local chktbl = {
+            ['?foo=bar&baz=qux'] = true,
+            ['?baz=qux&foo=bar'] = true,
+        }
+        local req, err = request.new( 'get', 'http://example.com?hello=world' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( '?hello=world', req.url.query )
+
+        req:setQuery({
+            foo = 'bar',
+            baz = 'qux'
+        })
+        assert.is_true( chktbl[req.url.query] )
+    end)
+
+    it('can remove the query', function()
+        local req, err = request.new( 'get', 'http://example.com?hello=world' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( '?hello=world', req.url.query )
+
+        req:setQuery(nil)
+        assert.is_nil( req.url.query )
+
+        req:setQuery({
+            hello = 'world'
+        })
+        assert.is_equal( '?hello=world', req.url.query )
+
+        req:setQuery({})
+        assert.is_nil( req.url.query )
+    end)
+
+    it('cannot pass query that are not either table or nil', function()
+        local req, err = request.new( 'get', 'http://example.com?hello=world' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( '?hello=world', req.url.query )
+
+        for _, qry in ipairs({
+            'hello',
+            true,
+            false,
+            0,
+            1,
+            -1,
+            function()end,
+            coroutine.create(function() end)
+        }) do
+            assert.has_error(function()
+                req:setQuery(qry)
+            end)
+            assert.is_equal( '?hello=world', req.url.query )
+        end
+    end)
+
+    it('returns the request-line', function()
+        local req, err = request.new( 'get', 'http://example.com?hello=world' )
+        assert.is_not_nil( req )
+        assert.is_nil( err )
+        assert.is_equal( '?hello=world', req.url.query )
+
+        local line = req:line()
+        assert.is_equal(
+            'GET http://example.com:80/?hello=world HTTP/1.1\r\n', line
+        )
     end)
 end)
 
