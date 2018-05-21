@@ -44,8 +44,8 @@ local strformat = string.format;
 local CRLF = '\r\n';
 local DEFAULT_AGENT = 'User-Agent: lua-net-http' .. CRLF;
 local SCHEME_LUT = {
-    http = 80,
-    https = 443
+    http = '80',
+    https = '443'
 };
 local METHOD_LUT = {
     CONNECT = 'CONNECT',
