@@ -1,4 +1,5 @@
 local request = require('net.http.request')
+local split = require('string.split')
 local tolower = string.lower
 local toupper = string.upper
 
@@ -129,20 +130,44 @@ describe('test net.http.request', function()
     end)
 
     it('can change the query', function()
-        local chktbl = {
-            ['?foo=bar&baz=qux'] = true,
-            ['?baz=qux&foo=bar'] = true,
-        }
+        local chktbl = {}
+        local sortQueryParams = function( qry )
+            local arr = split( string.sub( qry, 2 ), '&', nil, true )
+
+            table.sort( arr )
+            return '?' .. table.concat( arr, '&' )
+        end
         local req, err = request.new( 'get', 'http://example.com?hello=world' )
         assert.is_not_nil( req )
         assert.is_nil( err )
         assert.is_equal( '?hello=world', req.url.query )
 
+        -- setup chktbl
+        for idx, qry in ipairs({
+            '?foo=bar&baz=qux',
+            '?foo.falsy=false&foo.bar.truthy=true&foo.bar.str=qux&num=1',
+        }) do
+            chktbl[idx] = sortQueryParams( qry )
+        end
+
         req:setQuery({
             foo = 'bar',
             baz = 'qux'
         })
-        assert.is_true( chktbl[req.url.query] )
+        assert.is_equal( chktbl[1], sortQueryParams( req.url.query ) )
+
+        -- set nested table
+        req:setQuery({
+            foo = {
+                bar = {
+                    str = 'qux',
+                    truthy = true
+                },
+                falsy = false,
+            },
+            num = 1
+        })
+        assert.is_equal( chktbl[2], sortQueryParams( req.url.query ) )
     end)
 
     it('can remove the query', function()
