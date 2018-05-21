@@ -308,6 +308,7 @@ end
 
 
 return {
+    new = new,
     connect = connect,
     delete = delete,
     get = get,
