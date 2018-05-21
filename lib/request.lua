@@ -146,9 +146,9 @@ function Request:setQuery( qry )
         else
             self.url.query = nil;
         end
+    else
+        error( 'qry must be table or nil' );
     end
-
-    error( 'qry must be table or nil' );
 end
 
 
