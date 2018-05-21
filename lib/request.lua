@@ -33,9 +33,11 @@ local encodeURI = require('url').encodeURI;
 -- local encodeIdna = require('idna').encode;
 local Header = require('net.http.header');
 local Entity = require('net.http.entity');
+local flatten = require('table.flatten');
 local setmetatable = setmetatable;
 local type = type;
 local assert = assert;
+local tostring = tostring;
 local concat = table.concat;
 -- local strfind = string.find;
 local strupper = string.upper;
@@ -116,27 +118,48 @@ function Request:setMethod( method )
 end
 
 
+--- encodeQueryParam
+-- @param key
+-- @param val
+-- @return key
+-- @return val
+local function encodeQueryParam( key, val )
+    local t = type( val );
+
+    if t == 'string' then
+        return encodeURI( key ), encodeURI( val );
+    elseif t == 'number' or t == 'boolean' then
+        return encodeURI( key ), encodeURI( tostring( val ) );
+    end
+end
+
+
+--- setQueryAsArray
+-- @param tbl
+-- @param key
+-- @param val
+local function setQueryAsArray( tbl, key, val )
+    if key then
+        local idx = #tbl;
+
+        tbl[idx + 1] = '&';
+        tbl[idx + 2] = key;
+        tbl[idx + 3] = '=';
+        tbl[idx + 4] = val;
+    end
+end
+
+
 --- setQuery
 -- @param qry
 function Request:setQuery( qry )
     if qry == nil then
         self.url.query = nil;
     elseif type( qry ) == 'table' then
-        local arr = {};
-        local idx = 1;
-
-        for k, v in pairs( qry ) do
-            if type( k ) == 'string' and type( v ) == 'string' then
-                arr[idx] = '&';
-                arr[idx + 1] = encodeURI( k );
-                arr[idx + 2] = '=';
-                arr[idx + 3] = encodeURI( v );
-                idx = idx + 4;
-            end
-        end
+        local arr = flatten( qry, 0, encodeQueryParam, setQueryAsArray );
 
         -- set new query-string
-        if idx > 1 then
+        if #arr > 1 then
             self.url.query = '?' .. concat( arr, nil, 2 );
         -- remove query-string
         else

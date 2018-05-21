@@ -14,6 +14,7 @@ dependencies = {
     "net >= 0.22.0",
     "rfcvalid >= 0.6.0",
     "tointeger >= 0.1.0",
+    "table-flatten >= 0.2.0",
     "url >= 1.2.1",
 }
 build = {
