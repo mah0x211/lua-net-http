@@ -30,12 +30,14 @@
 local isFieldName = require('rfcvalid.7230').isFieldName;
 local isFieldValue = require('rfcvalid.7230').isFieldValue;
 local isVchar = require('rfcvalid.implc').isvchar;
+local isUInt = require('isa').uint;
 local parseURL = require('url').parse;
 local tonumber = tonumber;
 local strfind = string.find;
 local strsub = string.sub;
 local strbyte = string.byte;
 local strlower = string.lower;
+local strformat = string.format;
 --- error constants
 -- need more bytes
 local EAGAIN = -1;
@@ -109,12 +111,31 @@ local DEFAULT_LIMITS = {
 -- @param limits
 -- @return limits
 local function getlimits( limits )
-    return {
-        REASON_LEN_MAX = limits.REASON_LEN_MAX or DEFAULT_LIMITS.REASON_LEN_MAX,
-        URI_LEN_MAX = limits.URI_LEN_MAX or DEFAULT_LIMITS.URI_LEN_MAX,
-        HEADER_LEN_MAX = limits.HEADER_LEN_MAX or DEFAULT_LIMITS.HEADER_LEN_MAX,
-        HEADER_NUM_MAX = limits.HEADER_NUM_MAX or DEFAULT_LIMITS.HEADER_NUM_MAX
+    local tbl = {
+        REASON_LEN_MAX = DEFAULT_LIMITS.REASON_LEN_MAX,
+        URI_LEN_MAX = DEFAULT_LIMITS.URI_LEN_MAX,
+        HEADER_LEN_MAX = DEFAULT_LIMITS.HEADER_LEN_MAX,
+        HEADER_NUM_MAX = DEFAULT_LIMITS.HEADER_NUM_MAX
     };
+
+    if limits == nil then
+        return tbl;
+    elseif type( limits ) ~= 'table' then
+        error( 'limits must be table' )
+    end
+
+    for k in pairs( tbl ) do
+        local v = limits[k];
+
+        if v ~= nil then
+            if not isUInt( v ) then
+                error( strformat( 'limits.%q must be unsigned integer', k ) )
+            end
+            tbl[k] = v;
+        end
+    end
+
+    return tbl;
 end
 
 
