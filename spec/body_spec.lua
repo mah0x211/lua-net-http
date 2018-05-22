@@ -49,7 +49,7 @@ describe('test net.http.body', function()
     it('can read data', function()
         local b = Body.new('hello')
         assert.are.equals('hello', b:read())
-        assert.are.equals(nil, b:length())
+        assert.are.equals('hello', b:read())
 
         b = Body.new({
             data = 'world',
@@ -58,13 +58,13 @@ describe('test net.http.body', function()
             end
         })
         assert.are.equals('world', b:read())
+        assert.are.equals('world', b:read())
     end)
 
-    it('can read partial data', function()
+    it('can read data of specified length', function()
         local b = Body.new('hello')
         assert.are.equals('he', b:read(2))
-        assert.are.equals('llo', b:read(3))
-        assert.are.equals(nil, b:read(1))
+        assert.are.equals('hel', b:read(3))
     end)
 end)
 
