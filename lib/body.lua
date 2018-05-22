@@ -38,20 +38,13 @@ local strsub = string.sub;
 -- @param len
 -- @return data
 local function readstr( self, len )
-    if self.data then
-        local data = self.data;
+    local data = self.data;
 
-        if len == nil or len >= #data then
-            self.data = nil;
-            return data;
-        end
-
-        self.data = strsub( data, len + 1 );
-
-        return strsub( data, 1, len );
+    if len == nil or len >= #data then
+        return data;
     end
 
-    return nil;
+    return strsub( data, 1, len );
 end
 
 
@@ -66,6 +59,7 @@ end
 
 
 --- length
+-- @return len
 local function length( self )
     if type( self.data ) == 'string' then
         return #self.data;
