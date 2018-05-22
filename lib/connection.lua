@@ -30,6 +30,7 @@
 local tointeger = require('tointeger');
 local chunksize = require('rfcvalid.implc').chunksize;
 local InetClient = require('net.stream.inet').client;
+local UnixClient = require('net.stream.unix').client;
 local Parser = require('net.http.parser');
 local ParseResponse = Parser.response;
 local ParseHeader = Parser.header;
@@ -368,15 +369,18 @@ end
 
 
 --- open
--- @param host
--- @param port
+-- @param opts
+-- @param conndeadl
 -- @return conn
 -- @return err
-local function open( host, port )
-    local sock, err = InetClient.new({
-        host = host,
-        port = port,
-    });
+local function open( opts, conndeadl )
+    local sock, err;
+
+    if opts.path then
+        sock, err = UnixClient.new( opts, nil, conndeadl );
+    else
+        sock, err = InetClient.new( opts, nil, conndeadl );
+    end
 
     if err then
         return nil, err;
