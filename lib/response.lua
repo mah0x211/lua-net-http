@@ -32,8 +32,6 @@ local toline = require('net.http.status').toline;
 local Entity = require('net.http.entity');
 local send = Entity.send;
 local setmetatable = setmetatable;
---- constants
-local DEFAULT_SERVER = 'Server: lua-net-http\r\n';
 
 
 --- class Response
@@ -66,23 +64,10 @@ end
 -- @return res
 -- @return err
 local function new( conn, ver )
-    local header = Header.new( 15, 15 );
-    local vals = header.vals;
-    local dict = header.dict;
-
-    -- reserved for first-line
-    vals[1] = false;
-    vals[2] = DEFAULT_SERVER;
-
-    -- reserved for first-line
-    dict[1] = false;
-    dict[2] = 'server';
-    dict.server = 2;
-
     return setmetatable({
         conn = conn,
         ver = ver or 1.1,
-        header = Header.new()
+        header = Header.new( 15, 15 ),
     },{
         __index = Response
     });
