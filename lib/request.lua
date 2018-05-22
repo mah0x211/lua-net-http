@@ -178,8 +178,6 @@ end
 -- @return err
 local function new( method, uri )
     local header = Header.new();
-    local vals = header.vals;
-    local dict = header.dict;
     local req = {
         header = header
     };
@@ -234,13 +232,11 @@ local function new( method, uri )
     -- set host header
     -- without port-number
     if wellknown then
-        vals[3] = 'Host: ' .. req.url.hostname .. CRLF;
+        header:set( 'Host', req.url.hostname );
     -- with port-number
     else
-        vals[3] = 'Host: ' .. req.url.host .. CRLF;
+        header:set( 'Host', req.url.host );
     end
-    dict[3] = 'host';
-    dict.host = 3;
 
     -- set default path
     if not req.url.path then
@@ -248,13 +244,7 @@ local function new( method, uri )
     end
 
     -- set default headers
-    -- reserved for first-line
-    vals[1] = false;
-    vals[2] = DEFAULT_AGENT;
-    -- reserved for first-line
-    dict[1] = false;
-    dict[2] = 'user-agent';
-    dict['user-agent'] = 2;
+    header:set( 'User-Agent', DEFAULT_AGENT );
 
     return setmetatable( req, {
         __index = Request
