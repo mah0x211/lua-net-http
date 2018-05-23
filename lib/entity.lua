@@ -35,13 +35,13 @@ local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
 
 
---- send
+--- sendto
 -- @param msg
 -- @param sock
 -- @return len
 -- @return err
 -- @return timeout
-local function send( msg, sock )
+local function sendto( msg, sock )
     local vals = msg.header.vals;
     local body = msg.entity.body;
     local clen = body and body:length();

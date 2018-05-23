@@ -30,7 +30,7 @@
 local Header = require('net.http.header');
 local toline = require('net.http.status').toline;
 local Entity = require('net.http.entity');
-local send = Entity.send;
+local sendto = Entity.sendto;
 local setmetatable = setmetatable;
 
 
@@ -48,7 +48,7 @@ local Response = {
 -- @return timeout
 function Response:send( status )
     self.status = status;
-    return send( self, self.conn );
+    return sendto( self, self.conn );
 end
 
 
