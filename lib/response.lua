@@ -54,8 +54,23 @@ end
 
 --- line
 -- @return line
+-- @return err
 function Response:line()
     return toline( self.status, self.ver );
+end
+
+
+--- setStatus
+-- @param status
+-- @return err
+function Response:setStatus( status )
+    local _, err = toline( status );
+
+    if err then
+        return err
+    end
+
+    self.status = status;
 end
 
 
