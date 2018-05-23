@@ -42,12 +42,10 @@ local Response = {
 
 
 --- send
--- @param status
 -- @return len
 -- @return err
 -- @return timeout
-function Response:send( status )
-    self.status = status;
+function Response:send()
     return sendto( self, self.conn );
 end
 
