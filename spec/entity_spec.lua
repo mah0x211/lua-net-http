@@ -1,4 +1,4 @@
-local entity = require('net.http.entity')
+local Entity = require('net.http.entity')
 local header = require('net.http.header')
 
 
@@ -6,9 +6,9 @@ describe('test net.http.entity', function()
     local msg
 
     before_each(function()
-        msg = setmetatable({
+        msg = setmetatable( Entity.init({
             header = header.new()
-        },{
+        }),{
             __index = {
                 line = function()
                     return 'message-line\r\n'
@@ -22,16 +22,16 @@ describe('test net.http.entity', function()
     end)
 
     it('set a message body', function()
-        entity.setBody( msg, 'hello' )
-        assert.is_not_nil( msg.body )
-        assert.is_nil( msg.ctype )
+        Entity.setBody( msg, 'hello' )
+        assert.is_not_nil( msg.entity.body )
+        assert.is_nil( msg.entity.ctype )
         assert.is_nil( msg.header:get('content-type') )
     end)
 
     it('set a message body and content-type header', function()
-        entity.setBody( msg, 'hello', 'text/plain' )
-        assert.is_not_nil( msg.body )
-        assert.is_true( msg.ctype )
+        Entity.setBody( msg, 'hello', 'text/plain' )
+        assert.is_not_nil( msg.entity.body )
+        assert.is_true( msg.entity.ctype )
         assert.is_equal(
             'Content-Type: text/plain\r\n',
             msg.header:get('content-type')
@@ -39,16 +39,16 @@ describe('test net.http.entity', function()
     end)
 
     it('unset a message body', function()
-        entity.setBody( msg, 'hello', 'text/plain' )
-        assert.is_not_nil( msg.body )
-        assert.is_true( msg.ctype )
+        Entity.setBody( msg, 'hello', 'text/plain' )
+        assert.is_not_nil( msg.entity.body )
+        assert.is_true( msg.entity.ctype )
         assert.is_equal(
             'Content-Type: text/plain\r\n',
             msg.header:get('content-type')
         )
-        entity.unsetBody( msg )
-        assert.is_nil( msg.body )
-        assert.is_nil( msg.ctype )
+        Entity.unsetBody( msg )
+        assert.is_nil( msg.entity.body )
+        assert.is_nil( msg.entity.ctype )
         assert.is_nil( msg.header:get('content-type') )
     end)
 
@@ -67,7 +67,7 @@ describe('test net.http.entity', function()
                         'my-header: world\r\n' ..
                         '\r\n'
 
-        assert.is_equal( #expect, entity.send( msg, conn ) )
+        assert.is_equal( #expect, Entity.send( msg, conn ) )
         assert.is_equal( expect, data )
     end)
 
@@ -88,8 +88,8 @@ describe('test net.http.entity', function()
                         '\r\n' ..
                         'hello world!'
 
-        entity.setBody( msg, 'hello world!')
-        assert.is_equal( #expect, entity.send( msg, conn ) )
+        Entity.setBody( msg, 'hello world!')
+        assert.is_equal( #expect, Entity.send( msg, conn ) )
         assert.is_equal( expect, data )
     end)
 
@@ -121,7 +121,7 @@ describe('test net.http.entity', function()
         local nchunk = 3
         local n = 0
 
-        entity.setBody( msg, {
+        Entity.setBody( msg, {
             read = function()
                 n = n + 1
                 if n > nchunk then
@@ -131,7 +131,7 @@ describe('test net.http.entity', function()
                 return 'chunked-data-' .. n
             end
         })
-        assert.is_equal( #table.concat( expect ), entity.send( msg, conn ) )
+        assert.is_equal( #table.concat( expect ), Entity.send( msg, conn ) )
         assert.are.same( expect, chunks )
     end)
 
@@ -162,7 +162,7 @@ describe('test net.http.entity', function()
                     'chunked-data-2\r\n',
         }
 
-        entity.setBody( msg, {
+        Entity.setBody( msg, {
             read = function()
                 n = n + 1
                 if n > nchunk then
@@ -173,7 +173,7 @@ describe('test net.http.entity', function()
             end
         })
 
-        local len, err = entity.send( msg, conn )
+        local len, err = Entity.send( msg, conn )
         assert.is_equal( #table.concat( expect ), len )
         assert.are.same( expect, chunks )
         assert.is_equal( 'abort', err )
