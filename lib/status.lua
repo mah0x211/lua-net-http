@@ -28,7 +28,6 @@
 
 --- assign to local
 local type = type;
-local error = error;
 local assert = assert;
 local strformat = string.format;
 --- constants
