@@ -112,6 +112,7 @@ end
 -- @param code
 -- @param ver
 -- @return msg
+-- @return err
 local function toline( code, ver )
     local msg;
 
@@ -128,12 +129,12 @@ local function toline( code, ver )
             msg = STATUS_LINE11[code];
         -- invalid version number
         else
-            error( strformat( 'unsupported version %q', ver ) );
+            return nil, strformat( 'unsupported version %q', ver );
         end
     end
 
     if not msg then
-        error( strformat( 'unsupported status code %q', code ) );
+        return nil, strformat( 'unsupported status code %q', code );
     end
 
     return msg;
