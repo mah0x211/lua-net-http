@@ -73,13 +73,25 @@ end
 
 
 --- new
--- @param conn
+-- @param ver
+-- @param sock
 -- @return res
 -- @return err
-local function new( conn, ver )
+local function new( ver, sock )
+    -- default HTTP/1.1
+    if ver == nil then
+        ver = 1.1;
+    else
+        local _, err = toline( 200, ver )
+
+        if err then
+            return nil, err
+        end
+    end
+
     return setmetatable( Entity.init({
-        conn = conn,
-        ver = ver or 1.1,
+        sock = sock,
+        ver = ver,
         header = Header.new( 15, 15 ),
     }),{
         __index = Response
