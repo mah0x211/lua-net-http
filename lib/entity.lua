@@ -37,11 +37,11 @@ local CRLF = '\r\n';
 
 --- send
 -- @param msg
--- @param conn
+-- @param sock
 -- @return len
 -- @return err
 -- @return timeout
-local function send( msg, conn )
+local function send( msg, sock )
     local vals = msg.header.vals;
     local body = msg.body;
     local clen = body and body:length();
@@ -51,14 +51,14 @@ local function send( msg, conn )
 
     if not body then
         vals[#vals + 1] = CRLF;
-        return conn:send( concat( vals ) );
+        return sock:send( concat( vals ) );
     elseif clen then
         local nval = #vals + 1;
 
         msg.header:set( 'Content-Length', clen );
         vals[nval + 1] = CRLF;
         vals[nval + 2] = body:read();
-        return conn:send( concat( vals ) );
+        return sock:send( concat( vals ) );
     else
         --
         -- 4.1.  Chunked Transfer Coding
@@ -105,7 +105,7 @@ local function send( msg, conn )
                 vals[idx + 1] = CRLF;
             end
 
-            len, err, timeout = conn:send( concat( vals ) );
+            len, err, timeout = sock:send( concat( vals ) );
             if not len or err or timeout then
                 return total, err, timeout;
             else
