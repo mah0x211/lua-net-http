@@ -79,11 +79,11 @@ end
 -- @return res
 -- @return err
 local function new( conn, ver )
-    return setmetatable({
+    return setmetatable( Entity.init({
         conn = conn,
         ver = ver or 1.1,
         header = Header.new( 15, 15 ),
-    },{
+    }),{
         __index = Response
     });
 end

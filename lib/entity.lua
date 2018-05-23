@@ -43,7 +43,7 @@ local CRLF = '\r\n';
 -- @return timeout
 local function send( msg, sock )
     local vals = msg.header.vals;
-    local body = msg.body;
+    local body = msg.entity.body;
     local clen = body and body:length();
 
     -- append request-line or status-line
@@ -128,29 +128,39 @@ end
 local function setBody( msg, data, ctype )
     -- set content-type header
     if ctype then
-        msg.ctype = true;
+        msg.entity.ctype = true;
         msg.header:set( 'Content-Type', ctype );
     end
 
-    msg.body = Body.new( data );
+    msg.entity.body = Body.new( data );
 end
 
 
 --- unsetBody
 -- @param msg
 local function unsetBody( msg )
-    if msg.body then
-        msg.body = nil;
+    if msg.entity.body then
+        msg.entity.body = nil;
         -- unset content-type header
-        if msg.ctype then
-            msg.ctype = nil;
+        if msg.entity.ctype then
+            msg.entity.ctype = nil;
             msg.header:del( 'Content-Type' );
         end
     end
 end
 
 
+--- init
+-- @param msg
+-- @return msg
+local function init( msg )
+    msg.entity = {};
+    return msg;
+end
+
+
 return {
+    init = init,
     send = send,
     setBody = setBody,
     unsetBody = unsetBody

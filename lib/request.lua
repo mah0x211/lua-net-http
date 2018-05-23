@@ -178,9 +178,9 @@ end
 -- @return err
 local function new( method, uri )
     local header = Header.new();
-    local req = {
+    local req = Entity.init({
         header = header
-    };
+    });
     local wellknown, offset, err;
 
     -- check method
