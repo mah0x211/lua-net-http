@@ -58,6 +58,16 @@ local function readstream( self, len )
 end
 
 
+--- recvstream
+-- @param self
+-- @param len
+-- @return data
+-- @return err
+local function recvstream( self, len )
+    return self.data:recv( len );
+end
+
+
 --- length
 -- @return len
 local function length( self )
@@ -78,10 +88,16 @@ local function new( data )
 
     if t == 'string' then
         readfn = readstr;
-    elseif t == 'table' and type( data.read ) == 'function' then
-        readfn = readstream
-    else
-        error( 'data must be either string or object that has a read method' );
+    elseif t == 'table' or t == 'userdata' then
+        if type( data.read ) == 'function' then
+            readfn = readstream;
+        elseif type( data.recv ) == 'function' then
+            readfn = recvstream;
+        end
+    end
+
+    if not readfn then
+        error( 'data must be string or implement read or recv method' );
     end
 
     return setmetatable({
