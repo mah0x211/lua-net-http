@@ -107,12 +107,12 @@ for k, v in pairs( STATUS_MSG ) do
 end
 
 
---- toline
+--- toLine
 -- @param code
 -- @param ver
 -- @return msg
 -- @return err
-local function toline( code, ver )
+local function toLine( code, ver )
     local msg;
 
     assert( type( code ) == 'number', 'code must be number' );
@@ -141,7 +141,7 @@ end
 
 
 return {
-    toline = toline,
+    toLine = toLine,
     --- status names
     -- 1×× Informational
     CONTINUE = 100,

@@ -28,7 +28,7 @@
 
 --- assign to local
 local Header = require('net.http.header');
-local toline = require('net.http.status').toline;
+local toLine = require('net.http.status').toLine;
 local Entity = require('net.http.entity');
 local sendto = Entity.sendto;
 local setmetatable = setmetatable;
@@ -54,7 +54,7 @@ end
 -- @return line
 -- @return err
 function Response:line()
-    return toline( self.status, self.ver );
+    return toLine( self.status, self.ver );
 end
 
 
@@ -62,7 +62,7 @@ end
 -- @param status
 -- @return err
 function Response:setStatus( status )
-    local _, err = toline( status );
+    local _, err = toLine( status );
 
     if err then
         return err
@@ -82,7 +82,7 @@ local function new( ver, sock )
     if ver == nil then
         ver = 1.1;
     else
-        local _, err = toline( 200, ver )
+        local _, err = toLine( 200, ver )
 
         if err then
             return nil, err

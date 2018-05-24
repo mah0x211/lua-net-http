@@ -85,33 +85,33 @@ describe('test net.http.status', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                Status.toline( code )
+                Status.toLine( code )
             end)
             assert.has_error(function()
-                Status.toline( 1, code )
+                Status.toLine( 1, code )
             end)
         end
 
         assert.has_error(function()
-            Status.toline( nil )
+            Status.toLine( nil )
         end)
     end)
 
     it('cannot pass an unknown status-code', function()
-        local msg, err = Status.toline( 900 )
+        local msg, err = Status.toLine( 900 )
         assert.is_nil(msg)
         assert.is_not_nil(err)
     end)
 
     it('cannot pass a version number other than 1.0 or 1.1', function()
-        local msg, err = Status.toline( 100, 2 )
+        local msg, err = Status.toLine( 100, 2 )
         assert.is_nil(msg)
         assert.is_not_nil(err)
     end)
 
     it('returns a status message', function()
         for _, code in pairs( STATUS_CODE ) do
-            local msg = Status.toline( code )
+            local msg = Status.toLine( code )
 
             assert.is_equal( 'string', type( msg ) )
             assert.is_equal( 1, string.find( msg, code .. ' ', 1, true ) )
@@ -120,7 +120,7 @@ describe('test net.http.status', function()
 
     it('returns a status message with version number', function()
         for _, code in pairs( STATUS_CODE ) do
-            local msg = Status.toline( code, 1 )
+            local msg = Status.toLine( code, 1 )
 
             -- version 1.0
             assert.is_equal( 'string', type( msg ) )
@@ -128,7 +128,7 @@ describe('test net.http.status', function()
             assert.is_equal( 10, string.find( msg, code .. ' ', 1, true ) )
 
             -- version 1.1
-            msg = Status.toline( code, 1.1 )
+            msg = Status.toLine( code, 1.1 )
             assert.is_equal( 'string', type( msg ) )
             assert.is_equal( 1, string.find( msg, 'HTTP/1.1 ', 1, true ) )
             assert.is_equal( 10, string.find( msg, code .. ' ', 1, true ) )

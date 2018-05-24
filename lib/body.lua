@@ -33,11 +33,11 @@ local setmetatable = setmetatable;
 local strsub = string.sub;
 
 
---- readstr
+--- readString
 -- @param self
 -- @param len
 -- @return data
-local function readstr( self, len )
+local function readString( self, len )
     local data = self.data;
 
     if len == nil or len >= #data then
@@ -48,22 +48,22 @@ local function readstr( self, len )
 end
 
 
---- readstream
+--- readStream
 -- @param self
 -- @param len
 -- @return data
 -- @return err
-local function readstream( self, len )
+local function readStream( self, len )
     return self.data:read( len );
 end
 
 
---- recvstream
+--- recvStream
 -- @param self
 -- @param len
 -- @return data
 -- @return err
-local function recvstream( self, len )
+local function recvStream( self, len )
     return self.data:recv( len );
 end
 
@@ -87,12 +87,12 @@ local function new( data )
     local readfn;
 
     if t == 'string' then
-        readfn = readstr;
+        readfn = readString;
     elseif t == 'table' or t == 'userdata' then
         if type( data.read ) == 'function' then
-            readfn = readstream;
+            readfn = readStream;
         elseif type( data.recv ) == 'function' then
-            readfn = recvstream;
+            readfn = recvStream;
         end
     end
 
