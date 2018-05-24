@@ -35,6 +35,7 @@ local CURRENT_DATE = date('!%a, %d %b %Y %H:%M:%S GMT');
 --- update
 local function update()
     CURRENT_DATE = date('!%a, %d %b %Y %H:%M:%S GMT');
+    return CURRENT_DATE;
 end
 
 
