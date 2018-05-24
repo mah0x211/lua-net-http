@@ -161,7 +161,7 @@ end
 
 return {
     init = init,
-    send = send,
+    sendto = sendto,
     setBody = setBody,
     unsetBody = unsetBody
 };
