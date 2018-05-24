@@ -33,6 +33,13 @@ local setmetatable = setmetatable;
 local strsub = string.sub;
 
 
+--- length
+-- @return len
+local function length( self )
+    return self.len;
+end
+
+
 --- readString
 -- @param self
 -- @param len
@@ -53,6 +60,7 @@ end
 -- @param len
 -- @return data
 -- @return err
+-- @return timeout
 local function readStream( self, len )
     return self.data:read( len );
 end
@@ -63,19 +71,9 @@ end
 -- @param len
 -- @return data
 -- @return err
+-- @return timeout
 local function recvStream( self, len )
     return self.data:recv( len );
-end
-
-
---- length
--- @return len
-local function length( self )
-    if type( self.data ) == 'string' then
-        return #self.data;
-    end
-
-    return nil;
 end
 
 
