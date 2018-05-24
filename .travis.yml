@@ -23,6 +23,7 @@ before_install:
   - luarocks install cluacov
   - luarocks install luacheck
   - luarocks install string-split
+  - luarocks install process
 
 install:
   - luarocks make
