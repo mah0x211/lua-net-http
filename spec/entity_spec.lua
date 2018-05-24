@@ -67,7 +67,7 @@ describe('test net.http.entity', function()
                         'my-header: world\r\n' ..
                         '\r\n'
 
-        assert.is_equal( #expect, Entity.send( msg, conn ) )
+        assert.is_equal( #expect, Entity.sendto( msg, conn ) )
         assert.is_equal( expect, data )
     end)
 
@@ -89,7 +89,7 @@ describe('test net.http.entity', function()
                         'hello world!'
 
         Entity.setBody( msg, 'hello world!')
-        assert.is_equal( #expect, Entity.send( msg, conn ) )
+        assert.is_equal( #expect, Entity.sendto( msg, conn ) )
         assert.is_equal( expect, data )
     end)
 
@@ -131,7 +131,7 @@ describe('test net.http.entity', function()
                 return 'chunked-data-' .. n
             end
         })
-        assert.is_equal( #table.concat( expect ), Entity.send( msg, conn ) )
+        assert.is_equal( #table.concat( expect ), Entity.sendto( msg, conn ) )
         assert.are.same( expect, chunks )
     end)
 
@@ -173,7 +173,7 @@ describe('test net.http.entity', function()
             end
         })
 
-        local len, err = Entity.send( msg, conn )
+        local len, err = Entity.sendto( msg, conn )
         assert.is_equal( #table.concat( expect ), len )
         assert.are.same( expect, chunks )
         assert.is_equal( 'abort', err )
