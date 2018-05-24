@@ -63,6 +63,7 @@ local METHOD_LUT = {
 
 --- class Request
 local Request = {
+    sendto = Entity.sendto,
     setBody = Entity.setBody,
     unsetBody = Entity.unsetBody
 };
