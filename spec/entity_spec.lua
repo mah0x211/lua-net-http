@@ -220,7 +220,7 @@ describe('test net.http.entity', function()
         assert.is_equal( -2, perr )
 
         -- got response
-        res, err, timeout, perr = Entity.recvfrom( msg, sock, parser )
+        res, err, timeout = Entity.recvfrom( msg, sock, parser )
         assert.is_equal( 'table', type( res ) )
         assert.is_equal( 'table', type( res.header ) )
         assert.is_nil( err )
