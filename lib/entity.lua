@@ -29,10 +29,56 @@
 --- assign to local
 local Body = require('net.http.body');
 local concat = table.concat;
+local strsub = string.sub;
 local strformat = string.format;
 --- constants
 local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
+local EAGAIN = require('net.http.parser').EAGAIN;
+
+
+--- recvfrom
+-- @param msg
+-- @param sock
+-- @param parser
+-- @return entity
+-- @return err
+-- @return timeout
+-- @return perr
+local function recvfrom( msg, sock, parser )
+    local buf = msg.entity.buf or '';
+    local entity = {
+        header = {}
+    };
+
+    while true do
+        local cur = EAGAIN;
+
+        -- parse buffered message
+        if #buf > 0 then
+            cur = parser( entity, buf );
+        end
+
+        -- parsed
+        if cur > 0 then
+            -- remove bytes used
+            msg.entity.buf = strsub( buf, cur + 1 );
+            return entity;
+        -- more bytes need
+        elseif cur == EAGAIN then
+            local str, err, timeout = sock:recv();
+
+            if not str or err or timeout then
+                return nil, err, timeout;
+            end
+
+            buf = buf .. str;
+        -- parse error
+        else
+            return nil, nil, nil, cur;
+        end
+    end
+end
 
 
 --- sendto
@@ -162,6 +208,7 @@ end
 return {
     init = init,
     sendto = sendto,
+    recvfrom = recvfrom,
     setBody = setBody,
     unsetBody = unsetBody
 };
