@@ -211,7 +211,7 @@ describe('test net.http.request', function()
         )
     end)
 
-    it('can send message', function()
+    it('can send message via socket', function()
         local req = request.new( 'get', 'http://example.com:80?hello=world' )
         local data
         local conn = setmetatable({},{
