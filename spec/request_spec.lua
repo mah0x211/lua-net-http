@@ -98,32 +98,23 @@ describe('test net.http.request', function()
     end)
 
     it('can use a custom port-number', function()
-        local req, err = request.new( 'get', 'http://example.com' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
+        local req = request.new( 'get', 'http://example.com' )
         assert.is_equal( '80', req.url.port )
 
-        req, err = request.new( 'get', 'http://example.com:8080' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
+        req = request.new( 'get', 'http://example.com:8080' )
         assert.is_equal( '8080', req.url.port )
     end)
 
     it('can change the method', function()
-        local req, err = request.new( 'get', 'http://example.com' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( 'GET', req.method )
+        local req = request.new( 'get', 'http://example.com' )
 
+        assert.is_equal( 'GET', req.method )
         req:setMethod('post')
         assert.is_equal( 'POST', req.method )
     end)
 
     it('cannot change the method to un unsupported method', function()
-        local req, err = request.new( 'get', 'http://example.com' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( 'GET', req.method )
+        local req = request.new( 'get', 'http://example.com' )
 
         assert.is_not_nil( req:setMethod('hello') )
         assert.is_equal( 'GET', req.method )
@@ -137,11 +128,9 @@ describe('test net.http.request', function()
             table.sort( arr )
             return '?' .. table.concat( arr, '&' )
         end
-        local req, err = request.new( 'get', 'http://example.com?hello=world' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( '?hello=world', req.url.query )
+        local req = request.new( 'get', 'http://example.com?hello=world' )
 
+        assert.is_equal( '?hello=world', req.url.query )
         -- setup chktbl
         for idx, qry in ipairs({
             '?foo=bar&baz=qux',
@@ -171,11 +160,9 @@ describe('test net.http.request', function()
     end)
 
     it('can remove the query', function()
-        local req, err = request.new( 'get', 'http://example.com?hello=world' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( '?hello=world', req.url.query )
+        local req = request.new( 'get', 'http://example.com?hello=world' )
 
+        assert.is_equal( '?hello=world', req.url.query )
         req:setQuery(nil)
         assert.is_nil( req.url.query )
 
@@ -189,10 +176,7 @@ describe('test net.http.request', function()
     end)
 
     it('cannot pass query that are not either table or nil', function()
-        local req, err = request.new( 'get', 'http://example.com?hello=world' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( '?hello=world', req.url.query )
+        local req = request.new( 'get', 'http://example.com?hello=world' )
 
         for _, qry in ipairs({
             'hello',
@@ -212,10 +196,7 @@ describe('test net.http.request', function()
     end)
 
     it('returns the request-line', function()
-        local req, err = request.new( 'get', 'http://example.com?hello=world' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( '?hello=world', req.url.query )
+        local req = request.new( 'get', 'http://example.com?hello=world' )
 
         assert.is_equal(
             'GET http://example.com/?hello=world HTTP/1.1\r\n', req:line()
@@ -223,14 +204,31 @@ describe('test net.http.request', function()
     end)
 
     it('returns the request-line with port-number', function()
-        local req, err = request.new( 'get', 'http://example.com:80?hello=world' )
-        assert.is_not_nil( req )
-        assert.is_nil( err )
-        assert.is_equal( '?hello=world', req.url.query )
+        local req = request.new( 'get', 'http://example.com:80?hello=world' )
 
         assert.is_equal(
             'GET http://example.com:80/?hello=world HTTP/1.1\r\n', req:line()
         )
+    end)
+
+    it('can send message', function()
+        local req = request.new( 'get', 'http://example.com:80?hello=world' )
+        local data
+        local conn = setmetatable({},{
+            __index = {
+                send = function( _, val )
+                    data = val
+                    return #val
+                end
+            }
+        })
+        local expect = 'GET http://example.com:80/?hello=world HTTP/1.1\r\n' ..
+                        'Host: example.com\r\n' ..
+                        'User-Agent: lua-net-http\r\n' ..
+                        '\r\n'
+
+        assert.is_equal( #expect, req:sendto( conn ) )
+        assert.is_equal( expect, data )
     end)
 end)
 
