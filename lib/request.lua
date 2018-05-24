@@ -44,7 +44,7 @@ local strupper = string.upper;
 local strformat = string.format;
 --- constants
 local CRLF = '\r\n';
-local DEFAULT_AGENT = 'User-Agent: lua-net-http' .. CRLF;
+local DEFAULT_UA = 'lua-net-http';
 local SCHEME_LUT = {
     http = '80',
     https = '443'
@@ -245,7 +245,7 @@ local function new( method, uri )
     end
 
     -- set default headers
-    header:set( 'User-Agent', DEFAULT_AGENT );
+    header:set( 'User-Agent', DEFAULT_UA );
 
     return setmetatable( req, {
         __index = Request
