@@ -236,14 +236,18 @@ local function header( hdr, msg, cur, limits )
                 return EHDRVAL;
             -- ignore empty val
             elseif #val > 0 then
-                -- duplicated
-                if hdr[key] then
+                local hval = hdr[key];
+
+                if not hdr[key] then
+                    hdr[key] = val;
+                -- save multiple values to array
+                elseif type( hval ) ~= 'table' then
                     hdr[key] = {
-                        hdr[key],
+                        hval,
                         val
                     };
                 else
-                    hdr[key] = val;
+                    hval[#hval + 1] = val;
                 end
             end
 
