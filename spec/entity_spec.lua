@@ -1,5 +1,6 @@
 local Entity = require('net.http.entity')
 local header = require('net.http.header')
+local EAGAIN = require('net.http.parser').EAGAIN
 
 
 describe('test net.http.entity', function()
@@ -54,7 +55,7 @@ describe('test net.http.entity', function()
 
     it('can send message', function()
         local data
-        local conn = setmetatable({},{
+        local sock = setmetatable({},{
             __index = {
                 send = function( _, val )
                     data = val
@@ -67,13 +68,13 @@ describe('test net.http.entity', function()
                         'my-header: world\r\n' ..
                         '\r\n'
 
-        assert.is_equal( #expect, Entity.sendto( msg, conn ) )
+        assert.is_equal( #expect, Entity.sendto( msg, sock ) )
         assert.is_equal( expect, data )
     end)
 
     it('can send message with string-data', function()
         local data
-        local conn = setmetatable({},{
+        local sock = setmetatable({},{
             __index = {
                 send = function( _, val )
                     data = val
@@ -89,14 +90,14 @@ describe('test net.http.entity', function()
                         'hello world!'
 
         Entity.setBody( msg, 'hello world!')
-        assert.is_equal( #expect, Entity.sendto( msg, conn ) )
+        assert.is_equal( #expect, Entity.sendto( msg, sock ) )
         assert.is_equal( expect, data )
     end)
 
 
     it('can send message with chunked-data', function()
         local chunks = {}
-        local conn = setmetatable({},{
+        local sock = setmetatable({},{
             __index = {
                 send = function( _, val )
                     chunks[#chunks + 1] = val
@@ -131,7 +132,7 @@ describe('test net.http.entity', function()
                 return 'chunked-data-' .. n
             end
         })
-        assert.is_equal( #table.concat( expect ), Entity.sendto( msg, conn ) )
+        assert.is_equal( #table.concat( expect ), Entity.sendto( msg, sock ) )
         assert.are.same( expect, chunks )
     end)
 
@@ -139,7 +140,7 @@ describe('test net.http.entity', function()
         local nchunk = 3
         local n = 0
         local chunks = {}
-        local conn = setmetatable({},{
+        local sock = setmetatable({},{
             __index = {
                 send = function( _, val )
                     if n == 3 then
@@ -173,10 +174,64 @@ describe('test net.http.entity', function()
             end
         })
 
-        local len, err = Entity.sendto( msg, conn )
+        local len, err = Entity.sendto( msg, sock )
         assert.is_equal( #table.concat( expect ), len )
         assert.are.same( expect, chunks )
         assert.is_equal( 'abort', err )
+    end)
+
+    it('can recv message', function()
+        local chunks = {
+            'not hello',
+            'hello',
+            ' ',
+            'world',
+            '!'
+        }
+        local idx = 0
+        local sock = setmetatable({},{
+            __index = {
+                recv = function()
+                    idx = idx + 1
+                    if not chunks[idx] then
+                        return nil, 'no data', false
+                    end
+
+                    return chunks[idx]
+                end
+            }
+        })
+        local parser = function( entity, buf )
+            if buf == 'not hello' then
+                return -2
+            elseif idx < #chunks then
+                return EAGAIN
+            end
+
+            entity.data = buf
+            return #buf
+        end
+        local res, err, timeout, perr = Entity.recvfrom( msg, sock, parser )
+
+        -- got parse error
+        assert.is_nil( res )
+        assert.is_nil( err )
+        assert.is_nil( timeout )
+        assert.is_equal( -2, perr )
+
+        -- got response
+        res, err, timeout, perr = Entity.recvfrom( msg, sock, parser )
+        assert.is_equal( 'table', type( res ) )
+        assert.is_equal( 'table', type( res.header ) )
+        assert.is_nil( err )
+        assert.is_nil( timeout )
+        assert.is_equal( 'hello world!', res.data )
+
+        -- got error
+        res, err, timeout = Entity.recvfrom( msg, sock, parser )
+        assert.is_nil( res )
+        assert.is_equal( 'no data', err )
+        assert.is_falsy( timeout )
     end)
 end)
 
