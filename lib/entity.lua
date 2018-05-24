@@ -75,6 +75,8 @@ local function recvfrom( msg, sock, parser )
             buf = buf .. str;
         -- parse error
         else
+            -- clear buffer
+            msg.entity.buf = '';
             return nil, nil, nil, cur;
         end
     end
