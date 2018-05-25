@@ -279,3 +279,204 @@ describe('test net.http.body.newContentReader', function()
     end)
 end)
 
+
+describe('test net.http.body.newChunkedReader', function()
+    it('cannot pass value except string or nil to buf argument', function()
+        for _, buf in ipairs({
+            true,
+            false,
+            0,
+            {},
+            function()end,
+            coroutine.create(function()end),
+        }) do
+            assert.has_error(function()
+                Body.newChunkedReader( 'hello', buf )
+            end)
+        end
+
+        assert.has_no.errors(function()
+            Body.newChunkedReader( 'hello', nil )
+        end)
+    end)
+
+    it('calls the read function without len argument ', function()
+        local amount
+        local msg = 'hello'
+        local chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            '\r\n',
+        }, '\r\n' )
+        local b = Body.newChunkedReader({
+            read = function( _, len )
+                amount = len
+                return chunks
+            end
+        })
+        local data = b:read()
+
+        assert.is_equal( msg, data )
+        assert.is_nil( amount )
+    end)
+
+    it('will use buf as already loaded data', function()
+        local msg = 'hello'
+        local chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            '\r\n',
+        }, '\r\n' )
+        local b = Body.newChunkedReader({
+            read = function()
+                return string.sub( chunks, 3 )
+            end
+        }, string.sub( chunks, 1, 2 ) )
+        local data = b:read()
+
+        assert.is_equal( msg, data )
+    end)
+
+    it('never calls a read function after all data has been loaded', function()
+        local ncall = 0
+        local msg = 'hello'
+        local chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            '\r\n',
+        }, '\r\n' )
+        local b = Body.newChunkedReader({
+            read = function( self )
+                ncall = ncall + 1
+                return chunks
+            end
+        })
+        local data = b:read()
+
+        assert.is_equal( msg, data )
+        assert.is_equals( 1, ncall )
+        b:read()
+        assert.is_equal( msg, data )
+        assert.is_equals( 1, ncall )
+    end)
+
+    it('returns a trailer-part', function()
+        local msg = 'hello'
+        local chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            'Hello: trailer-part1-1',
+            'Hello: trailer-part1-2',
+            'World: trailer-part2',
+            '\r\n'
+        }, '\r\n' )
+        local b = Body.newChunkedReader({
+            read = function( self )
+                return chunks
+            end
+        })
+        local data, trailer = b:read()
+
+        assert.is_equal( msg, data )
+        assert.are.same( {
+            hello = {
+                'trailer-part1-1',
+                'trailer-part1-2'
+            },
+            world = 'trailer-part2',
+        }, trailer )
+
+        data, trailer = b:read()
+        assert.is_equal( msg, data )
+        assert.are.same( {
+            hello = {
+                'trailer-part1-1',
+                'trailer-part1-2'
+            },
+            world = 'trailer-part2',
+        }, trailer )
+    end)
+
+    it('returns errors of reader', function()
+        local ncall = 0
+        local msg = 'hello'
+        local chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            'Hello: trailer-part1-1',
+            'Hello: trailer-part1-2',
+            'World: trailer-part2',
+            '\r\n'
+        }, '\r\n' )
+        local b, data, trailer, err, timeout
+
+        -- failed by reading data
+        b = Body.newChunkedReader({
+            read = function( self )
+                return nil, 'no-data', false
+            end
+        })
+        data, trailer, err, timeout = b:read()
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equals( 'no-data', err )
+        assert.is_falsy( timeout )
+
+        -- failed by reading invalid chunked data
+        b = Body.newChunkedReader({
+            read = function( self )
+                return 'xyz\r\nhello'
+            end
+        })
+        data, trailer, err, timeout = b:read()
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equals( 'invalid chunk-size', err )
+        assert.is_falsy( timeout )
+
+        -- failed by reading the partial data
+        b = Body.newChunkedReader({
+            read = function( self )
+                if ncall == 1 then
+                    return nil, 'no-content', false
+                end
+
+                ncall = 1
+                return string.sub( chunks, 1, 3 )
+            end
+        })
+        data, trailer, err, timeout = b:read()
+        assert.is_equal( 1, ncall )
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equals( 'no-content', err )
+        assert.is_falsy( timeout )
+
+        -- failed by reading the partial data of trailer-part
+        ncall = 0
+        b = Body.newChunkedReader({
+            read = function( self )
+                if ncall == 1 then
+                    return nil, 'no trailer-content', false
+                end
+
+                ncall = 1
+                return string.sub(
+                    chunks, 1, string.find( chunks, 'trailer-part1-1', 1, true )
+                )
+            end
+        })
+        data, trailer, err, timeout = b:read()
+        assert.is_equal( 1, ncall )
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equals( 'no trailer-content', err )
+        assert.is_falsy( timeout )
+    end)
+end)
+
