@@ -159,10 +159,12 @@ local function new( data, amount )
             reader = data.read;
         elseif type( data.recv ) == 'function' then
             reader = data.recv;
+        else
+            readfn = nil;
         end
     end
 
-    if not reader then
+    if not readfn then
         error( 'data must be string or implement read or recv method' );
     end
 
