@@ -27,23 +27,27 @@
 --]]
 
 --- assign to local
+local isUInt = require('isa').uint;
+local flatten = require('table.flatten');
 local parseURI = require('url').parse;
 local encodeURI = require('url').encodeURI;
 -- local decodeURI = require('url').decodeURI;
 -- local encodeIdna = require('idna').encode;
+local ParseResponse = require('net.http.parser').response;
 local Header = require('net.http.header');
+local Body = require('net.http.body');
 local Entity = require('net.http.entity');
-local flatten = require('table.flatten');
+local sendto = Entity.sendto;
+local recvfrom = Entity.recvfrom;
 local setmetatable = setmetatable;
 local type = type;
 local assert = assert;
 local tostring = tostring;
 local concat = table.concat;
--- local strfind = string.find;
+local strfind = string.find;
 local strupper = string.upper;
 local strformat = string.format;
 --- constants
-local CRLF = '\r\n';
 local DEFAULT_UA = 'lua-net-http';
 local SCHEME_LUT = {
     http = '80',
@@ -63,10 +67,75 @@ local METHOD_LUT = {
 
 --- class Request
 local Request = {
-    sendto = Entity.sendto,
     setBody = Entity.setBody,
     unsetBody = Entity.unsetBody
 };
+
+
+--- isChunkedTransferEncoding
+-- @param hval
+local function isChunkedTransferEncoding( hval )
+    if hval ~= nil then
+        if type( hval ) == 'table' then
+            hval = concat( hval, ',' );
+        end
+
+        if strfind( hval, '%s*,*%s*chunked%s*,*' ) then
+            return true;
+        end
+    end
+
+    return false;
+end
+
+
+--- sendto
+-- @param sock
+-- @return res
+-- @return err
+-- @return timeout
+function Request:sendto( sock )
+    local len, err, timeout = sendto( self, sock );
+
+    if not len or err or timeout then
+        sock:close();
+        return nil, err, timeout;
+    else
+        local res = {
+            header = {}
+        };
+        local ok, excess;
+
+        -- recv response
+        ok, excess, err, timeout = recvfrom( sock, ParseResponse, res );
+        if ok then
+            local clen = res.header['content-length'];
+
+            -- parse transfer-encoding
+            if isChunkedTransferEncoding( res.header['transfer-encoding'] ) then
+                res.body = Body.newChunkReader( sock, excess );
+            elseif clen then
+                -- use last-value
+                if type( clen ) == 'table' then
+                    clen = clen[#clen];
+                end
+
+                clen = tonumber( clen );
+                -- ignore invalid length format
+                if isUInt( clen ) then
+                    res.body = Body.newContentReader( sock, clen, excess );
+                end
+            end
+
+            return res;
+        end
+
+        sock:close();
+        return nil, err, timeout;
+    end
+end
+
+
 
 
 --- line
