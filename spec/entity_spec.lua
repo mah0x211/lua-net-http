@@ -211,25 +211,28 @@ describe('test net.http.entity', function()
             entity.data = buf
             return #buf
         end
-        local res, err, timeout, perr = Entity.recvfrom( msg, sock, parser )
+        local res = {
+            header = {}
+        }
+        local ok, err, timeout, perr = Entity.recvfrom( msg, sock, parser, res )
 
         -- got parse error
-        assert.is_nil( res )
+        assert.is_falsy( ok )
         assert.is_nil( err )
         assert.is_nil( timeout )
         assert.is_equal( -2, perr )
 
         -- got response
-        res, err, timeout = Entity.recvfrom( msg, sock, parser )
-        assert.is_equal( 'table', type( res ) )
+        ok, err, timeout = Entity.recvfrom( msg, sock, parser, res )
+        assert.is_truthy( ok )
         assert.is_equal( 'table', type( res.header ) )
         assert.is_nil( err )
         assert.is_nil( timeout )
         assert.is_equal( 'hello world!', res.data )
 
         -- got error
-        res, err, timeout = Entity.recvfrom( msg, sock, parser )
-        assert.is_nil( res )
+        ok, err, timeout = Entity.recvfrom( msg, sock, parser, res )
+        assert.is_falsy( ok )
         assert.is_equal( 'no data', err )
         assert.is_falsy( timeout )
     end)
