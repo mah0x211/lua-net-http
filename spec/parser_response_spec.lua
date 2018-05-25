@@ -1,4 +1,4 @@
-local parser = require('net.http.parser');
+local ResponseParser = require('net.http.parser').response;
 
 
 describe("test net.http.parser.request", function()
@@ -40,7 +40,7 @@ describe("test net.http.parser.request", function()
             local res = {
                 header = {}
             }
-            local consumed = parser.response( res, msg.val, msg.limits )
+            local consumed = ResponseParser( msg.val, res, msg.limits )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
@@ -90,7 +90,7 @@ describe("test net.http.parser.request", function()
             local res = {
                 header = {}
             }
-            local consumed = parser.response( res, msg.val, msg.limits )
+            local consumed = ResponseParser( msg.val, res, msg.limits )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
