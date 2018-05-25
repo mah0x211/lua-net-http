@@ -32,6 +32,7 @@ local type = type;
 local error = error;
 local setmetatable = setmetatable;
 local strsub = string.sub;
+local concat = table.concat;
 
 
 --- length
@@ -186,7 +187,76 @@ local function new( data, amount )
 end
 
 
+--- readContent
+-- @return body
+-- @return trailer
+-- @return err
+-- @return timeout
+local function readContent( self )
+    if self.body == nil then
+        return nil;
+    elseif type( self.body ) == 'string' then
+        return self.body;
+    else
+        local body = self.body;
+        local arr = { self.buf or '' };
+        local idx = 1;
+
+        self.body = nil;
+        self.buf = nil;
+
+        while true do
+            local data, err, timeout = body:read();
+
+            if err or timeout then
+                return nil, nil, err, timeout;
+            elseif not data then
+                self.body = concat( arr );
+                return self.body;
+            end
+
+            idx = idx + 1;
+            arr[idx] = data;
+        end
+    end
+end
+
+
+--- newContentReader
+-- @param data
+-- @param amount
+-- @param buf
+-- @return body
+local function newContentReader( data, amount, buf )
+    local body;
+
+    if buf == nil then
+        body = new( data, amount );
+    elseif type( buf ) ~= 'string' then
+        error( 'buf must be string' );
+    elseif ( amount - #buf ) > 0 then
+        body = new( data, amount - #buf );
+    -- already received
+    else
+        body = buf;
+        buf = nil;
+    end
+
+    return setmetatable({
+        body = body,
+        buf = buf,
+        len = amount
+    },{
+        __index = {
+            read = readContent,
+            length = length,
+        }
+    });
+end
+
+
 return {
-    new = new
+    new = new,
+    newContentReader = newContentReader,
 };
 
