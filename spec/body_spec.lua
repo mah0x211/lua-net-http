@@ -349,7 +349,7 @@ describe('test net.http.body.newChunkedReader', function()
             '\r\n',
         }, '\r\n' )
         local b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 ncall = ncall + 1
                 return chunks
             end
@@ -375,7 +375,7 @@ describe('test net.http.body.newChunkedReader', function()
             '\r\n'
         }, '\r\n' )
         local b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 return chunks
             end
         })
@@ -417,7 +417,7 @@ describe('test net.http.body.newChunkedReader', function()
 
         -- failed by reading data
         b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 return nil, 'no-data', false
             end
         })
@@ -429,7 +429,7 @@ describe('test net.http.body.newChunkedReader', function()
 
         -- failed by reading invalid chunked data
         b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 return 'xyz\r\nhello'
             end
         })
@@ -441,7 +441,7 @@ describe('test net.http.body.newChunkedReader', function()
 
         -- failed by reading the partial data
         b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 if ncall == 1 then
                     return nil, 'no-content', false
                 end
@@ -460,7 +460,7 @@ describe('test net.http.body.newChunkedReader', function()
         -- failed by reading the partial data of trailer-part
         ncall = 0
         b = Body.newChunkedReader({
-            read = function( self )
+            read = function()
                 if ncall == 1 then
                     return nil, 'no trailer-content', false
                 end
