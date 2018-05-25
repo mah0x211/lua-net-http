@@ -1,7 +1,7 @@
 local Body = require('net.http.body')
 
 
-describe('test net.http.body', function()
+describe('test net.http.body.new', function()
     it('cannot set non-string data or object that does not have a "read" method', function()
         for _, data in ipairs({
             true,
@@ -159,7 +159,7 @@ describe('test net.http.body', function()
         end
     end)
 
-    it('returns error', function()
+    it('returns errors of reader', function()
         local b = Body.new({
             data = 'hello',
             read = function()
@@ -171,6 +171,111 @@ describe('test net.http.body', function()
         assert.is_nil( data )
         assert.is_equal( 'no-data', err )
         assert.is_falsy( timeout )
+    end)
+end)
+
+
+describe('test net.http.body.newContentReader', function()
+    it('cannot pass non-numeric value to amount argument', function()
+        assert.has_error(function()
+            Body.newContentReader( 'hello' )
+        end)
+        for _, amount in ipairs({
+            'str',
+            true,
+            false,
+            {},
+            function()end,
+            coroutine.create(function()end),
+        }) do
+            assert.has_error(function()
+                Body.newContentReader( 'hello', amount )
+            end)
+        end
+
+        assert.has_error(function()
+            Body.newContentReader( 'hello', nil )
+        end)
+    end)
+
+    it('cannot pass value except string or nil to buf argument', function()
+        for _, buf in ipairs({
+            true,
+            false,
+            0,
+            {},
+            function()end,
+            coroutine.create(function()end),
+        }) do
+            assert.has_error(function()
+                Body.newContentReader( 'hello', 5, buf )
+            end)
+        end
+    end)
+
+    it('reads the specified amount of data', function()
+        local amount
+        local b = Body.newContentReader({
+            data = 'hello world',
+            read = function( self, len )
+                amount = len
+                return self.data
+            end
+        }, 5 )
+
+        b:read()
+        assert.is_equals( 5, amount )
+    end)
+
+    it('will use buf as already loaded data', function()
+        local amount
+        local b = Body.newContentReader({
+            data = 'hello',
+            read = function( self, len )
+                amount = len
+                return self.data
+            end
+        }, 5, 'he' )
+
+        b:read()
+        assert.is_equals( 3, amount )
+    end)
+
+    it('never calls a read function after all data has been loaded', function()
+        local ncall = 0
+        local b = Body.newContentReader({
+            data = 'hello',
+            read = function( self )
+                ncall = ncall + 1
+                return self.data
+            end
+        }, 5 )
+
+        b:read()
+        assert.is_equals( 1, ncall )
+        b:read()
+        assert.is_equals( 1, ncall )
+    end)
+
+    it('returns errors of reader', function()
+        local b = Body.newContentReader({
+            data = 'hello',
+            read = function()
+                return nil, 'no-data', false
+            end
+        }, 5 )
+        local data, trailer, err, timeout = b:read()
+
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equals( 'no-data', err )
+        assert.is_falsy( timeout )
+
+        data, trailer, err, timeout = b:read()
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_nil( err )
+        assert.is_nil( timeout )
     end)
 end)
 
