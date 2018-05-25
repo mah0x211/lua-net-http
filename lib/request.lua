@@ -28,6 +28,7 @@
 
 --- assign to local
 local isUInt = require('isa').uint;
+local InetClient = require('net.stream.inet').client;
 local flatten = require('table.flatten');
 local parseURI = require('url').parse;
 local encodeURI = require('url').encodeURI;
@@ -136,6 +137,23 @@ function Request:sendto( sock )
 end
 
 
+--- send
+-- @param conndeadl
+-- @return res
+-- @return err
+-- @return timeout
+function Request:send( conndeadl )
+    local sock, err, timeout = InetClient.new({
+        host = self.url.hostname,
+        port = self.url.port,
+    }, nil, conndeadl );
+
+    if sock then
+        return self:sendto( sock );
+    end
+
+    return nil, err, timeout;
+end
 
 
 --- line
