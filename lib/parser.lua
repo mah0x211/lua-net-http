@@ -168,12 +168,12 @@ end
 
 
 --- header
--- @param hdr
 -- @param msg
+-- @param hdr
 -- @param cur
 -- @param limits
 -- @return consumed
-local function header( hdr, msg, cur, limits )
+local function header( msg, hdr, cur, limits )
     local nhdr = 0;
     local head, tail;
 
@@ -276,11 +276,11 @@ end
 
 
 --- request
--- @param req
 -- @param msg
+-- @param req
 -- @param limits
 -- @return consumed
-local function request( req, msg, limits )
+local function request( msg, req, limits )
     -- skip leading CRLF
     local cur = CRLF_SKIPS[strbyte( msg, 1 )] or 1;
     local head, tail, err;
@@ -338,16 +338,16 @@ local function request( req, msg, limits )
     cur = tail + 1;
 
     -- parse header
-    return header( req.header, msg, cur, limits );
+    return header( msg, req.header, cur, limits );
 end
 
 
 --- response
--- @param res
 -- @param msg
+-- @param res
 -- @param limits
 -- @return consumed
-local function response( res, msg, limits )
+local function response( msg, res, limits )
     local head, tail, cur;
 
     -- use default-limits
@@ -405,7 +405,7 @@ local function response( res, msg, limits )
         return EREASONFMT;
     end
 
-    return header( res.header, msg, cur, limits )
+    return header( msg, res.header, cur, limits )
 end
 
 

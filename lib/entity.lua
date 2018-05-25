@@ -56,7 +56,7 @@ local function recvfrom( msg, sock, parser )
 
         -- parse buffered message
         if #buf > 0 then
-            cur = parser( entity, buf );
+            cur = parser( buf, entity );
         end
 
         -- parsed
