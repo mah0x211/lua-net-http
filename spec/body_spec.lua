@@ -477,6 +477,34 @@ describe('test net.http.body.newChunkedReader', function()
         assert.is_nil( trailer )
         assert.is_equals( 'no trailer-content', err )
         assert.is_falsy( timeout )
+
+        -- failed by reading the invalid trailer-part
+        chunks = table.concat({
+            tonumber( #msg, 16 ),
+            msg,
+            '0',
+            'Hello trailer-part1-1',
+            'Hello: trailer-part1-2',
+            'World: trailer-part2',
+            '\r\n'
+        }, '\r\n' )
+        b = Body.newChunkedReader({
+            read = function()
+                return chunks
+            end
+        })
+        data, trailer, err, timeout = b:read()
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_equal( 'string', type( err ) )
+        assert.is_falsy( timeout )
+
+        -- returns nil values
+        data, trailer, err, timeout = b:read()
+        assert.is_nil( data )
+        assert.is_nil( trailer )
+        assert.is_nil( err )
+        assert.is_falsy( timeout )
     end)
 end)
 
