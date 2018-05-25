@@ -28,11 +28,16 @@
 
 --- assign to local
 local isUInt = require('isa').uint;
+local chunksize = require('rfcvalid.implc').chunksize;
+local ParseHeader = require('net.http.parser').header;
+local strerror = require('net.http.parser').strerror;
 local type = type;
 local error = error;
 local setmetatable = setmetatable;
 local strsub = string.sub;
 local concat = table.concat;
+--- constants
+local EAGAIN = require('net.http.parser').EAGAIN;
 
 
 --- length
@@ -187,6 +192,139 @@ local function new( data, amount )
 end
 
 
+--- readChunked
+-- @return body
+-- @return trailer
+-- @return err
+-- @return timeout
+local function readChunked( self )
+    if self.body == nil then
+        return nil;
+    elseif type( self.body ) == 'string' then
+        return self.body, self.trailer;
+    else
+        local body = self.body;
+        local buf = self.buf or '';
+        local arr = {};
+        local idx = 0;
+
+        self.body = nil;
+        self.buf = nil;
+
+        --
+        -- 4.1.  Chunked Transfer Coding
+        -- https://tools.ietf.org/html/rfc7230#section-4.1
+        --
+        -- chunked-body   = *chunk
+        --                  last-chunk
+        --                  trailer-part
+        --                  CRLF
+        --
+        -- chunk          = chunk-size [ chunk-ext ] CRLF
+        --                  chunk-data CRLF
+        -- chunk-size     = 1*HEXDIG
+        -- last-chunk     = 1*("0") [ chunk-ext ] CRLF
+        --
+        -- chunk-data     = 1*OCTET ; a sequence of chunk-size octets
+        --
+        -- chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+        -- chunk-ext-name = token
+        -- chunk-ext-val  = token / quoted-string
+        --
+        -- trailer-part   = *( header-field CRLF )
+        --
+        while true do
+            local consumed, clen = chunksize( buf );
+
+            -- got chunk size
+            if consumed > 0 then
+                -- got last-chunk
+                if clen == 0 then
+                    local trailer = {};
+
+                    -- parse trailer-part
+                    while true do
+                        consumed = ParseHeader( buf, trailer, consumed + 1 );
+                        -- parsed
+                        if consumed > 0 then
+                            self.body = concat( arr );
+                            self.trailer = trailer;
+                            return self.body, trailer;
+                        -- more bytes need
+                        elseif consumed == EAGAIN then
+                            local data, err, timeout = body:read();
+
+                            if not data or err or timeout then
+                                return nil, nil, err, timeout;
+                            end
+
+                            buf = buf .. data;
+                        -- parse error
+                        else
+                            return nil, nil, strerror( consumed );
+                        end
+                    end
+                end
+
+                -- remove chunk-header
+                buf = strsub( buf, consumed + 1 );
+                -- need more bytes
+                while #buf < clen do
+                    local data, err, timeout = body:read();
+
+                    if not data or err or timeout then
+                        return nil, nil, err, timeout;
+                    end
+
+                    buf = buf .. data;
+                end
+
+                -- save chunks into array
+                idx = idx + 1;
+                arr[idx] = strsub( buf, 1, clen );
+                buf = strsub( buf, clen + 3 );
+
+            -- need more bytes
+            elseif consumed == -1 then
+                local data, err, timeout = body:read();
+
+                if not data or err or timeout then
+                    return nil, nil, err, timeout;
+                end
+
+                buf = buf .. data;
+            -- invalid line
+            else
+                return nil, nil, 'invalid chunk-size';
+            end
+        end
+    end
+end
+
+
+--- newChunkedReader
+-- @param data
+-- @param buf
+-- @return body
+local function newChunkedReader( data, buf )
+    local body = new( data );
+
+    if buf ~= nil and type( buf ) ~= 'string' then
+        error( 'buf must be string' );
+    end
+
+    return setmetatable({
+        body = body,
+        buf = buf,
+    },{
+        __index = {
+            read = readChunked,
+            length = length,
+        }
+    });
+end
+
+
 --- readContent
 -- @return body
 -- @return trailer
@@ -258,5 +396,6 @@ end
 return {
     new = new,
     newContentReader = newContentReader,
+    newChunkedReader = newChunkedReader,
 };
 
