@@ -95,28 +95,32 @@ end
 -- @return err
 -- @return timeout
 local function readRemainingStream( self )
-    local data, err, timeout = self.reader( self.data, self.amount );
+    if self.data then
+        local data, err, timeout = self.reader( self.data, self.amount );
 
-    if not data or err or timeout then
-        self.data = nil;
-        self.amount = nil;
-    else
-        local len = #data;
-        local amount = self.amount - len;
-
-        if amount > 0 then
-            self.amount = amount;
-        else
+        if not data or err or timeout then
             self.data = nil;
             self.amount = nil;
-            -- remove the excess
-            if amount < 0 then
-                data = strsub( data, 1, len + amount )
+        else
+            local len = #data;
+            local amount = self.amount - len;
+
+            if amount > 0 then
+                self.amount = amount;
+            else
+                self.data = nil;
+                self.amount = nil;
+                -- remove the excess
+                if amount < 0 then
+                    data = strsub( data, 1, len + amount )
+                end
             end
         end
+
+        return data, err, timeout;
     end
 
-    return data, err, timeout;
+    return nil;
 end
 
 
