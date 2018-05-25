@@ -201,7 +201,7 @@ describe('test net.http.entity', function()
                 end
             }
         })
-        local parser = function( entity, buf )
+        local parser = function( buf, entity )
             if buf == 'not hello' then
                 return -2
             elseif idx < #chunks then
