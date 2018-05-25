@@ -1,4 +1,4 @@
-local request = require('net.http.request')
+local Request = require('net.http.request')
 local split = require('string.split')
 local tolower = string.lower
 local toupper = string.upper
@@ -14,13 +14,13 @@ describe('test net.http.request', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                request.new( method, 'http://example.com/' )
+                Request.new( method, 'http://example.com/' )
             end)
         end
     end)
 
     it('returns an error if unsupported method is passed', function()
-        local req, err = request.new( 'unknown-method', 'http://example.com/' )
+        local req, err = Request.new( 'unknown-method', 'http://example.com/' )
 
         assert.is_nil( req )
         assert.is_not_nil( err )
@@ -37,11 +37,11 @@ describe('test net.http.request', function()
             'PUT',
             'TRACE'
         }) do
-            local req, err = request.new( method, 'http://example.com/' )
+            local req, err = Request.new( method, 'http://example.com/' )
             assert.is_not_nil( req )
             assert.is_nil( err )
 
-            req, err = request.new( tolower( method ), 'http://example.com/' )
+            req, err = Request.new( tolower( method ), 'http://example.com/' )
             assert.is_not_nil( req )
             assert.is_nil( err )
         end
@@ -58,7 +58,7 @@ describe('test net.http.request', function()
             'put',
             'trace'
         }) do
-            local req, err = request[method]( 'http://example.com/' )
+            local req, err = Request[method]( 'http://example.com/' )
             assert.is_not_nil( req )
             assert.is_nil( err )
             assert.is_equal( req.method, toupper( method ) )
@@ -74,39 +74,39 @@ describe('test net.http.request', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                request.new( 'get', uri )
+                Request.new( 'get', uri )
             end)
         end
     end)
 
     it('returns an error if uri with no scheme is passed', function()
-        local req, err = request.new( 'get', 'example.com' )
+        local req, err = Request.new( 'get', 'example.com' )
         assert.is_nil( req )
         assert.is_not_nil( err )
     end)
 
     it('returns an error if uri with unsupported scheme', function()
-        local req, err = request.new( 'get', 'foo://example.com' )
+        local req, err = Request.new( 'get', 'foo://example.com' )
         assert.is_nil( req )
         assert.is_not_nil( err )
     end)
 
     it('returns an error if uri without hostname', function()
-        local req, err = request.new( 'get', 'http:///pathname' )
+        local req, err = Request.new( 'get', 'http:///pathname' )
         assert.is_nil( req )
         assert.is_not_nil( err )
     end)
 
     it('can use a custom port-number', function()
-        local req = request.new( 'get', 'http://example.com' )
+        local req = Request.new( 'get', 'http://example.com' )
         assert.is_equal( '80', req.url.port )
 
-        req = request.new( 'get', 'http://example.com:8080' )
+        req = Request.new( 'get', 'http://example.com:8080' )
         assert.is_equal( '8080', req.url.port )
     end)
 
     it('can change the method', function()
-        local req = request.new( 'get', 'http://example.com' )
+        local req = Request.new( 'get', 'http://example.com' )
 
         assert.is_equal( 'GET', req.method )
         req:setMethod('post')
@@ -114,7 +114,7 @@ describe('test net.http.request', function()
     end)
 
     it('cannot change the method to un unsupported method', function()
-        local req = request.new( 'get', 'http://example.com' )
+        local req = Request.new( 'get', 'http://example.com' )
 
         assert.is_not_nil( req:setMethod('hello') )
         assert.is_equal( 'GET', req.method )
@@ -128,7 +128,7 @@ describe('test net.http.request', function()
             table.sort( arr )
             return '?' .. table.concat( arr, '&' )
         end
-        local req = request.new( 'get', 'http://example.com?hello=world' )
+        local req = Request.new( 'get', 'http://example.com?hello=world' )
 
         assert.is_equal( '?hello=world', req.url.query )
         -- setup chktbl
@@ -160,7 +160,7 @@ describe('test net.http.request', function()
     end)
 
     it('can remove the query', function()
-        local req = request.new( 'get', 'http://example.com?hello=world' )
+        local req = Request.new( 'get', 'http://example.com?hello=world' )
 
         assert.is_equal( '?hello=world', req.url.query )
         req:setQuery(nil)
@@ -176,7 +176,7 @@ describe('test net.http.request', function()
     end)
 
     it('cannot pass query that are not either table or nil', function()
-        local req = request.new( 'get', 'http://example.com?hello=world' )
+        local req = Request.new( 'get', 'http://example.com?hello=world' )
 
         for _, qry in ipairs({
             'hello',
@@ -196,7 +196,7 @@ describe('test net.http.request', function()
     end)
 
     it('returns the request-line', function()
-        local req = request.new( 'get', 'http://example.com?hello=world' )
+        local req = Request.new( 'get', 'http://example.com?hello=world' )
 
         assert.is_equal(
             'GET http://example.com/?hello=world HTTP/1.1\r\n', req:line()
@@ -204,7 +204,7 @@ describe('test net.http.request', function()
     end)
 
     it('returns the request-line with port-number', function()
-        local req = request.new( 'get', 'http://example.com:80?hello=world' )
+        local req = Request.new( 'get', 'http://example.com:80?hello=world' )
 
         assert.is_equal(
             'GET http://example.com:80/?hello=world HTTP/1.1\r\n', req:line()
@@ -212,9 +212,9 @@ describe('test net.http.request', function()
     end)
 
     it('can send message via socket', function()
-        local req = request.new( 'get', 'http://example.com:80?hello=world' )
+        local req = Request.new( 'get', 'http://example.com:80?hello=world' )
         local data
-        local conn = setmetatable({},{
+        local sock = setmetatable({},{
             __index = {
                 send = function( _, val )
                     data = val
@@ -227,7 +227,7 @@ describe('test net.http.request', function()
                         'User-Agent: lua-net-http\r\n' ..
                         '\r\n'
 
-        assert.is_equal( #expect, req:sendto( conn ) )
+        assert.is_equal( #expect, req:sendto( sock ) )
         assert.is_equal( expect, data )
     end)
 end)
