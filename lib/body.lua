@@ -27,6 +27,7 @@
 --]]
 
 --- assign to local
+local isUInt = require('isa').uint;
 local type = type;
 local error = error;
 local setmetatable = setmetatable;
@@ -77,20 +78,128 @@ local function recvStream( self, len )
 end
 
 
+--- readRemainingString
+-- @param self
+-- @param len
+-- @return data
+-- @return err
+-- @return timeout
+local function readRemainingString( self )
+    if self.amount then
+        local data = self.data;
+        local amount = self.amount;
+
+        self.data = nil;
+        self.amount = nil;
+
+        return strsub( data, 1, amount );
+    end
+
+    return nil;
+end
+
+
+--- readRemainingStream
+-- @param self
+-- @param reader
+-- @return data
+-- @return err
+-- @return timeout
+local function readRemainingStream( self, reader )
+    local data, err, timeout = reader( self.data, self.amount );
+
+    if not data or err or timeout then
+        self.data = nil;
+        self.amount = nil;
+    else
+        local len = #data;
+        local amount = self.amount - len;
+
+        if amount > 0 then
+            self.amount = amount;
+        else
+            self.data = nil;
+            self.amount = nil;
+            -- remove the excess
+            if amount < 0 then
+                data = strsub( data, 1, len + amount )
+            end
+        end
+    end
+
+    return data, err, timeout;
+end
+
+
+--- readRemaining
+-- @param self
+-- @return data
+-- @return err
+-- @return timeout
+local function readRemaining( self )
+    if self.data then
+        return readRemainingStream( self, self.data.read );
+    end
+
+    return nil;
+end
+
+
+--- recvRemaining
+-- @param self
+-- @return data
+-- @return err
+-- @return timeout
+local function recvRemaining( self )
+    if self.data then
+        return readRemainingStream( self, self.data.recv );
+    end
+
+    return nil;
+end
+
+
 --- new
 -- @param data
+-- @param amount
 -- @return body
-local function new( data )
+local function new( data, amount )
     local t = type( data );
-    local readfn;
+    local readfn, len;
+
+    if amount ~= nil then
+        if not isUInt( amount ) then
+            error( 'amount must be unsigned integer' );
+        end
+    end
 
     if t == 'string' then
-        readfn = readString;
+        if amount then
+            readfn = readRemainingString;
+            -- change len to actual length
+            len = #data;
+            if len < amount then
+                amount = len;
+            else
+                len = amount;
+            end
+        else
+            readfn = readString;
+            len = #data;
+        end
     elseif t == 'table' or t == 'userdata' then
         if type( data.read ) == 'function' then
-            readfn = readStream;
+            if amount then
+                readfn = readRemaining;
+            else
+                readfn = readStream;
+            end
         elseif type( data.recv ) == 'function' then
-            readfn = recvStream;
+            if amount then
+                readfn = recvRemaining;
+            else
+                readfn = recvStream;
+            end
         end
     end
 
@@ -99,7 +208,9 @@ local function new( data )
     end
 
     return setmetatable({
-        data = data
+        data = data,
+        len = len,
+        amount = amount,
     },{
         __index = {
             read = readfn,
