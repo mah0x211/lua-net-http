@@ -368,7 +368,9 @@ end
 local function newContentReader( data, amount, buf )
     local body;
 
-    if buf == nil then
+    if not isUInt( amount ) then
+        error( 'amount must be unsigned integer' );
+    elseif buf == nil then
         body = new( data, amount );
     elseif type( buf ) ~= 'string' then
         error( 'buf must be string' );
