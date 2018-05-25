@@ -1,5 +1,5 @@
-local parser = require('net.http.parser');
-
+local Parser = require('net.http.parser')
+local ParseRequest = Parser.request
 
 describe("test net.http.parser.request", function()
     it("can parse line terminated by CRLF", function()
@@ -155,7 +155,7 @@ describe("test net.http.parser.request", function()
             },
             -- invalid headers
             {
-                res = parser.EHDRFMT,
+                res = Parser.EHDRFMT,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: 1.example.com\r\n" ..
                       " 2.example.com\r\n" ..
@@ -163,31 +163,31 @@ describe("test net.http.parser.request", function()
                       "\r\n"
             },
             {
-                res = parser.EHDRVAL,
+                res = Parser.EHDRVAL,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: example.com\rinvalid format\n" ..
                       "\r\n"
             },
             {
-                res = parser.EHDRFMT,
+                res = Parser.EHDRFMT,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "invalid header format\r\n" ..
                       "\r\n"
             },
             {
-                limits = parser.getlimits({
+                limits = Parser.getlimits({
                     HEADER_LEN_MAX = 10
                 }),
-                res = parser.EHDRLEN,
+                res = Parser.EHDRLEN,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: exceeded the maximum header length\r\n" ..
                       "\r\n"
             },
             {
-                limits = parser.getlimits({
+                limits = Parser.getlimits({
                     HEADER_NUM_MAX = 2
                 }),
-                res = parser.EHDRNUM,
+                res = Parser.EHDRNUM,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host1: example.com\r\n" ..
                       "Host2: example.com\r\n" ..
@@ -200,7 +200,7 @@ describe("test net.http.parser.request", function()
             local req = {
                 header = {}
             }
-            local consumed = parser.request( req, msg.val, msg.limits )
+            local consumed = ParseRequest( msg.val, req, msg.limits )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
@@ -365,7 +365,7 @@ describe("test net.http.parser.request", function()
             },
             -- invalid headers
             {
-                res = parser.EHDRFMT,
+                res = Parser.EHDRFMT,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: 1.example.com\n" ..
                       " 2.example.com\n" ..
@@ -373,31 +373,31 @@ describe("test net.http.parser.request", function()
                       "\n"
             },
             {
-                res = parser.EHDRVAL,
+                res = Parser.EHDRVAL,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: example.com\rinvalid format\n" ..
                       "\n"
             },
             {
-                res = parser.EHDRFMT,
+                res = Parser.EHDRFMT,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "invalid header format\n" ..
                       "\n"
             },
             {
-                limits = parser.getlimits({
+                limits = Parser.getlimits({
                     HEADER_LEN_MAX = 10
                 }),
-                res = parser.EHDRLEN,
+                res = Parser.EHDRLEN,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: exceeded the maximum header length\n" ..
                       "\n"
             },
             {
-                limits = parser.getlimits({
+                limits = Parser.getlimits({
                     HEADER_NUM_MAX = 2
                 }),
-                res = parser.EHDRNUM,
+                res = Parser.EHDRNUM,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host1: example.com\n" ..
                       "Host2: example.com\n" ..
@@ -410,7 +410,7 @@ describe("test net.http.parser.request", function()
             local req = {
                 header = {}
             }
-            local consumed = parser.request( req, msg.val, msg.limits )
+            local consumed = ParseRequest( msg.val, req, msg.limits )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
