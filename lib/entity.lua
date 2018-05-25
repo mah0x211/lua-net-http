@@ -43,11 +43,12 @@ local EAGAIN = require('net.http.parser').EAGAIN;
 -- @param parser
 -- @param ...
 -- @return ok
+-- @return excess
 -- @return err
 -- @return timeout
 -- @return perr
 local function recvfrom( msg, sock, parser, ... )
-    local buf = msg.entity.buf or '';
+    local buf = '';
 
     while true do
         local cur = EAGAIN;
@@ -59,23 +60,19 @@ local function recvfrom( msg, sock, parser, ... )
 
         -- parsed
         if cur > 0 then
-            -- remove bytes used
-            msg.entity.buf = strsub( buf, cur + 1 );
-            return true;
+            return true, strsub( buf, cur + 1 );
         -- more bytes need
         elseif cur == EAGAIN then
             local str, err, timeout = sock:recv();
 
             if not str or err or timeout then
-                return false, err, timeout;
+                return false, nil, err, timeout;
             end
 
             buf = buf .. str;
         -- parse error
         else
-            -- clear buffer
-            msg.entity.buf = '';
-            return false, nil, nil, cur;
+            return false, nil, nil, nil, cur;
         end
     end
 end
