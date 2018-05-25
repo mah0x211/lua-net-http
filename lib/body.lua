@@ -56,28 +56,6 @@ local function readString( self, len )
 end
 
 
---- readStream
--- @param self
--- @param len
--- @return data
--- @return err
--- @return timeout
-local function readStream( self, len )
-    return self.data:read( len );
-end
-
-
---- recvStream
--- @param self
--- @param len
--- @return data
--- @return err
--- @return timeout
-local function recvStream( self, len )
-    return self.data:recv( len );
-end
-
-
 --- readRemainingString
 -- @param self
 -- @param len
@@ -99,14 +77,25 @@ local function readRemainingString( self )
 end
 
 
+--- readStream
+-- @param self
+-- @param len
+-- @return data
+-- @return err
+-- @return timeout
+local function readStream( self, len )
+    return self.reader( self.data, len );
+end
+
+
 --- readRemainingStream
 -- @param self
 -- @param reader
 -- @return data
 -- @return err
 -- @return timeout
-local function readRemainingStream( self, reader )
-    local data, err, timeout = reader( self.data, self.amount );
+local function readRemainingStream( self )
+    local data, err, timeout = self.reader( self.data, self.amount );
 
     if not data or err or timeout then
         self.data = nil;
@@ -131,41 +120,13 @@ local function readRemainingStream( self, reader )
 end
 
 
---- readRemaining
--- @param self
--- @return data
--- @return err
--- @return timeout
-local function readRemaining( self )
-    if self.data then
-        return readRemainingStream( self, self.data.read );
-    end
-
-    return nil;
-end
-
-
---- recvRemaining
--- @param self
--- @return data
--- @return err
--- @return timeout
-local function recvRemaining( self )
-    if self.data then
-        return readRemainingStream( self, self.data.recv );
-    end
-
-    return nil;
-end
-
-
 --- new
 -- @param data
 -- @param amount
 -- @return body
 local function new( data, amount )
     local t = type( data );
-    local readfn, len;
+    local readfn, reader, len;
 
     if amount ~= nil then
         if not isUInt( amount ) then
@@ -188,27 +149,26 @@ local function new( data, amount )
             len = #data;
         end
     elseif t == 'table' or t == 'userdata' then
+        if amount then
+            readfn = readRemainingStream;
+        else
+            readfn = readStream;
+        end
+
         if type( data.read ) == 'function' then
-            if amount then
-                readfn = readRemaining;
-            else
-                readfn = readStream;
-            end
+            reader = data.read;
         elseif type( data.recv ) == 'function' then
-            if amount then
-                readfn = recvRemaining;
-            else
-                readfn = recvStream;
-            end
+            reader = data.recv;
         end
     end
 
-    if not readfn then
+    if not reader then
         error( 'data must be string or implement read or recv method' );
     end
 
     return setmetatable({
         data = data,
+        reader = reader,
         len = len,
         amount = amount,
     },{
