@@ -215,7 +215,7 @@ describe('test net.http.entity', function()
             header = {}
         }
         local ok, excess, err, timeout, perr = Entity.recvfrom(
-            msg, sock, parser, res
+            sock, parser, res
         )
 
         -- got parse error
@@ -226,7 +226,7 @@ describe('test net.http.entity', function()
         assert.is_equal( -2, perr )
 
         -- got response
-        ok, excess, err, timeout = Entity.recvfrom( msg, sock, parser, res )
+        ok, excess, err, timeout = Entity.recvfrom( sock, parser, res )
         assert.is_truthy( ok )
         assert.is_equal( 'string', type( excess ) )
         assert.is_equal( 'table', type( res.header ) )
@@ -235,7 +235,7 @@ describe('test net.http.entity', function()
         assert.is_equal( 'hello world!', res.data )
 
         -- got error
-        ok, excess, err, timeout = Entity.recvfrom( msg, sock, parser, res )
+        ok, excess, err, timeout = Entity.recvfrom( sock, parser, res )
         assert.is_falsy( ok )
         assert.is_nil( excess )
         assert.is_equal( 'no data', err )
