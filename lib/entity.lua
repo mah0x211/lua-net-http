@@ -38,7 +38,6 @@ local EAGAIN = require('net.http.parser').EAGAIN;
 
 
 --- recvfrom
--- @param msg
 -- @param sock
 -- @param parser
 -- @param ...
@@ -47,7 +46,7 @@ local EAGAIN = require('net.http.parser').EAGAIN;
 -- @return err
 -- @return timeout
 -- @return perr
-local function recvfrom( msg, sock, parser, ... )
+local function recvfrom( sock, parser, ... )
     local buf = '';
 
     while true do
