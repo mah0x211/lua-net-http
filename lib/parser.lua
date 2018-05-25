@@ -66,6 +66,21 @@ local EREASONLEN = -12;
 -- invalid reason-phrase format
 local EREASONFMT = -13;
 --- constants
+local STRERRORS = {
+    [EAGAIN] = 'need more bytes',
+    [EMETHOD] = 'method not implemented',
+    [EURIFMT] = 'invalid uri string',
+    [EURILEN] = 'uri-length too large',
+    [EVERSION] = 'version not support',
+    [EHDRLEN] = 'header-length too large',
+    [EHDRNUM] = 'too many headers',
+    [EHDRFMT] = 'invalid header format',
+    [EHDRNAME] = 'invalid header field-name',
+    [EHDRVAL] = 'invalid header field-value',
+    [ESTATUS] = 'invalid status code',
+    [EREASONLEN] = 'invalid reason-phrase length',
+    [EREASONFMT] = 'invalid reason-phrase format'
+};
 local CRLF_SKIPS = {
     [strbyte('\n')] = 2,
     [strbyte('\r')] = 3
@@ -105,6 +120,14 @@ local DEFAULT_LIMITS = {
     HEADER_LEN_MAX = HEADER_LEN_MAX,
     HEADER_NUM_MAX = HEADER_NUM_MAX
 };
+
+
+--- strerror
+-- @param errcode
+-- @return errstr
+local function strerror( code )
+    return STRERRORS[code] or 'unknown error code';
+end
 
 
 --- getlimits
@@ -415,6 +438,7 @@ return {
     response = response,
     tencoding = tencoding,
     getlimits = getlimits,
+    strerror = strerror,
     --- error constants
     -- need more bytes
     EAGAIN = EAGAIN,
