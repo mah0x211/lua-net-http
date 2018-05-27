@@ -162,34 +162,6 @@ local function getlimits( limits )
 end
 
 
---- tencoding
--- @param msg
--- @return tbl
-local function tencoding( msg )
-    -- parse transfer-encoding header-value
-    local tbl = {};
-    local head, tail = strfind( msg, ',%s*' );
-
-    if not head then
-        tbl[msg] = true;
-    else
-        local cur = 1;
-
-        repeat
-            local val = strlower( strsub( msg, cur, head - 1 ) );
-
-            tbl[val] = true;
-            cur = tail + 1;
-            head, tail = strfind( msg, ',%s*', cur );
-        until head == nil;
-
-        tbl[strsub( msg, cur )] = true;
-    end
-
-    return tbl;
-end
-
-
 --- header
 -- @param msg
 -- @param hdr
@@ -428,7 +400,7 @@ local function response( msg, res, limits )
         return EREASONFMT;
     end
 
-    return header( msg, res.header, cur, limits )
+    return header( msg, res.header, cur, limits );
 end
 
 
@@ -436,7 +408,6 @@ return {
     header = header,
     request = request,
     response = response,
-    tencoding = tencoding,
     getlimits = getlimits,
     strerror = strerror,
     --- error constants

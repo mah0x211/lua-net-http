@@ -20,7 +20,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 
-  http/date.lua
+  lib/date.lua
   lua-net-http
   Created by Masatoshi Teruya on 17/09/25.
 
