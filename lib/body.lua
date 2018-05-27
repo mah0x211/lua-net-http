@@ -204,12 +204,12 @@ local function readChunked( self )
         return self.body, self.trailer;
     else
         local body = self.body;
-        local buf = self.buf or '';
+        local chunks = self.chunks or '';
         local arr = {};
         local idx = 0;
 
         self.body = nil;
-        self.buf = nil;
+        self.chunks = nil;
 
         --
         -- 4.1.  Chunked Transfer Coding
@@ -234,7 +234,7 @@ local function readChunked( self )
         -- trailer-part   = *( header-field CRLF )
         --
         while true do
-            local consumed, clen = chunksize( buf );
+            local consumed, clen = chunksize( chunks );
 
             -- got chunk size
             if consumed > 0 then
@@ -244,7 +244,7 @@ local function readChunked( self )
 
                     -- parse trailer-part
                     while true do
-                        consumed = ParseHeader( buf, trailer, consumed + 1 );
+                        consumed = ParseHeader( chunks, trailer, consumed + 1 );
                         -- parsed
                         if consumed > 0 then
                             self.body = concat( arr );
@@ -258,7 +258,7 @@ local function readChunked( self )
                                 return nil, nil, err, timeout;
                             end
 
-                            buf = buf .. data;
+                            chunks = chunks .. data;
                         -- parse error
                         else
                             return nil, nil, strerror( consumed );
@@ -267,22 +267,22 @@ local function readChunked( self )
                 end
 
                 -- remove chunk-header
-                buf = strsub( buf, consumed + 1 );
+                chunks = strsub( chunks, consumed + 1 );
                 -- need more bytes
-                while #buf < clen do
+                while #chunks < clen do
                     local data, err, timeout = body:read();
 
                     if not data or err or timeout then
                         return nil, nil, err, timeout;
                     end
 
-                    buf = buf .. data;
+                    chunks = chunks .. data;
                 end
 
                 -- save chunks into array
                 idx = idx + 1;
-                arr[idx] = strsub( buf, 1, clen );
-                buf = strsub( buf, clen + 3 );
+                arr[idx] = strsub( chunks, 1, clen );
+                chunks = strsub( chunks, clen + 3 );
 
             -- need more bytes
             elseif consumed == -1 then
@@ -292,7 +292,7 @@ local function readChunked( self )
                     return nil, nil, err, timeout;
                 end
 
-                buf = buf .. data;
+                chunks = chunks .. data;
             -- invalid line
             else
                 return nil, nil, 'invalid chunk-size';
@@ -304,18 +304,18 @@ end
 
 --- newChunkedReader
 -- @param data
--- @param buf
+-- @param chunks
 -- @return body
-local function newChunkedReader( data, buf )
+local function newChunkedReader( data, chunks )
     local body = new( data );
 
-    if buf ~= nil and type( buf ) ~= 'string' then
-        error( 'buf must be string' );
+    if chunks ~= nil and type( chunks ) ~= 'string' then
+        error( 'chunks must be string' );
     end
 
     return setmetatable({
         body = body,
-        buf = buf,
+        chunks = chunks,
     },{
         __index = {
             read = readChunked,
@@ -337,11 +337,11 @@ local function readContent( self )
         return self.body;
     else
         local body = self.body;
-        local arr = { self.buf or '' };
+        local arr = { self.chunks or '' };
         local idx = 1;
 
         self.body = nil;
-        self.buf = nil;
+        self.chunks = nil;
 
         while true do
             local data, err, timeout = body:read();
@@ -363,28 +363,28 @@ end
 --- newContentReader
 -- @param data
 -- @param amount
--- @param buf
+-- @param chunks
 -- @return body
-local function newContentReader( data, amount, buf )
+local function newContentReader( data, amount, chunks )
     local body;
 
     if not isUInt( amount ) then
         error( 'amount must be unsigned integer' );
-    elseif buf == nil then
+    elseif chunks == nil then
         body = new( data, amount );
-    elseif type( buf ) ~= 'string' then
-        error( 'buf must be string' );
-    elseif ( amount - #buf ) > 0 then
-        body = new( data, amount - #buf );
+    elseif type( chunks ) ~= 'string' then
+        error( 'chunks must be string' );
+    elseif ( amount - #chunks ) > 0 then
+        body = new( data, amount - #chunks );
     -- already received
     else
-        body = buf;
-        buf = nil;
+        body = chunks;
+        chunks = nil;
     end
 
     return setmetatable({
         body = body,
-        buf = buf,
+        chunks = chunks,
         len = amount
     },{
         __index = {
