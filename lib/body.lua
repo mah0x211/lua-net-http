@@ -1,6 +1,6 @@
 --[[
 
-  Copyright (C) 2017 Masatoshi Teruya
+  Copyright (C) 2017-2018 Masatoshi Teruya
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -395,9 +395,29 @@ local function newContentReader( data, amount, buf )
 end
 
 
+--- readNil
+-- @return nil
+local function readNil()
+    return nil;
+end
+
+
+--- newNilReader
+-- @return body
+local function newNilReader()
+    return setmetatable({},{
+        __index = {
+            read = readNil,
+            length = length,
+        }
+    });
+end
+
+
 return {
     new = new,
     newContentReader = newContentReader,
     newChunkedReader = newChunkedReader,
+    newNilReader = newNilReader,
 };
 
