@@ -1,10 +1,58 @@
 local Request = require('net.http.request')
+local Status = require('net.http.status')
+local Date = require('net.http.date')
 local split = require('string.split')
+local InetClient = require('net.stream.inet').client
+local InetServer = require('net.stream.inet').server
+local fork = require('process').fork
+local signal = require('signal')
 local tolower = string.lower
 local toupper = string.upper
 
 
 describe('test net.http.request', function()
+    local pid
+
+    setup(function()
+        local sock, err = InetServer.new({
+            host = '127.0.0.1',
+            port = '5000',
+        })
+
+        assert.is_nil( err or sock:listen() )
+
+        pid, err = fork()
+        if not pid then
+            error( err )
+        -- child
+        elseif pid == 0 then
+            while true do
+                local c = assert( sock:accept() )
+                local msg = c:recv(4096);
+
+                if msg then
+                    c:send( Status.toLine( 200, 1.1 ) .. table.concat({
+                        'Date: ' .. Date.now(),
+                        'Server: test-server',
+                        'Content-Length: ' .. #msg,
+                        'Content-Type: text/plain',
+                        '',
+                        msg
+                    }, '\r\n' ) )
+                end
+
+                c:close()
+            end
+        else
+            sock:close()
+        end
+    end)
+
+    teardown(function()
+        signal.kill( signal.SIGKILL, pid )
+    end)
+
+
     it('cannot call with non-string method', function()
         for _, method in ipairs({
             true,
@@ -213,22 +261,38 @@ describe('test net.http.request', function()
 
     it('can send message via socket', function()
         local req = Request.new( 'get', 'http://example.com:80?hello=world' )
-        local data
-        local sock = setmetatable({},{
-            __index = {
-                send = function( _, val )
-                    data = val
-                    return #val
-                end
-            }
+        local sock, err = InetClient.new({
+            host = '127.0.0.1',
+            port = '5000'
         })
         local expect = 'GET http://example.com:80/?hello=world HTTP/1.1\r\n' ..
                         'Host: example.com\r\n' ..
                         'User-Agent: lua-net-http\r\n' ..
                         '\r\n'
+        local res, body
 
-        assert.is_equal( #expect, req:sendto( sock ) )
-        assert.is_equal( expect, data )
+        assert.is_not_nil( sock )
+        assert.is_nil( err )
+
+        res = req:sendto( sock )
+        assert.is_equal( 'table', type( res ) )
+
+        body = res.body:read()
+        assert.is_equal( expect, body )
+    end)
+
+    it('can send message', function()
+        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
+        local expect = 'GET http://127.0.0.1:5000/?hello=world HTTP/1.1\r\n' ..
+                        'Host: 127.0.0.1:5000\r\n' ..
+                        'User-Agent: lua-net-http\r\n' ..
+                        '\r\n'
+        local res = req:send()
+        local body
+
+        assert.is_equal( 'table', type( res ) )
+        body = res.body:read()
+        assert.is_equal( expect, body )
     end)
 end)
 

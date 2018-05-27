@@ -24,6 +24,7 @@ before_install:
   - luarocks install luacheck
   - luarocks install string-split
   - luarocks install process
+  - luarocks install signal
 
 install:
   - luarocks make
