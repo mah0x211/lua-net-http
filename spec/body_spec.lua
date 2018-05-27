@@ -508,3 +508,12 @@ describe('test net.http.body.newChunkedReader', function()
     end)
 end)
 
+
+describe('test net.http.body.newNilReader', function()
+    it('always returns nil', function()
+        local b = Body.newNilReader()
+        assert.is_nil( b:read() )
+        assert.is_nil( b:length() )
+    end)
+end)
+
