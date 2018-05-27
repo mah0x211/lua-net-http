@@ -189,17 +189,17 @@ describe('test net.http.body.newContentReader', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                Body.newContentReader( 'hello', amount )
+                Body.newContentReader( 'hello', nil, amount )
             end)
         end
 
         assert.has_error(function()
-            Body.newContentReader( 'hello', nil )
+            Body.newContentReader( 'hello', nil, nil )
         end)
     end)
 
-    it('cannot pass value except string or nil to buf argument', function()
-        for _, buf in ipairs({
+    it('cannot pass value except string or nil to chunks argument', function()
+        for _, chunks in ipairs({
             true,
             false,
             0,
@@ -208,7 +208,7 @@ describe('test net.http.body.newContentReader', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                Body.newContentReader( 'hello', 5, buf )
+                Body.newContentReader( 'hello', chunks, 5 )
             end)
         end
     end)
@@ -221,13 +221,13 @@ describe('test net.http.body.newContentReader', function()
                 amount = len
                 return self.data
             end
-        }, 5 )
+        }, nil, 5 )
 
         b:read()
         assert.is_equals( 5, amount )
     end)
 
-    it('will use buf as already loaded data', function()
+    it('will use chunks as already loaded data', function()
         local amount
         local b = Body.newContentReader({
             data = 'hello',
@@ -235,7 +235,7 @@ describe('test net.http.body.newContentReader', function()
                 amount = len
                 return self.data
             end
-        }, 5, 'he' )
+        }, 'he', 5 )
 
         b:read()
         assert.is_equals( 3, amount )
@@ -249,7 +249,7 @@ describe('test net.http.body.newContentReader', function()
                 ncall = ncall + 1
                 return self.data
             end
-        }, 5 )
+        }, nil, 5 )
 
         b:read()
         assert.is_equals( 1, ncall )
@@ -263,7 +263,7 @@ describe('test net.http.body.newContentReader', function()
             read = function()
                 return nil, 'no-data', false
             end
-        }, 5 )
+        }, nil, 5 )
         local data, trailer, err, timeout = b:read()
 
         assert.is_nil( data )
@@ -281,8 +281,8 @@ end)
 
 
 describe('test net.http.body.newChunkedReader', function()
-    it('cannot pass value except string or nil to buf argument', function()
-        for _, buf in ipairs({
+    it('cannot pass value except string or nil to chunks argument', function()
+        for _, chunks in ipairs({
             true,
             false,
             0,
@@ -291,7 +291,7 @@ describe('test net.http.body.newChunkedReader', function()
             coroutine.create(function()end),
         }) do
             assert.has_error(function()
-                Body.newChunkedReader( 'hello', buf )
+                Body.newChunkedReader( 'hello', chunks )
             end)
         end
 
@@ -321,7 +321,7 @@ describe('test net.http.body.newChunkedReader', function()
         assert.is_nil( amount )
     end)
 
-    it('will use buf as already loaded data', function()
+    it('will use chunks as already loaded data', function()
         local msg = 'hello'
         local chunks = table.concat({
             tonumber( #msg, 16 ),
