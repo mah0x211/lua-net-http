@@ -124,7 +124,7 @@ function Request:sendto( sock )
                 clen = tonumber( clen );
                 -- ignore invalid length format
                 if isUInt( clen ) then
-                    res.body = Body.newContentReader( sock, clen, excess );
+                    res.body = Body.newContentReader( sock, excess, clen );
                 else
                     res.body = Body.newNilReader();
                 end

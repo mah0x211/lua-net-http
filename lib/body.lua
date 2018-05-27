@@ -362,10 +362,10 @@ end
 
 --- newContentReader
 -- @param data
--- @param amount
 -- @param chunks
+-- @param amount
 -- @return body
-local function newContentReader( data, amount, chunks )
+local function newContentReader( data, chunks, amount )
     local body;
 
     if not isUInt( amount ) then
