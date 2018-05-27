@@ -31,14 +31,22 @@ describe('test net.http.request', function()
                 local msg = c:recv(4096);
 
                 if msg then
-                    c:send( Status.toLine( 200, 1.1 ) .. table.concat({
-                        'Date: ' .. Date.now(),
-                        'Server: test-server',
-                        'Content-Length: ' .. #msg,
-                        'Content-Type: text/plain',
-                        '',
-                        msg
-                    }, '\r\n' ) )
+                    if string.find( msg, 'X-Response: no-content', 1, true ) then
+                        c:send( Status.toLine( 204, 1.1 ) .. table.concat({
+                            'Date: ' .. Date.now(),
+                            'Server: test-server',
+                            '\r\n',
+                        }, '\r\n' ))
+                    else
+                        c:send( Status.toLine( 200, 1.1 ) .. table.concat({
+                            'Date: ' .. Date.now(),
+                            'Server: test-server',
+                            'Content-Length: ' .. #msg,
+                            'Content-Type: text/plain',
+                            '',
+                            msg
+                        }, '\r\n' ) )
+                    end
                 end
 
                 c:close()
@@ -293,6 +301,17 @@ describe('test net.http.request', function()
         assert.is_equal( 'table', type( res ) )
         body = res.body:read()
         assert.is_equal( expect, body )
+    end)
+
+    it('always has body field', function()
+        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
+        local res
+
+        req.header:set( 'X-Response', 'no-content' )
+        res = req:send()
+        assert.is_equal( 'table', type( res ) )
+        assert.is_not_nil( res.body )
+        assert.is_nil( res.body:read() )
     end)
 end)
 
