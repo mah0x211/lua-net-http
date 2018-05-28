@@ -52,13 +52,13 @@ end
 -- @param len
 -- @return data
 local function readString( self, len )
-    local data = self.data;
+    local src = self.src;
 
-    if len == nil or len >= #data then
-        return data;
+    if len == nil or len >= #src then
+        return src;
     end
 
-    return strsub( data, 1, len );
+    return strsub( src, 1, len );
 end
 
 
@@ -70,13 +70,13 @@ end
 -- @return timeout
 local function readRemainingString( self )
     if self.amount then
-        local data = self.data;
+        local src = self.src;
         local amount = self.amount;
 
-        self.data = nil;
+        self.src = nil;
         self.amount = nil;
 
-        return strsub( data, 1, amount );
+        return strsub( src, 1, amount );
     end
 
     return nil;
@@ -90,7 +90,7 @@ end
 -- @return err
 -- @return timeout
 local function readStream( self, len )
-    return self.reader( self.data, len );
+    return self.reader( self.src, len );
 end
 
 
@@ -101,11 +101,11 @@ end
 -- @return err
 -- @return timeout
 local function readRemainingStream( self )
-    if self.data then
-        local data, err, timeout = self.reader( self.data, self.amount );
+    if self.src then
+        local data, err, timeout = self.reader( self.src, self.amount );
 
         if not data or err or timeout then
-            self.data = nil;
+            self.src = nil;
             self.amount = nil;
         else
             local len = #data;
@@ -114,7 +114,7 @@ local function readRemainingStream( self )
             if amount > 0 then
                 self.amount = amount;
             else
-                self.data = nil;
+                self.src = nil;
                 self.amount = nil;
                 -- remove the excess
                 if amount < 0 then
@@ -131,11 +131,11 @@ end
 
 
 --- new
--- @param data
+-- @param src
 -- @param amount
 -- @return body
-local function new( data, amount )
-    local t = type( data );
+local function new( src, amount )
+    local t = type( src );
     local readfn, reader, len;
 
     if amount ~= nil then
@@ -148,7 +148,7 @@ local function new( data, amount )
         if amount then
             readfn = readRemainingString;
             -- change len to actual length
-            len = #data;
+            len = #src;
             if len < amount then
                 amount = len;
             else
@@ -156,7 +156,7 @@ local function new( data, amount )
             end
         else
             readfn = readString;
-            len = #data;
+            len = #src;
         end
     elseif t == 'table' or t == 'userdata' then
         if amount then
@@ -165,21 +165,21 @@ local function new( data, amount )
             readfn = readStream;
         end
 
-        if type( data.read ) == 'function' then
-            reader = data.read;
-        elseif type( data.recv ) == 'function' then
-            reader = data.recv;
+        if type( src.read ) == 'function' then
+            reader = src.read;
+        elseif type( src.recv ) == 'function' then
+            reader = src.recv;
         else
             readfn = nil;
         end
     end
 
     if not readfn then
-        error( 'data must be string or implement read or recv method' );
+        error( 'src must be string or implement read or recv method' );
     end
 
     return setmetatable({
-        data = data,
+        src = src,
         reader = reader,
         len = len,
         amount = amount,
@@ -303,11 +303,11 @@ end
 
 
 --- newChunkedReader
--- @param data
+-- @param src
 -- @param chunks
 -- @return body
-local function newChunkedReader( data, chunks )
-    local body = new( data );
+local function newChunkedReader( src, chunks )
+    local body = new( src );
 
     if chunks ~= nil and type( chunks ) ~= 'string' then
         error( 'chunks must be string' );
@@ -361,21 +361,21 @@ end
 
 
 --- newContentReader
--- @param data
+-- @param src
 -- @param chunks
 -- @param amount
 -- @return body
-local function newContentReader( data, chunks, amount )
+local function newContentReader( src, chunks, amount )
     local body;
 
     if not isUInt( amount ) then
         error( 'amount must be unsigned integer' );
     elseif chunks == nil then
-        body = new( data, amount );
+        body = new( src, amount );
     elseif type( chunks ) ~= 'string' then
         error( 'chunks must be string' );
     elseif ( amount - #chunks ) > 0 then
-        body = new( data, amount - #chunks );
+        body = new( src, amount - #chunks );
     -- already received
     else
         body = chunks;
