@@ -517,3 +517,53 @@ describe('test net.http.body.newNilReader', function()
     end)
 end)
 
+
+describe('test net.http.body.newReaderFromHeader', function()
+    it('does not accept non-table values for header arguments', function()
+        for _, header in ipairs({
+            'str',
+            true,
+            false,
+            0,
+            function()end,
+            coroutine.create(function()end),
+        }) do
+            assert.has_error(function()
+                Body.newReaderFromHeader( header, 'hello' )
+            end)
+        end
+
+        assert.has_error(function()
+            Body.newReaderFromHeader( nil, 'hello' )
+        end)
+    end)
+
+    it('returns the result of newChunkedReader', function()
+        local b = Body.newReaderFromHeader({
+            ['transfer-encoding'] = 'chunked'
+        }, '5\r\nhello\r\n0\r\n\r\n' )
+        local data, trailer = b:read()
+
+        assert.is_nil( b:length() )
+        assert.is_equal( 'hello', data )
+        assert.are.same( {}, trailer )
+    end)
+
+    it('returns the result of newContentReader', function()
+        local b = Body.newReaderFromHeader({
+            ['content-length'] = '5'
+        }, 'hello' )
+
+        assert.is_equal( 5, b:length() )
+        assert.is_equal( 'hello', b:read() )
+    end)
+
+
+    it('returns the result of newNilReader', function()
+        local b = Body.newReaderFromHeader( {}, 'hello' )
+
+        assert.is_nil( b:length() )
+        assert.is_nil( b:read() )
+    end)
+end)
+
