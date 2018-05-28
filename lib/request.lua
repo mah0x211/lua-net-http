@@ -27,7 +27,6 @@
 --]]
 
 --- assign to local
-local isUInt = require('isa').uint;
 local InetClient = require('net.stream.inet').client;
 local flatten = require('table.flatten');
 local parseURI = require('url').parse;
@@ -45,7 +44,6 @@ local type = type;
 local assert = assert;
 local tostring = tostring;
 local concat = table.concat;
-local strfind = string.find;
 local strupper = string.upper;
 local strformat = string.format;
 --- constants
@@ -73,23 +71,6 @@ local Request = {
 };
 
 
---- isChunkedTransferEncoding
--- @param hval
-local function isChunkedTransferEncoding( hval )
-    if hval ~= nil then
-        if type( hval ) == 'table' then
-            hval = concat( hval, ',' );
-        end
-
-        if strfind( hval, '%s*,*%s*chunked%s*,*' ) then
-            return true;
-        end
-    end
-
-    return false;
-end
-
-
 --- sendto
 -- @param sock
 -- @return res
@@ -110,28 +91,7 @@ function Request:sendto( sock )
         -- recv response
         ok, excess, err, timeout = recvfrom( sock, ParseResponse, res );
         if ok then
-            local clen = res.header['content-length'];
-
-            -- parse transfer-encoding
-            if isChunkedTransferEncoding( res.header['transfer-encoding'] ) then
-                res.body = Body.newChunkReader( sock, excess );
-            elseif clen then
-                -- use last-value
-                if type( clen ) == 'table' then
-                    clen = clen[#clen];
-                end
-
-                clen = tonumber( clen );
-                -- ignore invalid length format
-                if isUInt( clen ) then
-                    res.body = Body.newContentReader( sock, excess, clen );
-                else
-                    res.body = Body.newNilReader();
-                end
-            else
-                res.body = Body.newNilReader();
-            end
-
+            res.body = Body.newReaderFromHeader( res.header, sock, excess );
             return res;
         end
 
