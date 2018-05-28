@@ -46,7 +46,7 @@ local Response = {
 -- @return err
 -- @return timeout
 function Response:send()
-    return sendto( self, self.conn );
+    return sendto( self, self.sock );
 end
 
 
