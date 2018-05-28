@@ -35,6 +35,7 @@ local type = type;
 local error = error;
 local setmetatable = setmetatable;
 local strsub = string.sub;
+local strfind = string.find;
 local concat = table.concat;
 --- constants
 local EAGAIN = require('net.http.parser').EAGAIN;
@@ -307,14 +308,12 @@ end
 -- @param chunks
 -- @return body
 local function newChunkedReader( src, chunks )
-    local body = new( src );
-
     if chunks ~= nil and type( chunks ) ~= 'string' then
         error( 'chunks must be string' );
     end
 
     return setmetatable({
-        body = body,
+        body = new( src ),
         chunks = chunks,
     },{
         __index = {
@@ -414,10 +413,60 @@ local function newNilReader()
 end
 
 
+--- isChunkedTransferEncoding
+-- @param hval
+local function isChunkedTransferEncoding( hval )
+    if hval ~= nil then
+        if type( hval ) == 'table' then
+            hval = concat( hval, ',' );
+        end
+
+        if strfind( hval, '%s*,*%s*chunked%s*,*' ) then
+            return true;
+        end
+    end
+
+    return false;
+end
+
+
+--- newReaderFromHeader
+-- @param header
+-- @param sock
+-- @param chunks
+-- @return newfn
+local function newReaderFromHeader( header, sock, chunks )
+    if type( header ) == 'table' then
+        local clen = header['content-length'];
+
+        -- chunked-transfer-encoding reader
+        if isChunkedTransferEncoding( header['transfer-encoding'] ) then
+            return newChunkedReader( sock, chunks );
+        elseif clen then
+            -- use last-value
+            if type( clen ) == 'table' then
+                clen = clen[#clen];
+            end
+
+            clen = tonumber( clen );
+            -- fixed-length content reader
+            if isUInt( clen ) then
+                return newContentReader( sock, chunks, clen );
+            end
+        end
+
+        return newNilReader();
+    end
+
+    error( 'header must not be nil' );
+end
+
+
 return {
     new = new,
     newContentReader = newContentReader,
     newChunkedReader = newChunkedReader,
     newNilReader = newNilReader,
+    newReaderFromHeader = newReaderFromHeader,
 };
 
