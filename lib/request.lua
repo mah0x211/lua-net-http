@@ -77,7 +77,7 @@ local Request = {
 -- @return err
 -- @return timeout
 function Request:sendto( sock )
-    local len, err, timeout = sendto( self, sock );
+    local len, err, timeout = sendto( sock, self );
 
     if not len or err or timeout then
         sock:close();

@@ -78,12 +78,12 @@ end
 
 
 --- sendto
--- @param msg
 -- @param sock
+-- @param msg
 -- @return len
 -- @return err
 -- @return timeout
-local function sendto( msg, sock )
+local function sendto( sock, msg )
     local vals = msg.header.vals;
     local body = msg.entity.body;
     local clen = body and body:length();
