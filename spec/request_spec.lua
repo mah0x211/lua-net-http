@@ -303,32 +303,6 @@ describe('test net.http.request', function()
         assert.is_equal( expect, body )
     end)
 
-    it('returns error', function()
-        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
-        local sock = {
-            send = function()
-                return nil, 'socket error', false
-            end
-        }
-        local res, err, timeout = req:sendto( sock )
-
-        assert.is_nil( res )
-        assert.is_equal( 'socket error', err )
-        assert.is_falsy( timeout )
-
-
-        -- change sendto method
-        local _sendto = req.sendto
-        req.sendto = function( self )
-            return _sendto( self, sock )
-        end
-
-        res, err, timeout = req:send()
-        assert.is_nil( res )
-        assert.is_equal( 'socket error', err )
-        assert.is_falsy( timeout )
-    end)
-
     it('always has body field', function()
         local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
         local res
@@ -338,6 +312,70 @@ describe('test net.http.request', function()
         assert.is_equal( 'table', type( res ) )
         assert.is_not_nil( res.body )
         assert.is_nil( res.body:read() )
+    end)
+
+    it('returns send-error', function()
+        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
+        local fakesock = {
+            send = function()
+                return nil, 'send-error', false
+            end
+        }
+        local res, err, timeout = req:sendto( fakesock )
+
+        assert.is_nil( res )
+        assert.is_equal( 'send-error', err )
+        assert.is_falsy( timeout )
+
+        -- replace original method
+        local _sendto = req.sendto
+        req.sendto = function( self )
+            return _sendto( self, fakesock )
+        end
+
+        res, err, timeout = req:send()
+        assert.is_nil( res )
+        assert.is_equal( 'send-error', err )
+        assert.is_falsy( timeout )
+    end)
+
+    it('returns recv-error', function()
+        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
+        local fakesock = {
+            send = function( _, data )
+                return #data
+            end,
+            recv = function()
+                return nil, 'recv-error', false
+            end
+        }
+        local res, err, timeout = req:sendto( fakesock )
+        local sent = false
+
+        assert.is_nil( res )
+        assert.is_equal( 'recv-error', err )
+        assert.is_falsy( timeout )
+
+        -- replace original method
+        local _sendto = req.sendto
+        req.sendto = function( self )
+            sent = true
+            return _sendto( self, fakesock )
+        end
+        res, err, timeout = req:send()
+        assert.is_truthy( sent )
+        assert.is_nil( res )
+        assert.is_equal( 'recv-error', err )
+        assert.is_falsy( timeout )
+
+        -- return connection error
+        req = Request.new( 'get', 'http://127.0.0.1:5001?hello=world' )
+        sent = false
+        res, err, timeout = req:send()
+        assert.is_falsy( sent )
+        assert.is_nil( res )
+        assert.is_not_nil( err )
+        assert.is_falsy( timeout )
     end)
 end)
 
