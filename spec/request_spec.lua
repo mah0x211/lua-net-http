@@ -303,6 +303,32 @@ describe('test net.http.request', function()
         assert.is_equal( expect, body )
     end)
 
+    it('returns error', function()
+        local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
+        local sock = {
+            send = function()
+                return nil, 'socket error', false
+            end
+        }
+        local res, err, timeout = req:sendto( sock )
+
+        assert.is_nil( res )
+        assert.is_equal( 'socket error', err )
+        assert.is_falsy( timeout )
+
+
+        -- change sendto method
+        local _sendto = req.sendto
+        req.sendto = function( self )
+            return _sendto( self, sock )
+        end
+
+        res, err, timeout = req:send()
+        assert.is_nil( res )
+        assert.is_equal( 'socket error', err )
+        assert.is_falsy( timeout )
+    end)
+
     it('always has body field', function()
         local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
         local res
