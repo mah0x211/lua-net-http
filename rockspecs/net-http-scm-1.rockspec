@@ -23,7 +23,6 @@ build = {
     type = "builtin",
     modules = {
         ['net.http.body'] = "lib/body.lua",
-        ['net.http.connection'] = "lib/connection.lua",
         ['net.http.date'] = "lib/date.lua",
         ['net.http.entity'] = "lib/entity.lua",
         ['net.http.header'] = "lib/header.lua",
