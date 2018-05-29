@@ -80,7 +80,6 @@ function Request:sendto( sock )
     local len, err, timeout = sendto( sock, self );
 
     if not len or err or timeout then
-        sock:close();
         return nil, err, timeout;
     else
         local res = {
@@ -95,7 +94,6 @@ function Request:sendto( sock )
             return res;
         end
 
-        sock:close();
         return nil, err, timeout;
     end
 end
@@ -113,7 +111,16 @@ function Request:send( conndeadl )
     }, nil, conndeadl );
 
     if sock then
-        return self:sendto( sock );
+        local res;
+
+        res, err, timeout = self:sendto( sock );
+        if res then
+            return res;
+        end
+
+        sock:close();
+
+        return nil, err, timeout;
     end
 
     return nil, err, timeout;
