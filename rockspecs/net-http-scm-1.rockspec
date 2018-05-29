@@ -11,8 +11,9 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
+    "halo >= 1.1.8",
     "isa >= 0.1.0",
-    "net >= 0.22.1",
+    "net >= 0.23.0",
     "rfcvalid >= 0.6.0",
     "table-flatten >= 0.2.0",
     "tointeger >= 0.1.0",

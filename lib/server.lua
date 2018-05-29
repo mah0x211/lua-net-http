@@ -1,6 +1,6 @@
 --[[
 
-  Copyright (C) 2017 Masatoshi Teruya
+  Copyright (C) 2017-2018 Masatoshi Teruya
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -29,81 +29,78 @@
 --- assign to local
 local InetServer = require('net.stream.inet').server;
 local UnixServer = require('net.stream.unix').server;
-local Connection = require('net.http.connection');
 local ParseRequest = require('net.http.parser').request;
-local setmetatable = setmetatable;
+local NewReaderFromHeader = require('net.http.body').newReaderFromHeader;
+local recvfrom = require('net.http.entity').recvfrom;
 
 
---- class Server
-local Server = {};
+--- class Peer
+local Peer = require('halo').class.Peer;
 
 
---- close
+Peer.inherits {
+    'net.stream.Socket'
+};
+
+
+--- recvRequest
+-- @return req
 -- @return err
-function Server:close()
-    local err = self.sock:close()
+-- @return timeout
+function Peer:recvRequest()
+    local req = {
+        header = {}
+    };
+    local ok, excess, err, timeout = recvfrom( self, ParseRequest, req );
 
-    self.sock = nil;
-    return err;
-end
-
-
---- accept
--- @return conn
--- @return err
-function Server:accept()
-    local sock, err = self.sock:accept();
-
-    if err then
-        return nil, err;
+    if ok then
+        req.body = NewReaderFromHeader( req.header, self, excess );
+        return req;
     end
 
-    return Connection.new( sock, ParseRequest );
+    self:close();
+
+    return nil, err, timeout;
 end
+
+Peer = Peer.exports;
+
+
+--- createConnection
+-- please refer to https://github.com/mah0x211/lua-net#sock--sockcreateconnection-sock-tls-
+local function createConnection( _, sock, tls )
+    return Peer.new( sock, tls );
+end
+
 
 
 --- new
--- @param opts:table: following fields are defined;
---  tlscfg
---  for unix domain socket
---      path
---  for inet server
---      host
---      port
---      reuseaddr
---      reuseport
+-- @param opts
 -- @return server
 -- @return err
 local function new( opts )
-    local sock, err;
+    local server, err;
 
     if opts.path then
-        sock, err = UnixServer.new( opts );
+        server, err = UnixServer.new( opts );
     else
-        sock, err = InetServer.new({
-            tlscfg = opts.tlscfg,
-            host = opts.host,
-            port = opts.port or opts.tlscfg and 443 or 80,
-            reuseaddr = opts.reuseaddr,
-            reuseport = opts.reuseport,
-        });
+        server, err = InetServer.new( opts );
     end
 
     if err then
         return nil, err;
     end
 
-    err = sock:listen();
+    err = server:listen();
     if err then
-        sock:close();
+        server:close();
         return nil, err;
     end
 
-    return setmetatable({
-        sock = sock
-    }, {
-        __index = Server
-    });
+    -- overwrite
+    server.createConnection = createConnection;
+
+    return server;
 end
 
 
