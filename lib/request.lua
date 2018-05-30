@@ -28,6 +28,7 @@
 
 --- assign to local
 local InetClient = require('net.stream.inet').client;
+local TLSConfig = require("libtls.config");
 local flatten = require('table.flatten');
 local parseURI = require('url').parse;
 local encodeURI = require('url').encodeURI;
@@ -108,6 +109,8 @@ function Request:send( conndeadl )
     local sock, err, timeout = InetClient.new({
         host = self.url.hostname,
         port = self.url.port,
+        tlscfg = self.url.tlscfg,
+        servername = self.url.hostname,
     }, nil, conndeadl );
 
     if sock then
@@ -233,9 +236,10 @@ end
 --- new
 -- @param method
 -- @param uri
+-- @param insecure
 -- @return res
 -- @return err
-local function new( method, uri )
+local function new( method, uri, insecure )
     local header = Header.new();
     local req = Entity.init({
         header = header
@@ -305,6 +309,18 @@ local function new( method, uri )
     -- set default headers
     header:set( 'User-Agent', DEFAULT_UA );
 
+    -- create tls config
+    if req.url.scheme == 'https' then
+        req.url.tlscfg, err = TLSConfig.new();
+        if err then
+            return nil, err;
+        -- set insecure mode
+        elseif insecure == true then
+            req.url.tlscfg:insecure_noverifycert()
+            req.url.tlscfg:insecure_noverifyname()
+        end
+    end
+
     return setmetatable( req, {
         __index = Request
     });
@@ -313,73 +329,81 @@ end
 
 --- trace
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function trace( uri )
-    return new( 'TRACE', uri );
+local function trace( ... )
+    return new( 'TRACE', ... );
 end
 
 
 --- put
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function put( uri )
-    return new( 'PUT', uri );
+local function put( ... )
+    return new( 'PUT', ... );
 end
 
 
 --- post
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function post( uri )
-    return new( 'POST', uri );
+local function post( ... )
+    return new( 'POST', ... );
 end
 
 
 --- options
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function options( uri )
-    return new( 'OPTIONS', uri );
+local function options( ... )
+    return new( 'OPTIONS', ... );
 end
 
 
 --- head
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function head( uri )
-    return new( 'HEAD', uri );
+local function head( ... )
+    return new( 'HEAD', ... );
 end
 
 
 --- get
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function get( uri )
-    return new( 'GET', uri );
+local function get( ... )
+    return new( 'GET', ... );
 end
 
 
 --- delete
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function delete( uri )
-    return new( 'DELETE', uri );
+local function delete( ... )
+    return new( 'DELETE', ... );
 end
 
 
 --- connect
 -- @param uri
+-- @param insecure
 -- @return req
 -- @return err
-local function connect( uri )
-    return new( 'CONNECT', uri );
+local function connect( ... )
+    return new( 'CONNECT', ... );
 end
 
 
