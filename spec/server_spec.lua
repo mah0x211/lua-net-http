@@ -23,15 +23,16 @@ describe('test net.http.server', function()
 
     local function delpid( pid )
         if not pid then
-            local fh, err = io.open( pidfile )
+            local fh = io.open( pidfile )
 
             if fh then
-                local pid = fh:read('*a')
-
+                pid = fh:read('*a')
                 fh:close()
                 os.remove( pidfile )
                 if string.find( pid, '%d+' ) then
                     pid = tonumber( pid )
+                else
+                    pid = nil
                 end
             end
         end
@@ -137,9 +138,8 @@ describe('test net.http.server', function()
 
 
     it('returns receive error', function()
-        local err
+        local pid, err = fork()
 
-        pid, err = fork()
         assert.is_nil( err )
         -- client
         if pid == 0 then
@@ -163,7 +163,7 @@ describe('test net.http.server', function()
 
 
         -- replace original method
-        c.recv = function( self )
+        c.recv = function()
             return nil, 'recv-error', false
         end
 
