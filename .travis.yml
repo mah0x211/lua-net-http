@@ -25,6 +25,7 @@ before_install:
   - luarocks install string-split
   - luarocks install process
   - luarocks install signal
+  - sh cert/certgen.sh
 
 install:
   - luarocks make
