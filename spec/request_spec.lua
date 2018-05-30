@@ -2,6 +2,7 @@ local Request = require('net.http.request')
 local Status = require('net.http.status')
 local Date = require('net.http.date')
 local split = require('string.split')
+local TLSConfig = require("libtls.config")
 local InetClient = require('net.stream.inet').client
 local InetServer = require('net.stream.inet').server
 local fork = require('process').fork
@@ -11,13 +12,15 @@ local toupper = string.upper
 
 
 describe('test net.http.request', function()
-    local pid
+    local pids = {}
 
-    setup(function()
+    local function createServer( tlscfg )
         local sock, err = InetServer.new({
             host = '127.0.0.1',
-            port = '5000',
+            port = tlscfg and '5443' or '5000',
+            tlscfg = tlscfg,
         })
+        local pid
 
         assert.is_nil( err or sock:listen() )
 
@@ -53,11 +56,32 @@ describe('test net.http.request', function()
             end
         else
             sock:close()
+            return pid
         end
+    end
+
+    setup(function()
+        local cfg, err = TLSConfig.new()
+        local ok
+
+        if err then
+            print( err )
+            assert()
+        end
+
+        ok, err = cfg:set_keypair_file( 'cert/server.crt', 'cert/server.key' )
+        if not ok then
+            print( err )
+            assert()
+        end
+
+        pids[1] = createServer()
+        pids[2] = createServer( cfg )
     end)
 
     teardown(function()
-        signal.kill( signal.SIGKILL, pid )
+        signal.kill( signal.SIGKILL, pids[1] )
+        signal.kill( signal.SIGKILL, pids[2] )
     end)
 
 
@@ -376,6 +400,38 @@ describe('test net.http.request', function()
         assert.is_nil( res )
         assert.is_not_nil( err )
         assert.is_falsy( timeout )
+    end)
+
+    it('cannot communicate with non-tls server via tls connection', function()
+        local req = Request.new( 'get', 'https://127.0.0.1:5000/hello' )
+        local res, err, timeout = req:send()
+
+        assert.is_nil( res )
+        assert.is_not_nil( err )
+        assert.is_falsy( timeout )
+    end)
+
+    it('cannot communicate with non-secure tls server', function()
+        local req = Request.new( 'get', 'https://127.0.0.1:5443/hello' )
+        local res, err, timeout = req:send()
+
+        assert.is_nil( res )
+        assert.is_not_nil( err )
+        assert.is_falsy( timeout )
+    end)
+
+    it('can communicate with non-secure tls server on insecure mode', function()
+        local req = Request.new( 'get', 'https://127.0.0.1:5443/hello', true )
+        local res = req:send()
+        local expect = 'GET https://127.0.0.1:5443/hello HTTP/1.1\r\n' ..
+                        'Host: 127.0.0.1:5443\r\n' ..
+                        'User-Agent: lua-net-http\r\n' ..
+                        '\r\n'
+        local body
+
+        assert.is_equal( 'table', type( res ) )
+        body = res.body:read()
+        assert.is_equal( expect, body )
     end)
 end)
 
