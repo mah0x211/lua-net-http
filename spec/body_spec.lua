@@ -304,7 +304,7 @@ describe('test net.http.body.newChunkedReader', function()
         local amount
         local msg = 'hello'
         local chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             '\r\n',
@@ -324,7 +324,7 @@ describe('test net.http.body.newChunkedReader', function()
     it('will use chunks as already loaded data', function()
         local msg = 'hello'
         local chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             '\r\n',
@@ -343,7 +343,7 @@ describe('test net.http.body.newChunkedReader', function()
         local ncall = 0
         local msg = 'hello'
         local chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             '\r\n',
@@ -366,7 +366,7 @@ describe('test net.http.body.newChunkedReader', function()
     it('returns a trailer-part', function()
         local msg = 'hello'
         local chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             'Hello: trailer-part1-1',
@@ -405,7 +405,7 @@ describe('test net.http.body.newChunkedReader', function()
         local ncall = 0
         local msg = 'hello'
         local chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             'Hello: trailer-part1-1',
@@ -480,7 +480,7 @@ describe('test net.http.body.newChunkedReader', function()
 
         -- failed by reading the invalid trailer-part
         chunks = table.concat({
-            tonumber( #msg, 16 ),
+            string.format( '%02x', #msg ),
             msg,
             '0',
             'Hello trailer-part1-1',
