@@ -1,6 +1,6 @@
 local Entity = require('net.http.entity')
 local header = require('net.http.header')
-local EAGAIN = require('net.http.parser').EAGAIN
+local EAGAIN = require('net.http.parse').EAGAIN
 
 
 describe('test net.http.entity', function()
@@ -201,7 +201,7 @@ describe('test net.http.entity', function()
                 end
             }
         })
-        local parser = function( buf, entity )
+        local parser = function( entity, buf )
             if buf == 'not hello' then
                 return -2
             elseif idx < #chunks then
