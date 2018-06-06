@@ -11,6 +11,7 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
+    "luarocks-fetch-gitrec >= 0.2",
     "halo >= 1.1.8",
     "isa >= 0.1.0",
     "net >= 0.23.0",
@@ -33,6 +34,10 @@ build = {
         ['net.http.status'] = "lib/status.lua",
         ['net.http.util.implc'] = {
             sources = { "src/implc.c" }
+        },
+        ['net.http.parse'] = {
+            incdirs = { "deps/lauxhlib" },
+            sources = { "src/parse.c" }
         },
     }
 }
