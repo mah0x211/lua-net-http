@@ -460,7 +460,7 @@ RETRY:
             case LUA_TTABLE:
                 // set value to table
                 lua_pushlstring( L, val, vlen );
-                lua_rawseti( L, -2, lauxh_rawlen( L, -2 ) );
+                lua_rawseti( L, -2, lauxh_rawlen( L, -2 ) + 1 );
                 lua_pop( L, 1 );
                 break;
         }
