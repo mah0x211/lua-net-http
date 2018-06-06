@@ -1,7 +1,7 @@
-local Parser = require('net.http.parser')
-local ParseRequest = Parser.request
+local Parse = require('net.http.parse')
+local ParseRequest = Parse.request
 
-describe("test net.http.parser.request", function()
+describe("test net.http.parse.request", function()
     it("can parse line terminated by CRLF", function()
         for _, msg in ipairs({
             {
@@ -11,10 +11,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host = 'example.com',
                     }
@@ -28,10 +26,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -47,10 +43,8 @@ describe("test net.http.parser.request", function()
                        "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -67,10 +61,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -86,10 +78,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -105,10 +95,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -124,10 +112,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -143,10 +129,8 @@ describe("test net.http.parser.request", function()
                       "\r\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -155,7 +139,7 @@ describe("test net.http.parser.request", function()
             },
             -- invalid headers
             {
-                res = Parser.EHDRFMT,
+                res = Parse.EHDRNAME,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: 1.example.com\r\n" ..
                       " 2.example.com\r\n" ..
@@ -163,31 +147,27 @@ describe("test net.http.parser.request", function()
                       "\r\n"
             },
             {
-                res = Parser.EHDRVAL,
+                res = Parse.EHDREOL,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: example.com\rinvalid format\n" ..
                       "\r\n"
             },
             {
-                res = Parser.EHDRFMT,
+                res = Parse.EHDRNAME,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "invalid header format\r\n" ..
                       "\r\n"
             },
             {
-                limits = Parser.getlimits({
-                    HEADER_LEN_MAX = 10
-                }),
-                res = Parser.EHDRLEN,
+                MAX_HDRLEN = 10,
+                res = Parse.EHDRLEN,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host: exceeded the maximum header length\r\n" ..
                       "\r\n"
             },
             {
-                limits = Parser.getlimits({
-                    HEADER_NUM_MAX = 2
-                }),
-                res = Parser.EHDRNUM,
+                MAX_HDRNUM = 2,
+                res = Parse.EHDRNUM,
                 val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
                       "Host1: example.com\r\n" ..
                       "Host2: example.com\r\n" ..
@@ -200,7 +180,9 @@ describe("test net.http.parser.request", function()
             local req = {
                 header = {}
             }
-            local consumed = ParseRequest( msg.val, req, msg.limits )
+            local consumed = ParseRequest(
+                req, msg.val, msg.MAX_MSGLEN, msg.MAX_HDRLEN, msg.MAX_HDRNUM
+            )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
@@ -221,10 +203,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host = 'example.com',
                     }
@@ -238,10 +218,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -257,10 +235,8 @@ describe("test net.http.parser.request", function()
                        "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -277,10 +253,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -296,10 +270,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -315,10 +287,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host2 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -334,10 +304,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host3 = '1.example.com 2.example.com\t3.example.com',
@@ -353,10 +321,8 @@ describe("test net.http.parser.request", function()
                       "\n",
                 cmp = {
                     method = 'GET',
-                    url = {
-                        path = '/foo/bar/baz',
-                    },
-                    ver = 1.0,
+                    uri = '/foo/bar/baz',
+                    version = 10,
                     header = {
                         host1 = 'example.com',
                         host2 = 'example.com',
@@ -365,7 +331,7 @@ describe("test net.http.parser.request", function()
             },
             -- invalid headers
             {
-                res = Parser.EHDRFMT,
+                res = Parse.EHDRNAME,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: 1.example.com\n" ..
                       " 2.example.com\n" ..
@@ -373,31 +339,27 @@ describe("test net.http.parser.request", function()
                       "\n"
             },
             {
-                res = Parser.EHDRVAL,
+                res = Parse.EHDREOL,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: example.com\rinvalid format\n" ..
                       "\n"
             },
             {
-                res = Parser.EHDRFMT,
+                res = Parse.EHDRNAME,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "invalid header format\n" ..
                       "\n"
             },
             {
-                limits = Parser.getlimits({
-                    HEADER_LEN_MAX = 10
-                }),
-                res = Parser.EHDRLEN,
+                MAX_HDRLEN = 10,
+                res = Parse.EHDRLEN,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host: exceeded the maximum header length\n" ..
                       "\n"
             },
             {
-                limits = Parser.getlimits({
-                    HEADER_NUM_MAX = 2
-                }),
-                res = Parser.EHDRNUM,
+                MAX_HDRNUM = 2,
+                res = Parse.EHDRNUM,
                 val = "GET /foo/bar/baz HTTP/1.0\n" ..
                       "Host1: example.com\n" ..
                       "Host2: example.com\n" ..
@@ -410,7 +372,9 @@ describe("test net.http.parser.request", function()
             local req = {
                 header = {}
             }
-            local consumed = ParseRequest( msg.val, req, msg.limits )
+            local consumed = ParseRequest(
+                req, msg.val, msg.MAX_MSGLEN, msg.MAX_HDRLEN, msg.MAX_HDRNUM
+            )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
