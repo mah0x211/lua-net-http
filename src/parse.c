@@ -888,9 +888,65 @@ SKIP_NEXT_CRLF:
 }
 
 
+static int strerror_lua( lua_State *L )
+{
+    switch( lauxh_checkinteger( L, 1 ) )
+    {
+        case PARSE_EAGAIN:
+            lua_pushliteral( L, "need more bytes" );
+            return 1;
+
+        case PARSE_EMSG:
+            lua_pushliteral( L, "invalid message" );
+            return 1;
+
+        case PARSE_EMSGLEN:
+            lua_pushliteral( L, "message-length too large" );
+            return 1;
+
+        case PARSE_EMETHOD:
+            lua_pushliteral( L, "method not implemented" );
+            return 1;
+
+        case PARSE_EVERSION:
+            lua_pushliteral( L, "version not supported" );
+            return 1;
+
+        case PARSE_EHDREOL:
+            lua_pushliteral( L, "header end-of-line not found" );
+            return 1;
+
+        case PARSE_EHDRNAME:
+            lua_pushliteral( L, "invalid header field-name" );
+            return 1;
+
+        case PARSE_EHDRVAL:
+            lua_pushliteral( L, "invalid header field-value" );
+            return 1;
+
+        case PARSE_EHDRLEN:
+            lua_pushliteral( L, "header-length too large" );
+            return 1;
+
+        case PARSE_EHDRNUM:
+            lua_pushliteral( L, "too many headers" );
+            return 1;
+
+        case PARSE_ESTATUS:
+            lua_pushliteral( L, "invalid status code" );
+            return 1;
+
+        default:
+            lua_pushliteral( L, "unknown error" );
+            return 1;
+    }
+}
+
+
 LUALIB_API int luaopen_net_http_parse( lua_State *L )
 {
     struct luaL_Reg funcs[] = {
+        { "strerror", strerror_lua },
         { "response", response_lua },
         { "request", request_lua },
         { "header", header_lua },
