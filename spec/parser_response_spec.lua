@@ -1,4 +1,4 @@
-local ResponseParser = require('net.http.parser').response;
+local ParseResponse = require('net.http.parse').response;
 
 
 describe("test net.http.parser.request", function()
@@ -10,7 +10,7 @@ describe("test net.http.parser.request", function()
                       "Host: example.com\r\n" ..
                       "\r\n",
                 cmp = {
-                    ver = 1.0,
+                    version = 10,
                     status = 200,
                     reason = "OK",
                     header = {
@@ -26,7 +26,7 @@ describe("test net.http.parser.request", function()
                       "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
                       "\r\n",
                 cmp = {
-                    ver = 1.1,
+                    version = 11,
                     status = 200,
                     reason = "OK",
                     header = {
@@ -40,7 +40,7 @@ describe("test net.http.parser.request", function()
             local res = {
                 header = {}
             }
-            local consumed = ResponseParser( msg.val, res, msg.limits )
+            local consumed = ParseResponse( res, msg.val )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
@@ -60,7 +60,7 @@ describe("test net.http.parser.request", function()
                       "Host: example.com\n" ..
                       "\n",
                 cmp = {
-                    ver = 1.0,
+                    version = 10,
                     status = 200,
                     reason = "OK",
                     header = {
@@ -76,7 +76,7 @@ describe("test net.http.parser.request", function()
                       "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
                       "\n",
                 cmp = {
-                    ver = 1.1,
+                    version = 11,
                     status = 200,
                     reason = "OK",
                     header = {
@@ -90,7 +90,7 @@ describe("test net.http.parser.request", function()
             local res = {
                 header = {}
             }
-            local consumed = ResponseParser( msg.val, res, msg.limits )
+            local consumed = ParseResponse( res, msg.val )
 
             if msg.res < 0 then
                 assert.are.equal( msg.res, consumed )
@@ -98,6 +98,43 @@ describe("test net.http.parser.request", function()
                 assert.are.equal( #msg.val, consumed )
                 assert.are.same( msg.cmp, res )
             end
+        end
+    end)
+
+
+    it("insert multiple same name headers into array", function()
+        local msg = {
+            res = 0,
+            val = "HTTP/1.1 200 OK\n" ..
+                    "Host: example1.com\n" ..
+                    "Host: example2.com\n" ..
+                    "Host: example3.com\n" ..
+                    "Host: 1.example.com 2.example.com\t3.example.com\n" ..
+                    "\n",
+            cmp = {
+                version = 11,
+                status = 200,
+                reason = "OK",
+                header = {
+                    host = {
+                        'example1.com',
+                        'example2.com',
+                        'example3.com',
+                        '1.example.com 2.example.com\t3.example.com',
+                    }
+                }
+            }
+        }
+        local res = {
+            header = {}
+        }
+        local consumed = ParseResponse( res, msg.val )
+
+        if msg.res < 0 then
+            assert.are.equal( msg.res, consumed )
+        else
+            assert.are.equal( #msg.val, consumed )
+            assert.are.same( msg.cmp, res )
         end
     end)
 end)
