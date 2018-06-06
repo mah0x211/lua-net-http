@@ -29,8 +29,8 @@
 --- assign to local
 local isUInt = require('isa').uint;
 local chunksize = require('rfcvalid.implc').chunksize;
-local ParseHeader = require('net.http.parser').header;
-local strerror = require('net.http.parser').strerror;
+local ParseHeader = require('net.http.parse').header;
+local strerror = require('net.http.parse').strerror;
 local type = type;
 local error = error;
 local setmetatable = setmetatable;
@@ -38,7 +38,7 @@ local strsub = string.sub;
 local strfind = string.find;
 local concat = table.concat;
 --- constants
-local EAGAIN = require('net.http.parser').EAGAIN;
+local EAGAIN = require('net.http.parse').EAGAIN;
 
 
 --- length
@@ -245,7 +245,7 @@ local function readChunked( self )
 
                     -- parse trailer-part
                     while true do
-                        consumed = ParseHeader( chunks, trailer, consumed + 1 );
+                        consumed = ParseHeader( trailer, chunks, consumed );
                         -- parsed
                         if consumed > 0 then
                             self.body = concat( arr );

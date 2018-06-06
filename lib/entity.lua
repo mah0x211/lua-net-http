@@ -34,19 +34,20 @@ local strformat = string.format;
 --- constants
 local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
-local EAGAIN = require('net.http.parser').EAGAIN;
+local EAGAIN = require('net.http.parse').EAGAIN;
 
 
 --- recvfrom
 -- @param sock
 -- @param parser
+-- @param ctx
 -- @param ...
 -- @return ok
 -- @return excess
 -- @return err
 -- @return timeout
 -- @return perr
-local function recvfrom( sock, parser, ... )
+local function recvfrom( sock, parser, ctx, ... )
     local buf = '';
 
     while true do
@@ -54,7 +55,7 @@ local function recvfrom( sock, parser, ... )
 
         -- parse buffered message
         if #buf > 0 then
-            cur = parser( buf, ... );
+            cur = parser( ctx, buf, ... );
         end
 
         -- parsed

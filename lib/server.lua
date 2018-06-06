@@ -29,7 +29,7 @@
 --- assign to local
 local InetServer = require('net.stream.inet').server;
 local UnixServer = require('net.stream.unix').server;
-local ParseRequest = require('net.http.parser').request;
+local ParseRequest = require('net.http.parse').request;
 local NewReaderFromHeader = require('net.http.body').newReaderFromHeader;
 local recvfrom = require('net.http.entity').recvfrom;
 
