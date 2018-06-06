@@ -104,7 +104,7 @@ static match64bit_u V_11 = {
 #define PARSE_EMSGLEN       -3
 /* method not implemented */
 #define PARSE_EMETHOD       -4
-/* version not support */
+/* version not supported */
 #define PARSE_EVERSION      -5
 /* header end-of-line not found */
 #define PARSE_EHDREOL       -6
@@ -118,8 +118,6 @@ static match64bit_u V_11 = {
 #define PARSE_EHDRNUM       -10
 /* invalid status code */
 #define PARSE_ESTATUS       -11
-/* invalid reason-phrase */
-#define PARSE_EREASON       -12
 
 
 
@@ -919,7 +917,6 @@ LUALIB_API int luaopen_net_http_parse( lua_State *L )
     lauxh_pushnum2tbl( L, "EHDRLEN", PARSE_EHDRLEN );
     lauxh_pushnum2tbl( L, "EHDRNUM", PARSE_EHDRNUM );
     lauxh_pushnum2tbl( L, "ESTATUS", PARSE_ESTATUS );
-    lauxh_pushnum2tbl( L, "EREASON", PARSE_EREASON );
 
     return 1;
 }
