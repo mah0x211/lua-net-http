@@ -732,6 +732,10 @@ CHECK_URI:
         lua_pushinteger( L, PARSE_EAGAIN );
         return 1;
     }
+    else if( ulen > maxmsglen ){
+        lua_pushinteger( L, PARSE_EMSGLEN );
+        return 1;
+    }
     switch( URIC_TBL[str[ulen]] ){
         case 0:
             lua_pushinteger( L, PARSE_EMSG );
