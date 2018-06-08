@@ -479,7 +479,7 @@ RETRY:
     }
 
     // too many headers
-    if( nhdr > maxhdrnum ){
+    if( nhdr >= maxhdrnum ){
         lua_pushinteger( L, PARSE_EHDRNUM );
         return 1;
     }
