@@ -1,388 +1,165 @@
 local Parse = require('net.http.parse')
 local ParseRequest = Parse.request
 
-describe("test net.http.parse.request", function()
-    it("can parse line terminated by CRLF", function()
-        for _, msg in ipairs({
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host: example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host = 'example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                       "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: \r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1:\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1:       \r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: \r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: \r\n" ..
-                      "\r\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                    }
-                }
-            },
-            -- invalid headers
-            {
-                res = Parse.EHDRNAME,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host: 1.example.com\r\n" ..
-                      " 2.example.com\r\n" ..
-                      "\t 2.example.com\r\n" ..
-                      "\r\n"
-            },
-            {
-                res = Parse.EHDREOL,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host: example.com\rinvalid format\n" ..
-                      "\r\n"
-            },
-            {
-                res = Parse.EHDRNAME,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "invalid header format\r\n" ..
-                      "\r\n"
-            },
-            {
-                MAX_HDRLEN = 10,
-                res = Parse.EHDRLEN,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host: exceeded the maximum header length\r\n" ..
-                      "\r\n"
-            },
-            {
-                MAX_HDRNUM = 2,
-                res = Parse.EHDRNUM,
-                val = "GET /foo/bar/baz HTTP/1.0\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: example.com\r\n" ..
-                      "Host4: exceeded the maximum number of header\r\n" ..
-                     "\r\n"
-            },
+describe('test net.http.parse.request', function()
+    it('can parse http 1.0 request message', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.0\r\n' ..
+                    'Host: example.com\r\n' ..
+                    '\r\n'
+        local req = {
+            header = {}
+        }
 
-        }) do
-            local req = {
-                header = {}
+        assert.are.equal( #msg, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 10,
+            header = {
+                host = 'example.com'
             }
-            local consumed = ParseRequest(
-                req, msg.val, msg.MAX_MSGLEN, msg.MAX_HDRLEN, msg.MAX_HDRNUM
-            )
-
-            if msg.res < 0 then
-                assert.are.equal( msg.res, consumed )
-            else
-                assert.are.equal( #msg.val, consumed )
-                assert.are.same( msg.cmp, req )
-            end
-        end
+        }, req )
     end)
 
+    it('can parse http 1.1 request message', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.1\r\n' ..
+                    'Host: example.com\r\n' ..
+                    '\r\n'
+        local req = {
+            header = {}
+        }
 
-    it("can parse line terminated by LF", function()
-        for _, msg in ipairs({
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host: example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host = 'example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                       "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: \n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1:\n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1:       \n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: \n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: \n" ..
-                      "\n",
-                cmp = {
-                    method = 'GET',
-                    uri = '/foo/bar/baz',
-                    version = 10,
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                    }
-                }
-            },
-            -- invalid headers
-            {
-                res = Parse.EHDRNAME,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host: 1.example.com\n" ..
-                      " 2.example.com\n" ..
-                      "\t 2.example.com\n" ..
-                      "\n"
-            },
-            {
-                res = Parse.EHDREOL,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host: example.com\rinvalid format\n" ..
-                      "\n"
-            },
-            {
-                res = Parse.EHDRNAME,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "invalid header format\n" ..
-                      "\n"
-            },
-            {
-                MAX_HDRLEN = 10,
-                res = Parse.EHDRLEN,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host: exceeded the maximum header length\n" ..
-                      "\n"
-            },
-            {
-                MAX_HDRNUM = 2,
-                res = Parse.EHDRNUM,
-                val = "GET /foo/bar/baz HTTP/1.0\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: example.com\n" ..
-                      "Host4: exceeded the maximum number of header\n" ..
-                     "\n"
-            },
-
-        }) do
-            local req = {
-                header = {}
+        assert.are.equal( #msg, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 11,
+            header = {
+                host = 'example.com'
             }
-            local consumed = ParseRequest(
-                req, msg.val, msg.MAX_MSGLEN, msg.MAX_HDRLEN, msg.MAX_HDRNUM
-            )
+        }, req )
+    end)
 
-            if msg.res < 0 then
-                assert.are.equal( msg.res, consumed )
-            else
-                assert.are.equal( #msg.val, consumed )
-                assert.are.same( msg.cmp, req )
-            end
+    it('cannot parse request message of unsupported version', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.5\r\n' ..
+                    'Host: example.com\r\n' ..
+                    '\r\n'
+
+        assert.are.equal( Parse.EVERSION, ParseRequest( { header = {} }, msg ) )
+    end)
+
+    it('can parse request message without header', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.1\r\n' ..
+                    '\r\n'
+        local req = {
+            header = {}
+        }
+
+        assert.are.equal( #msg, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 11,
+            header = {}
+        }, req )
+    end)
+
+    it('can parse request message lines that terminate by LF', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.1\n' ..
+                    '\n'
+        local req = {
+            header = {}
+        }
+
+        assert.are.equal( #msg, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 11,
+            header = {}
+        }, req )
+    end)
+
+    it('cannot parse request message lines that not terminated by LF', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.1\r' ..
+                    '\r'
+        local req = {
+            header = {}
+        }
+
+        assert.are.equal( Parse.EEOL, ParseRequest( req, msg ) )
+    end)
+
+    it('can limit the length of uri', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.0\n' ..
+                    'Host: example.com\n' ..
+                    '\n'
+        local req = {
+            header = {}
+        }
+
+        assert.are.equal( Parse.EMSGLEN, ParseRequest( req, msg, 10 ) )
+    end)
+
+    it('returns EAGAIN to the incomplete message', function()
+        local msg = 'GET /foo/bar/baz/qux HTTP/1.0\n' ..
+                    'Host: example.com\n' ..
+                    '\n'
+        local req = {
+            header = {}
+        }
+
+        for i = 1, #msg - 1 do
+            assert.are.equal(
+                Parse.EAGAIN,
+                ParseRequest( { header = {} }, string.sub( msg, 1, i ) )
+            )
         end
+        assert.are.equal( #msg, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 10,
+            header = {
+                host = 'example.com'
+            }
+        }, req )
+    end)
+
+    it('parse only request-line', function()
+        local line = 'GET /foo/bar/baz/qux HTTP/1.0\n'
+        local msg = line ..
+                    'Host: example.com\n' ..
+                    '\n'
+        local req = {}
+
+        assert.are.equal( #line, ParseRequest( req, msg ) )
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 10,
+        }, req )
+    end)
+
+    it('cannot parse request message for unsupported method', function()
+        for _, method in ipairs({
+            'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'TRACE', 'CONNECT'
+        }) do
+            local msg = method .. ' /foo/bar/baz/qux HTTP/1.1\r\n'
+            local req = {}
+
+            assert.are.equal( #msg, ParseRequest( req, msg ) )
+            assert.are.same({
+                method = method,
+                uri = '/foo/bar/baz/qux',
+                version = 11,
+            }, req )
+        end
+
+        assert.are.equal(
+            Parse.EMETHOD,
+            ParseRequest( {}, 'FOO /foo/bar/baz/qux HTTP/1.1\r\n' )
+        )
     end)
 end)
 
