@@ -1,141 +1,137 @@
-local ParseResponse = require('net.http.parse').response;
+local Parse = require('net.http.parse')
+local ParseResponse = Parse.response
 
-
-describe("test net.http.parser.request", function()
-    it("can parse line terminated by CRLF", function()
-        for _, msg in ipairs({
-            {
-                res = 0,
-                val = "HTTP/1.0 200 OK\r\n" ..
-                      "Host: example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    version = 10,
-                    status = 200,
-                    reason = "OK",
-                    header = {
-                        host = "example.com"
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "HTTP/1.1 200 OK\r\n" ..
-                      "Host1: example.com\r\n" ..
-                      "Host2: example.com\r\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\r\n" ..
-                      "\r\n",
-                cmp = {
-                    version = 11,
-                    status = 200,
-                    reason = "OK",
-                    header = {
-                      host1 = 'example.com',
-                      host2 = 'example.com',
-                      host3 = '1.example.com 2.example.com\t3.example.com'
-                    }
-                }
-            }
-        }) do
-            local res = {
-                header = {}
-            }
-            local consumed = ParseResponse( res, msg.val )
-
-            if msg.res < 0 then
-                assert.are.equal( msg.res, consumed )
-            else
-                assert.are.equal( #msg.val, consumed )
-                assert.are.same( msg.cmp, res )
-            end
-        end
-    end)
-
-
-    it("can parse line terminated by LF", function()
-        for _, msg in ipairs({
-            {
-                res = 0,
-                val = "HTTP/1.0 200 OK\n" ..
-                      "Host: example.com\n" ..
-                      "\n",
-                cmp = {
-                    version = 10,
-                    status = 200,
-                    reason = "OK",
-                    header = {
-                        host = "example.com",
-                    }
-                }
-            },
-            {
-                res = 0,
-                val = "HTTP/1.1 200 OK\n" ..
-                      "Host1: example.com\n" ..
-                      "Host2: example.com\n" ..
-                      "Host3: 1.example.com 2.example.com\t3.example.com\n" ..
-                      "\n",
-                cmp = {
-                    version = 11,
-                    status = 200,
-                    reason = "OK",
-                    header = {
-                        host1 = 'example.com',
-                        host2 = 'example.com',
-                        host3 = '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            },
-        }) do
-            local res = {
-                header = {}
-            }
-            local consumed = ParseResponse( res, msg.val )
-
-            if msg.res < 0 then
-                assert.are.equal( msg.res, consumed )
-            else
-                assert.are.equal( #msg.val, consumed )
-                assert.are.same( msg.cmp, res )
-            end
-        end
-    end)
-
-
-    it("insert multiple same name headers into array", function()
-        local msg = {
-            res = 0,
-            val = "HTTP/1.1 200 OK\n" ..
-                    "Host: example1.com\n" ..
-                    "Host: example2.com\n" ..
-                    "Host: example3.com\n" ..
-                    "Host: 1.example.com 2.example.com\t3.example.com\n" ..
-                    "\n",
-            cmp = {
-                version = 11,
-                status = 200,
-                reason = "OK",
-                header = {
-                    host = {
-                        'example1.com',
-                        'example2.com',
-                        'example3.com',
-                        '1.example.com 2.example.com\t3.example.com',
-                    }
-                }
-            }
-        }
+describe('test net.http.parse.response', function()
+    it('can parse http 1.0 response message', function()
+        local msg = 'HTTP/1.0 200 OK\r\n' ..
+                    'Server: example-server\r\n' ..
+                    '\r\n'
         local res = {
             header = {}
         }
-        local consumed = ParseResponse( res, msg.val )
 
-        if msg.res < 0 then
-            assert.are.equal( msg.res, consumed )
-        else
-            assert.are.equal( #msg.val, consumed )
-            assert.are.same( msg.cmp, res )
+        assert.are.equal( #msg, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 10,
+            header = {
+                server = 'example-server'
+            }
+        }, res )
+    end)
+
+    it('can parse http 1.1 response message', function()
+        local msg = 'HTTP/1.1 200 OK\r\n' ..
+                    'Server: example-server\r\n' ..
+                    '\r\n'
+        local res = {
+            header = {}
+        }
+
+        assert.are.equal( #msg, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 11,
+            header = {
+                server = 'example-server'
+            }
+        }, res )
+    end)
+
+    it('cannot parse response message of unsupported version', function()
+        local msg = 'HTTP/1.5 200 OK\r\n' ..
+                    'Server: example-server\r\n' ..
+                    '\r\n'
+        assert.are.equal( Parse.EVERSION, ParseResponse( {}, msg ) )
+    end)
+
+    it('can parse response message without header', function()
+        local msg = 'HTTP/1.0 200 OK\r\n' ..
+                    '\r\n'
+        local res = {
+            header = {}
+        }
+
+        assert.are.equal( #msg, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 10,
+            header = {}
+        }, res )
+    end)
+
+    it('can parse response message lines that terminate by LF', function()
+        local msg = 'HTTP/1.1 200 OK\n' ..
+                    '\n'
+        local res = {
+            header = {}
+        }
+
+        assert.are.equal( #msg, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 11,
+            header = {}
+        }, res )
+    end)
+
+    it('cannot parse response message lines that not terminated by LF', function()
+        local msg = 'HTTP/1.1 200 OK\r' ..
+                    '\r'
+
+        assert.are.equal( Parse.EEOL, ParseResponse( {}, msg ) )
+    end)
+
+    it("can limit the length of uri", function()
+        local msg = 'HTTP/1.1 418 i\'m a tea pot\n' ..
+                    'Server: example-server\n' ..
+                    '\n'
+
+        assert.are.equal( Parse.EMSGLEN, ParseResponse( {}, msg, 10 ) )
+    end)
+
+    it('returns EAGAIN to the incomplete message', function()
+        local msg = 'HTTP/1.0 200 OK\r\n' ..
+                    'Server: example-server\r\n' ..
+                    '\r\n'
+        local res = {
+            header = {}
+        }
+
+        for i = 1, #msg - 1 do
+            assert.are.equal(
+                Parse.EAGAIN,
+                ParseResponse( { header = {} }, string.sub( msg, 1, i ) )
+            )
         end
+        assert.are.equal( #msg, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 10,
+            header = {
+                server = 'example-server'
+            }
+        }, res )
+    end)
+
+    it('parse only response-line', function()
+        local line = 'HTTP/1.0 200 OK\r\n'
+        local msg = line ..
+                    'Server: example-server\n' ..
+                    '\n'
+        local res = {}
+
+        assert.are.equal( #line, ParseResponse( res, msg ) )
+        assert.are.same({
+            status = 200,
+            reason = 'OK',
+            version = 10,
+        }, res )
     end)
 end)
 
