@@ -106,8 +106,8 @@ static match64bit_u V_11 = {
 #define PARSE_EMETHOD       -4
 /* version not supported */
 #define PARSE_EVERSION      -5
-/* header end-of-line not found */
-#define PARSE_EHDREOL       -6
+/* invalid end-of-line terminator */
+#define PARSE_EEOL          -6
 /* invalid header field-name */
 #define PARSE_EHDRNAME      -7
 /* invalid header field-val */
@@ -349,8 +349,9 @@ static int parse_hval( unsigned char *str, size_t len, size_t *cur,
                 else if( !str[pos + 1] ){
                     goto CHECK_AGAIN;
                 }
+                // invalid end-of-line terminator
                 else {
-                    return PARSE_EHDREOL;
+                    return PARSE_EEOL;
                 }
 
                 // remove OWS
@@ -768,8 +769,9 @@ CHECK_URI:
                 lua_pushinteger( L, PARSE_EAGAIN );
                 return 1;
             }
+            // invalid end-of-line terminator
             else if( str[cur + 1] != LF ){
-                lua_pushinteger( L, PARSE_EVERSION );
+                lua_pushinteger( L, PARSE_EEOL );
                 return 1;
             }
             cur++;
@@ -839,9 +841,9 @@ static int parse_reason( unsigned char *str, size_t len, size_t *cur,
                 else if( !str[pos + 1] ){
                     return PARSE_EAGAIN;
                 }
-                // invalid terminator
+                // invalid end-of-line terminator
                 else {
-                    return PARSE_EMSG;
+                    return PARSE_EEOL;
                 }
 
                 *cur = pos;
@@ -1000,8 +1002,8 @@ static int strerror_lua( lua_State *L )
             lua_pushliteral( L, "version not supported" );
             return 1;
 
-        case PARSE_EHDREOL:
-            lua_pushliteral( L, "header end-of-line not found" );
+        case PARSE_EEOL:
+            lua_pushliteral( L, "invalid end-of-line terminator" );
             return 1;
 
         case PARSE_EHDRNAME:
@@ -1055,7 +1057,7 @@ LUALIB_API int luaopen_net_http_parse( lua_State *L )
     lauxh_pushnum2tbl( L, "EMSGLEN", PARSE_EMSGLEN );
     lauxh_pushnum2tbl( L, "EMETHOD", PARSE_EMETHOD );
     lauxh_pushnum2tbl( L, "EVERSION", PARSE_EVERSION );
-    lauxh_pushnum2tbl( L, "EHDREOL", PARSE_EHDREOL );
+    lauxh_pushnum2tbl( L, "EEOL", PARSE_EEOL );
     lauxh_pushnum2tbl( L, "EHDRNAME", PARSE_EHDRNAME );
     lauxh_pushnum2tbl( L, "EHDRVAL", PARSE_EHDRVAL );
     lauxh_pushnum2tbl( L, "EHDRLEN", PARSE_EHDRLEN );
