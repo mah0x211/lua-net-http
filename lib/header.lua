@@ -27,6 +27,7 @@
 --]]
 
 --- assign to local
+local iovec = require('iovec');
 local createtable = require('net.http.util.implc').createtable;
 local concat = table.concat;
 local type = type;
@@ -50,24 +51,36 @@ local Header = {};
 -- @return ok
 function Header:del( k )
     if type( k ) == 'string' then
+        local dict = self.dict;
         local key = strlower( k );
-        local idx = self.dict[key];
+        local ids = dict[key];
 
-        if idx then
-            local vals = self.vals;
-            local dict = self.dict;
-            local tail = #vals;
+        if ids then
+            local iov = self.iov;
+
+            for i = 1, #ids do
+                local id = ids[i];
+                local _, mid = iov:del( id );
+
+                -- fill holes by last value
+                if mid then
+                    local mkey = dict[mid];
+                    local mids = dict[mkey];
+
+                    dict[id] = mkey;
+                    dict[mid] = nil;
+                    for j = 1, #mids do
+                        if mids[j] == mid then
+                            mids[j] = id;
+                        end
+                    end
+                -- remove id
+                else
+                    dict[id] = nil;
+                end
+            end
 
             dict[key] = nil;
-            if idx == tail then
-                vals[idx] = nil;
-                dict[idx] = nil;
-            -- fill holes by last value
-            else
-                dict[dict[tail]] = idx;
-                vals[idx] = vals[tail];
-                vals[tail] = nil;
-            end
 
             return true;
         end
@@ -81,27 +94,15 @@ end
 
 --- checkval
 -- @param val
--- @param tbl2str
 -- @return val
 -- @return len
-local function checkval( val, tbl2str )
-    local t = type( val );
-
-    if t == 'string' then
-        return val;
-    elseif t ~= 'table' or tbl2str == true then
-        return tostring( val );
-    else
-        local len = #val;
-
-        if len > 0 then
-            if len == 1 then
-                return checkval( val[1], true );
-            end
-
-            -- multiple value
-            return val, len;
+local function checkval( val )
+    if val ~= nil then
+        if type( val ) == 'table' then
+            return val, #val;
         end
+
+        return { val }, 1;
     end
 end
 
@@ -110,51 +111,60 @@ end
 -- @param key
 -- @param val
 -- @param append
+-- @return ok
+-- @return err
 function Header:set( k, v, append )
     if type( k ) == 'string' then
-        if v ~= nil then
-            local val, len = checkval( v );
+        local val, len = checkval( v );
 
-            if val then
-                local vals = self.vals;
-                local dict = self.dict;
-                local key = strlower( k );
-                local idx = dict[key];
+        if val then
+            local iov = self.iov;
+            local dict = self.dict;
+            local key = strlower( k );
+            local ids = dict[key];
+            local head;
 
-                -- add value
-                if not idx then
-                    idx = #vals + 1;
-                    dict[idx] = key;
-                    dict[key] = idx;
+            if not ids then
+                head = 1;
+                ids = {};
+            elseif append then
+                head = #ids + 1;
+            else
+                self:del( key );
+                head = 1;
+                ids = {};
+            end
+
+            for i = 1, len do
+                local hval = val[i];
+                local id, err;
+
+                if type( hval ) == 'string' then
+                    id, err = iov:add( k .. DELIM .. hval .. CRLF );
+                else
+                    id, err = iov:add( k .. DELIM .. tostring( hval ) .. CRLF );
                 end
 
-                -- add value
-                if not len then
-                    -- append
-                    if append then
-                        vals[idx] = ( vals[idx] or '' ) ..
-                                    k .. DELIM .. val .. CRLF;
-                    else
-                        vals[idx] = k .. DELIM .. val .. CRLF;
-                    end
-                else
-                    local arr = {};
-
-                    for i = 1, len do
-                        arr[i] = k .. DELIM .. checkval( val[i], true ) .. CRLF;
+                if err then
+                    for j = #ids, head, -1 do
+                        dict[ids[j]] = nil;
+                        iov:del( ids[j] );
                     end
 
-                    -- append
-                    if append then
-                        vals[idx] = ( vals[idx] or '' ) .. concat( arr );
-                    else
-                        vals[idx] = concat( arr );
-                    end
+                    return false, err;
+                elseif id then
+                    dict[id] = key;
+                    ids[#ids + 1] = id;
                 end
             end
-        else
-            error( 'val must not be nil' );
+
+            if #ids > 0 then
+                dict[key] = ids;
+            end
+
+            return true;
         end
+        error( 'val must not be nil' );
     else
         error( 'key must be string' );
     end
@@ -166,26 +176,62 @@ end
 -- @return val
 function Header:get( k )
     if type( k ) == 'string' then
-        local idx = self.dict[strlower( k )];
+        local ids = self.dict[strlower( k )];
 
-        if idx then
-            return self.vals[idx];
+        if ids then
+            local arr = {};
+
+            for i = 1, #ids do
+                arr[i] = self.iov:get( ids[i] );
+            end
+
+            return concat( arr );
         end
+
+        return nil;
     else
         error( 'key must be string' );
     end
 end
 
 
---- new
--- @return header
-local function new( narr, nrec )
-    local vals = createtable( narr or DEFAULT_NARR );
+--- setStartLine
+-- @param key
+-- @return ok
+function Header:setStartLine( line )
+    if type( line ) == 'string' then
+        return self.iov:set( line, 0 );
+    else
+        error( 'line must be string' );
+    end
+end
 
-    -- reserve for request-line or status-line
-    vals[1] = '';
+
+--- new
+-- @param narr
+-- @param nrec
+-- @return header
+-- @return err
+local function new( narr, nrec  )
+    local iov, err, _;
+
+    if nrec == nil then
+        nrec = DEFAULT_NREC;
+    end
+
+    iov, err = iovec.new( nrec );
+    if err then
+        return nil, err;
+    end
+
+    -- add start-line
+    _, err = iov:add('');
+    if err then
+        return nil, err;
+    end
+
     return setmetatable({
-        vals = vals,
+        iov = iov,
         dict = createtable( narr or DEFAULT_NARR, nrec or DEFAULT_NREC )
     }, {
         __index = Header,

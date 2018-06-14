@@ -28,7 +28,6 @@
 
 --- assign to local
 local Body = require('net.http.body');
-local concat = table.concat;
 local strsub = string.sub;
 local strformat = string.format;
 --- constants
@@ -85,23 +84,31 @@ end
 -- @return err
 -- @return timeout
 local function sendto( sock, msg )
-    local vals = msg.header.vals;
     local body = msg.entity.body;
-    local clen = body and body:length();
+    -- append CRLF
+    local id, err = msg.header.iov:add( CRLF );
+    local len, timeout;
 
-    -- append request-line or status-line
-    vals[1] = msg:line();
+    if err then
+        return nil, err;
+    end
 
-    if not body then
-        vals[#vals + 1] = CRLF;
-        return sock:send( concat( vals ) );
-    elseif clen then
-        local nval = #vals + 1;
+    -- send header
+    len, err, timeout = sock:writev( msg.header.iov );
+    -- remove CRLF
+    msg.header.iov:del( id );
 
-        msg.header:set( 'Content-Length', clen );
-        vals[nval + 1] = CRLF;
-        vals[nval + 2] = body:read();
-        return sock:send( concat( vals ) );
+    if not len or err or timeout or not body then
+        return len, err, timeout;
+    elseif msg.entity.clen then
+        local total = len;
+
+        len, err, timeout = sock:send( msg.entity.body:read() );
+        if len then
+            return total + len, err, timeout;
+        end
+
+        return total, err, timeout;
     else
         --
         -- 4.1.  Chunked Transfer Coding
@@ -125,38 +132,24 @@ local function sendto( sock, msg )
         --
         --  trailer-part   = *( header-field CRLF )
         --
-        local total = 0;
-        local arr = {};
-        local idx;
-
-        msg.header:set( 'Transfer-Encoding', 'chunked', true );
-        vals[#vals + 1] = CRLF;
-        idx = #vals + 1;
+        local total = len;
 
         repeat
             local data = body:read( DEFAULT_READSIZ );
-            local bytes = data and #data or 0;
-            local len, err, timeout;
 
-            -- add chunk-size
-            vals[idx] = strformat( '%x\r\n', bytes );
-            -- add chunk
-            if bytes > 0 then
-                vals[idx + 1] = data;
-                vals[idx + 2] = CRLF;
+            if data then
+                len, err, timeout = sock:send(
+                    strformat( '%x\r\n', #data ) .. data .. CRLF
+                );
             else
-                vals[idx + 1] = CRLF;
+                len, err, timeout = sock:send( '0\r\n\r\n' );
             end
 
-            len, err, timeout = sock:send( concat( vals ) );
             if not len or err or timeout then
                 return total, err, timeout;
-            else
-                total = total + len;
-                idx = 1;
-                vals = arr;
-                vals[3] = nil;
             end
+            total = total + len;
+
         until data == nil;
 
         return total;
@@ -169,13 +162,23 @@ end
 -- @param data
 -- @param ctype
 local function setBody( msg, data, ctype )
+    local body = Body.new( data );
+    local clen = body:length();
+
+    msg.entity.body = body;
     -- set content-type header
     if ctype then
         msg.entity.ctype = true;
         msg.header:set( 'Content-Type', ctype );
     end
 
-    msg.entity.body = Body.new( data );
+    -- set content-length header
+    if clen then
+        msg.entity.clen = true;
+        msg.header:set( 'Content-Length', clen );
+    else
+        msg.header:set( 'Transfer-Encoding', 'chunked', true );
+    end
 end
 
 
@@ -188,6 +191,14 @@ local function unsetBody( msg )
         if msg.entity.ctype then
             msg.entity.ctype = nil;
             msg.header:del( 'Content-Type' );
+        end
+
+        -- unset content-length header
+        if msg.entity.clen then
+            msg.entity.clen = nil;
+            msg.header:del( 'Content-Length' );
+        else
+            msg.header:del( 'Transfer-Encoding' );
         end
     end
 end

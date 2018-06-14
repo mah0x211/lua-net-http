@@ -72,12 +72,52 @@ local Request = {
 };
 
 
+--- setStartLine
+-- @return str
+local function setStartLine( self )
+    if not self.startLine then
+        local arr = {
+            self.method,
+            ' ',
+            self.url.scheme,
+            '://',
+            self.url.hostname,
+        };
+        local narr = 6;
+
+        -- set port-number
+        if not self.withoutPort then
+            arr[6] = ':';
+            arr[7] = self.url.port;
+            narr = 8;
+        end
+
+        -- set pathname
+        arr[narr] = self.url.path;
+        narr = narr + 1;
+
+        -- append query-string
+        if self.url.query then
+            arr[narr] = self.url.query;
+            narr = narr + 1;
+        end
+
+        -- set version
+        arr[narr] = ' HTTP/1.1\r\n';
+        self.startLine = concat( arr );
+        self.header:setStartLine( self.startLine );
+    end
+end
+
+
 --- sendto
 -- @param sock
 -- @return res
 -- @return err
 -- @return timeout
 function Request:sendto( sock )
+    setStartLine( self );
+
     local len, err, timeout = sendto( sock, self );
 
     if not len or err or timeout then
@@ -133,36 +173,8 @@ end
 --- line
 -- @return str
 function Request:line()
-    local arr = {
-        self.method,
-        ' ',
-        self.url.scheme,
-        '://',
-        self.url.hostname,
-    };
-    local narr = 6;
-
-    -- set port-number
-    if not self.withoutPort then
-        arr[6] = ':';
-        arr[7] = self.url.port;
-        narr = 8;
-    end
-
-    -- set pathname
-    arr[narr] = self.url.path;
-    narr = narr + 1;
-
-    -- append query-string
-    if self.url.query then
-        arr[narr] = self.url.query;
-        narr = narr + 1;
-    end
-
-    -- set version
-    arr[narr] = ' HTTP/1.1\r\n';
-
-    return concat( arr );
+    setStartLine( self );
+    return self.startLine;
 end
 
 
@@ -177,6 +189,7 @@ function Request:setMethod( method )
     end
 
     self.method = method;
+    self.startLine = nil;
 end
 
 
@@ -230,6 +243,8 @@ function Request:setQuery( qry )
     else
         error( 'qry must be table or nil' );
     end
+
+    self.startLine = nil;
 end
 
 
