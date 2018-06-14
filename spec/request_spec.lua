@@ -1,5 +1,7 @@
 local Request = require('net.http.request')
 local Status = require('net.http.status')
+local ParseRequest = require('net.http.parse').request
+local EAGAIN = require('net.http.parse').EAGAIN
 local Date = require('net.http.date')
 local split = require('string.split')
 local TLSConfig = require("libtls.config")
@@ -31,24 +33,39 @@ describe('test net.http.request', function()
         elseif pid == 0 then
             while true do
                 local c = assert( sock:accept() )
-                local msg = c:recv(4096);
+                local data = ''
 
-                if msg then
-                    if string.find( msg, 'X-Response: no-content', 1, true ) then
-                        c:send( Status.toLine( 204, 1.1 ) .. table.concat({
-                            'Date: ' .. Date.now(),
-                            'Server: test-server',
-                            '\r\n',
-                        }, '\r\n' ))
-                    else
-                        c:send( Status.toLine( 200, 1.1 ) .. table.concat({
-                            'Date: ' .. Date.now(),
-                            'Server: test-server',
-                            'Content-Length: ' .. #msg,
-                            'Content-Type: text/plain',
-                            '',
-                            msg
-                        }, '\r\n' ) )
+                while true do
+                    local msg, rerr, timeout = c:recv(4096);
+
+                    if not msg or rerr or timeout then
+                        break
+                    end
+                    data = data .. msg
+
+                    local consumed = ParseRequest( { header = {} }, data )
+                    if consumed > 0 then
+                        msg = string.sub( data, 1, consumed )
+
+                        if string.find( msg, 'x-response: no-content', 1, true ) then
+                            c:send( Status.toLine( 204, 1.1 ) .. table.concat({
+                                'Date: ' .. Date.now(),
+                                'Server: test-server',
+                                '\r\n',
+                            }, '\r\n' ))
+                        else
+                            c:send( Status.toLine( 200, 1.1 ) .. table.concat({
+                                'Date: ' .. Date.now(),
+                                'Server: test-server',
+                                'Content-Length: ' .. #msg,
+                                'Content-Type: text/plain',
+                                '',
+                                msg
+                            }, '\r\n' ) )
+                        end
+                        break
+                    elseif consumed ~= EAGAIN then
+                        break
                     end
                 end
 
@@ -298,8 +315,8 @@ describe('test net.http.request', function()
             port = '5000'
         })
         local expect = 'GET http://example.com:80/?hello=world HTTP/1.1\r\n' ..
-                        'Host: example.com\r\n' ..
-                        'User-Agent: lua-net-http\r\n' ..
+                        'host: example.com\r\n' ..
+                        'user-agent: lua-net-http\r\n' ..
                         '\r\n'
         local res, body
 
@@ -316,8 +333,8 @@ describe('test net.http.request', function()
     it('can send message', function()
         local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
         local expect = 'GET http://127.0.0.1:5000/?hello=world HTTP/1.1\r\n' ..
-                        'Host: 127.0.0.1:5000\r\n' ..
-                        'User-Agent: lua-net-http\r\n' ..
+                        'host: 127.0.0.1:5000\r\n' ..
+                        'user-agent: lua-net-http\r\n' ..
                         '\r\n'
         local res = req:send()
         local body
@@ -341,7 +358,7 @@ describe('test net.http.request', function()
     it('returns send-error', function()
         local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
         local fakesock = {
-            send = function()
+            writev = function()
                 return nil, 'send-error', false
             end
         }
@@ -366,8 +383,8 @@ describe('test net.http.request', function()
     it('returns recv-error', function()
         local req = Request.new( 'get', 'http://127.0.0.1:5000?hello=world' )
         local fakesock = {
-            send = function( _, data )
-                return #data
+            writev = function( _, iov )
+                return iov:bytes()
             end,
             recv = function()
                 return nil, 'recv-error', false
@@ -424,8 +441,8 @@ describe('test net.http.request', function()
         local req = Request.new( 'get', 'https://127.0.0.1:5443/hello', true )
         local res = req:send()
         local expect = 'GET https://127.0.0.1:5443/hello HTTP/1.1\r\n' ..
-                        'Host: 127.0.0.1:5443\r\n' ..
-                        'User-Agent: lua-net-http\r\n' ..
+                        'host: 127.0.0.1:5443\r\n' ..
+                        'user-agent: lua-net-http\r\n' ..
                         '\r\n'
         local body
 
