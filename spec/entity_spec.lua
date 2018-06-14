@@ -57,14 +57,13 @@ describe('test net.http.entity', function()
         local data
         local sock = setmetatable({},{
             __index = {
-                send = function( _, val )
-                    data = val
-                    return #val
+                writev = function( _, iov )
+                    data = iov:concat()
+                    return #data
                 end
             }
         })
-        local expect = 'message-line\r\n' ..
-                        'my-header: hello\r\n' ..
+        local expect = 'my-header: hello\r\n' ..
                         'my-header: world\r\n' ..
                         '\r\n'
 
@@ -76,14 +75,17 @@ describe('test net.http.entity', function()
         local data
         local sock = setmetatable({},{
             __index = {
+                writev = function( _, iov )
+                    data = iov:concat()
+                    return #data
+                end,
                 send = function( _, val )
-                    data = val
+                    data = data .. val
                     return #val
                 end
             }
         })
-        local expect = 'message-line\r\n' ..
-                        'my-header: hello\r\n' ..
+        local expect = 'my-header: hello\r\n' ..
                         'my-header: world\r\n' ..
                         'Content-Length: 12\r\n' ..
                         '\r\n' ..
@@ -99,6 +101,10 @@ describe('test net.http.entity', function()
         local chunks = {}
         local sock = setmetatable({},{
             __index = {
+                writev = function( _, iov )
+                    chunks[1] = iov:concat()
+                    return #chunks[1]
+                end,
                 send = function( _, val )
                     chunks[#chunks + 1] = val
                     return #val
@@ -106,18 +112,17 @@ describe('test net.http.entity', function()
             }
         })
         local expect = {
-            [1] = 'message-line\r\n' ..
-                    'my-header: hello\r\n' ..
+            [1] = 'my-header: hello\r\n' ..
                     'my-header: world\r\n' ..
                     'Transfer-Encoding: chunked\r\n' ..
-                    '\r\n' ..
-                    'e\r\n' ..
-                    'chunked-data-1\r\n',
+                    '\r\n',
             [2] = 'e\r\n' ..
-                    'chunked-data-2\r\n',
+                    'chunked-data-1\r\n',
             [3] = 'e\r\n' ..
+                    'chunked-data-2\r\n',
+            [4] = 'e\r\n' ..
                     'chunked-data-3\r\n',
-            [4] = '0\r\n\r\n'
+            [5] = '0\r\n\r\n'
         }
         local nchunk = 3
         local n = 0
@@ -142,6 +147,10 @@ describe('test net.http.entity', function()
         local chunks = {}
         local sock = setmetatable({},{
             __index = {
+                writev = function( _, iov )
+                    chunks[1] = iov:concat()
+                    return #chunks[1]
+                end,
                 send = function( _, val )
                     if n == 3 then
                         return nil, 'abort'
@@ -152,14 +161,13 @@ describe('test net.http.entity', function()
             }
         })
         local expect = {
-            [1] = 'message-line\r\n' ..
-                    'my-header: hello\r\n' ..
+            [1] = 'my-header: hello\r\n' ..
                     'my-header: world\r\n' ..
                     'Transfer-Encoding: chunked\r\n' ..
-                    '\r\n' ..
-                    'e\r\n' ..
-                    'chunked-data-1\r\n',
+                    '\r\n',
             [2] = 'e\r\n' ..
+                    'chunked-data-1\r\n',
+            [3] = 'e\r\n' ..
                     'chunked-data-2\r\n',
         }
 
