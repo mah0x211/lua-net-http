@@ -122,18 +122,103 @@ describe('test net.http.header', function()
 
     it('can delete the specified field-name', function()
         h:set('field-foo', 'foo')
-        h:set('field-bar', 'bar')
-        h:set('field-baz', 'baz')
+        h:set('field-bar', 'bar-1')
+        h:set('field-baz', 'baz-1')
+        h:set('field-baz', 'baz-2', true)
+        h:set('field-qux', 'qux-1')
+        h:set('field-bar', 'bar-2', true)
+        h:set('field-qux', 'qux-2', true)
+        h:set('field-qux', 'qux-3', true)
+        h:set('field-baz', 'baz-3', true)
+        h:set('field-qux', 'qux-4', true)
         assert.is_equal(
             'field-foo: foo\r\n',
             h:get('field-foo')
         )
-        assert.True( h:del('field-foo') )
-        assert.True( h:del('field-bar') )
-        assert.True( h:del('field-baz') )
+        assert.is_equal(
+            table.concat({
+                'field-bar: bar-1',
+                'field-bar: bar-2'
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-bar')
+        )
+        assert.is_equal(
+            table.concat({
+                'field-baz: baz-1',
+                'field-baz: baz-2',
+                'field-baz: baz-3',
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-baz')
+        )
+        assert.is_equal(
+            table.concat({
+                'field-qux: qux-1',
+                'field-qux: qux-2',
+                'field-qux: qux-3',
+                'field-qux: qux-4',
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-qux')
+        )
 
-        assert.False( h:del('field-foo') )
-        assert.is_nil(h:get('field-foo'))
+        assert.True( h:del('field-qux') )
+        assert.is_equal(
+            'field-foo: foo\r\n',
+            h:get('field-foo')
+        )
+        assert.is_equal(
+            table.concat({
+                'field-bar: bar-1',
+                'field-bar: bar-2'
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-bar')
+        )
+        assert.is_equal(
+            table.concat({
+                'field-baz: baz-1',
+                'field-baz: baz-2',
+                'field-baz: baz-3',
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-baz')
+        )
+        assert.is_nil( h:get('field-qux') )
+
+        assert.True( h:del('field-foo') )
+        assert.is_nil( h:get('field-foo') )
+        assert.is_equal(
+            table.concat({
+                'field-bar: bar-1',
+                'field-bar: bar-2'
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-bar')
+        )
+        assert.is_equal(
+            table.concat({
+                'field-baz: baz-1',
+                'field-baz: baz-2',
+                'field-baz: baz-3',
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-baz')
+        )
+        assert.is_nil( h:get('field-qux') )
+
+        assert.True( h:del('field-bar') )
+        assert.is_nil( h:get('field-foo') )
+        assert.is_nil( h:get('field-bar') )
+        assert.is_equal(
+            table.concat({
+                'field-baz: baz-1',
+                'field-baz: baz-2',
+                'field-baz: baz-3',
+            }, '\r\n' ) .. '\r\n',
+            h:get('field-baz')
+        )
+        assert.is_nil( h:get('field-qux') )
+
+        assert.True( h:del('field-baz') )
+        assert.is_nil( h:get('field-foo') )
+        assert.is_nil( h:get('field-bar') )
+        assert.is_nil( h:get('field-baz') )
+        assert.is_nil( h:get('field-qux') )
     end)
 end)
 
