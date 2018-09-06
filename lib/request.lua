@@ -146,11 +146,26 @@ end
 -- @return err
 -- @return timeout
 function Request:send( conndeadl )
-    local sock, err, timeout = InetClient.new({
+    local sock, tlscfg, servername, err, timeout;
+
+    -- create tls config
+    if self.url.scheme == 'https' then
+        servername = self.url.hostname;
+        tlscfg, err = TLSConfig.new();
+        if err then
+            return nil, err;
+        -- set insecure mode
+        elseif self.insecure == true then
+            tlscfg:insecure_noverifycert();
+            tlscfg:insecure_noverifyname();
+        end
+    end
+
+    sock, err, timeout = InetClient.new({
         host = self.url.hostname,
         port = self.url.port,
-        tlscfg = self.url.tlscfg,
-        servername = self.url.hostname,
+        tlscfg = tlscfg,
+        servername = servername,
     }, nil, conndeadl );
 
     if sock then
@@ -257,7 +272,8 @@ end
 local function new( method, uri, insecure )
     local header = Header.new();
     local req = Entity.init({
-        header = header
+        header = header,
+        insecure = insecure,
     });
     local wellknown, offset, err;
 
@@ -323,18 +339,6 @@ local function new( method, uri, insecure )
 
     -- set default headers
     header:set( 'User-Agent', DEFAULT_UA );
-
-    -- create tls config
-    if req.url.scheme == 'https' then
-        req.url.tlscfg, err = TLSConfig.new();
-        if err then
-            return nil, err;
-        -- set insecure mode
-        elseif insecure == true then
-            req.url.tlscfg:insecure_noverifycert()
-            req.url.tlscfg:insecure_noverifyname()
-        end
-    end
 
     return setmetatable( req, {
         __index = Request
