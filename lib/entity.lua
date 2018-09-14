@@ -34,6 +34,7 @@ local strformat = string.format;
 local DEFAULT_READSIZ = 4096;
 local CRLF = '\r\n';
 local EAGAIN = require('net.http.parse').EAGAIN;
+local strerror = require('net.http.parse').strerror;
 
 
 --- recvfrom
@@ -71,7 +72,7 @@ local function recvfrom( sock, parser, ctx, ... )
             buf = buf .. str;
         -- parse error
         else
-            return false, nil, nil, nil, cur;
+            return false, nil, strerror( cur ), nil, cur;
         end
     end
 end
