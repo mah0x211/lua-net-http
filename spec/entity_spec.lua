@@ -1,6 +1,8 @@
 local Entity = require('net.http.entity')
 local header = require('net.http.header')
 local EAGAIN = require('net.http.parse').EAGAIN
+local EMSG = require('net.http.parse').EMSG
+local strerror = require('net.http.parse').strerror
 
 
 describe('test net.http.entity', function()
@@ -211,7 +213,7 @@ describe('test net.http.entity', function()
         })
         local parser = function( entity, buf )
             if buf == 'not hello' then
-                return -2
+                return EMSG
             elseif idx < #chunks then
                 return EAGAIN
             end
@@ -229,9 +231,9 @@ describe('test net.http.entity', function()
         -- got parse error
         assert.is_falsy( ok )
         assert.is_nil( excess )
-        assert.is_nil( err )
+        assert.is_equal( strerror(EMSG), err )
         assert.is_nil( timeout )
-        assert.is_equal( -2, perr )
+        assert.is_equal( EMSG, perr )
 
         -- got response
         ok, excess, err, timeout = Entity.recvfrom( sock, parser, res )
