@@ -126,6 +126,41 @@ describe('test net.http.parse.request', function()
         }, req )
     end)
 
+    it('can parse partial messages', function()
+        local req = {
+            header = {}
+        }
+        local msg = ''
+
+        for i, chunk in ipairs({
+            'GET /foo/bar/baz/qux HTTP/1.0\n',
+            'Host: example1.com\n',
+            'Host: example2.com\n',
+            'Host: example3.com\n',
+            '\n',
+        }) do
+            msg = msg .. chunk
+            if i < 5 then
+                assert.are.equal( Parse.EAGAIN, ParseRequest( req, msg ) )
+            else
+                assert.are.equal( #msg, ParseRequest( req, msg ) )
+            end
+        end
+
+        assert.are.same({
+            method = 'GET',
+            uri = '/foo/bar/baz/qux',
+            version = 10,
+            header = {
+                host = {
+                    'example1.com',
+                    'example2.com',
+                    'example3.com',
+                }
+            }
+        }, req )
+    end)
+
     it('parse only request-line', function()
         local line = 'GET /foo/bar/baz/qux HTTP/1.0\n'
         local msg = line ..
