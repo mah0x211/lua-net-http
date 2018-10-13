@@ -319,6 +319,14 @@ static const unsigned char VCHAR[256] = {
 };
 
 
+typedef struct {
+    const char *key;
+    const char *val;
+    size_t klen;
+    size_t vlen;
+} header_t;
+
+
 static int parse_hval( unsigned char *str, size_t len, size_t *cur,
                        size_t *maxhdrlen )
 {
@@ -432,13 +440,11 @@ static int parse_hkey( unsigned char *str, size_t len, size_t *cur,
 static int parse_header( lua_State *L, unsigned char *str, size_t len,
                          size_t offset, uint16_t maxhdrlen, uint8_t maxhdrnum )
 {
+    int tblidx = lua_gettop( L );
+    header_t *hdridx = lua_newuserdata( L, sizeof( header_t ) * maxhdrnum );
     uintptr_t top = (uintptr_t)str;
     uintptr_t head = 0;
     uint8_t nhdr = 0;
-    const char *key = NULL;
-    size_t klen = 0;
-    const char *val = NULL;
-    size_t vlen = 0;
     size_t cur = 0;
     int rv = 0;
 
@@ -457,6 +463,7 @@ RETRY:
     {
         // need more bytes
         case 0:
+            lua_settop( L, 0 );
             lua_pushinteger( L, PARSE_EAGAIN );
             return 1;
 
@@ -464,6 +471,7 @@ RETRY:
         case CR:
             // null-terminated
             if( !str[1] ){
+                lua_settop( L, 0 );
                 lua_pushinteger( L, PARSE_EAGAIN );
                 return 1;
             }
@@ -473,22 +481,23 @@ RETRY:
         case LF:
                 str++;
                 // skip LF
-                lua_pushinteger( L, (uintptr_t)str - top );
-                return 1;
+                goto PUSH_HEADERS;
             }
     }
 
     // too many headers
     if( nhdr >= maxhdrnum ){
+        lua_settop( L, 0 );
         lua_pushinteger( L, PARSE_EHDRNUM );
         return 1;
     }
 
     head = (uintptr_t)str;
-    key = (const char*)str;
-    klen = maxhdrlen;
-    rv = parse_hkey( str, len, &cur, &klen );
+    hdridx[nhdr].key = (const char*)str;
+    hdridx[nhdr].klen = maxhdrlen;
+    rv = parse_hkey( str, len, &cur, &hdridx[nhdr].klen );
     if( rv != PARSE_OK ){
+        lua_settop( L, 0 );
         lua_pushinteger( L, rv );
         return 1;
     }
@@ -499,54 +508,69 @@ RETRY:
     str += cur;
     len -= cur;
 
-    val = (const char*)str;
-    vlen = maxhdrlen - ((uintptr_t)val - head);
-    rv = parse_hval( str, len, &cur, &vlen );
+    hdridx[nhdr].val = (const char*)str;
+    hdridx[nhdr].vlen = maxhdrlen - ((uintptr_t)str - head);
+    rv = parse_hval( str, len, &cur, &hdridx[nhdr].vlen );
     if( rv != PARSE_OK ){
+        lua_settop( L, 0 );
         lua_pushinteger( L, rv );
         return 1;
     }
     str += cur;
     len -= cur;
     // set header
-    if( vlen )
-    {
+    if( hdridx[nhdr].vlen ){
         nhdr++;
-        lua_pushlstring( L, key, klen );
-        lua_rawget( L, -2 );
+    }
+
+    goto RETRY;
+
+
+PUSH_HEADERS:
+    while( nhdr )
+    {
+        // check existing value of key
+        lua_pushlstring( L, hdridx->key, hdridx->klen );
+        lua_rawget( L, tblidx );
         switch( lua_type( L, -1 ) )
         {
             case LUA_TNIL:
                 lua_pop( L, 1 );
-                lua_pushlstring( L, key, klen );
-                lua_pushlstring( L, val, vlen );
-                lua_rawset( L, -3 );
+                lua_pushlstring( L, hdridx->key, hdridx->klen );
+                lua_pushlstring( L, hdridx->val, hdridx->vlen );
+                lua_rawset( L, tblidx );
                 break;
 
             case LUA_TSTRING:
-                lua_pushlstring( L, key, klen );
+                lua_pushlstring( L, hdridx->key, hdridx->klen );
                 lua_createtable( L, 3, 0 );
                 // set existing value to table
                 lua_pushvalue( L, -3 );
                 lua_rawseti( L, -2, 1 );
                 // set value to table
-                lua_pushlstring( L, val, vlen );
+                lua_pushlstring( L, hdridx->val, hdridx->vlen );
                 lua_rawseti( L, -2, 2 );
                 // replace existing value to table
-                lua_rawset( L, -4 );
+                lua_rawset( L, tblidx );
                 lua_pop( L, 1 );
                 break;
 
             case LUA_TTABLE:
                 // set value to table
-                lua_pushlstring( L, val, vlen );
+                lua_pushlstring( L, hdridx->val, hdridx->vlen );
                 lua_rawseti( L, -2, lauxh_rawlen( L, -2 ) + 1 );
                 lua_pop( L, 1 );
                 break;
         }
+
+        nhdr--;
+        hdridx++;
     }
 
-    goto RETRY;
+    lua_settop( L, 0 );
+    lua_pushinteger( L, (uintptr_t)str - top );
+    return 1;
+
 }
 
 
