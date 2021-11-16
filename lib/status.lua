@@ -1,37 +1,34 @@
---[[
-
-  Copyright (C) 2017 Masatoshi Teruya
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in
-  all copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-  THE SOFTWARE.
-
-  lib/status.lua
-  lua-net-http
-  Created by Masatoshi Teruya on 17/08/01.
-
---]]
-
+--
+-- Copyright (C) 2017 Masatoshi Teruya
+--
+-- Permission is hereby granted, free of charge, to any person obtaining a copy
+-- of this software and associated documentation files (the "Software"), to deal
+-- in the Software without restriction, including without limitation the rights
+-- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-- copies of the Software, and to permit persons to whom the Software is
+-- furnished to do so, subject to the following conditions:
+--
+-- The above copyright notice and this permission notice shall be included in
+-- all copies or substantial portions of the Software.
+--
+-- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+-- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+-- THE SOFTWARE.
+--
+-- lib/status.lua
+-- lua-net-http
+-- Created by Masatoshi Teruya on 17/08/01.
+--
 --- assign to local
-local type = type;
-local assert = assert;
-local strformat = string.format;
+local type = type
+local assert = assert
+local strformat = string.format
 --- constants
-local CRLF = '\r\n';
+local CRLF = '\r\n'
 local STATUS_MSG = {
     -- 1×× Informational
     [100] = '100 Continue',
@@ -98,47 +95,45 @@ local STATUS_MSG = {
     [508] = '508 Loop Detected',
     [510] = '510 Not Extended',
     [511] = '511 Network Authentication Required',
-};
-local STATUS_LINE10 = {};
-local STATUS_LINE11 = {};
-for k, v in pairs( STATUS_MSG ) do
-    STATUS_LINE10[k] = 'HTTP/1.0 ' .. v .. CRLF;
-    STATUS_LINE11[k] = 'HTTP/1.1 ' .. v .. CRLF;
+}
+local STATUS_LINE10 = {}
+local STATUS_LINE11 = {}
+for k, v in pairs(STATUS_MSG) do
+    STATUS_LINE10[k] = 'HTTP/1.0 ' .. v .. CRLF
+    STATUS_LINE11[k] = 'HTTP/1.1 ' .. v .. CRLF
 end
-
 
 --- toLine
 -- @param code
 -- @param ver
 -- @return msg
 -- @return err
-local function toLine( code, ver )
-    local msg;
+local function toLine(code, ver)
+    local msg
 
-    assert( type( code ) == 'number', 'code must be number' );
+    assert(type(code) == 'number', 'code must be number')
     if ver == nil then
-        msg = STATUS_MSG[code];
+        msg = STATUS_MSG[code]
     else
-        assert( type( ver ) == 'number', 'ver must be number' );
+        assert(type(ver) == 'number', 'ver must be number')
         -- http/1.0
         if ver == 1.0 then
-            msg = STATUS_LINE10[code];
-        -- http/1.1
+            msg = STATUS_LINE10[code]
+            -- http/1.1
         elseif ver == 1.1 then
-            msg = STATUS_LINE11[code];
-        -- invalid version number
+            msg = STATUS_LINE11[code]
+            -- invalid version number
         else
-            return nil, strformat( 'unsupported version %q', ver );
+            return nil, strformat('unsupported version %q', ver)
         end
     end
 
     if not msg then
-        return nil, strformat( 'unsupported status code %q', code );
+        return nil, strformat('unsupported status code %q', code)
     end
 
-    return msg;
+    return msg
 end
-
 
 return {
     toLine = toLine,
@@ -208,6 +203,5 @@ return {
     LOOP_DETECTED = 508,
     NOT_EXTENDED = 510,
     NETWORK_AUTHENTICATION_REQUIRED = 511,
-};
-
+}
 
