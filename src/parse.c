@@ -746,7 +746,7 @@ CHECK_URI:
     // set result to table
     lauxh_pushlstr2tbl(L, "method", method, mlen);
     lauxh_pushlstr2tbl(L, "uri", uri, ulen);
-    lauxh_pushnum2tbl(L, "version", ver);
+    lauxh_pushint2tbl(L, "version", ver);
     // number of bytes consumed
     str += cur;
 
@@ -904,8 +904,8 @@ SKIP_NEXT_CRLF:
     }
 
     // set result to table
-    lauxh_pushnum2tbl(L, "version", ver);
-    lauxh_pushnum2tbl(L, "status", status);
+    lauxh_pushint2tbl(L, "version", ver);
+    lauxh_pushint2tbl(L, "status", status);
     lauxh_pushlstr2tbl(L, "reason", reason, rlen);
     // number of bytes consumed
     str += cur;
@@ -996,17 +996,17 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
 
     // constants
     // return code
-    lauxh_pushnum2tbl(L, "EAGAIN", PARSE_EAGAIN);
-    lauxh_pushnum2tbl(L, "EMSG", PARSE_EMSG);
-    lauxh_pushnum2tbl(L, "EMSGLEN", PARSE_EMSGLEN);
-    lauxh_pushnum2tbl(L, "EMETHOD", PARSE_EMETHOD);
-    lauxh_pushnum2tbl(L, "EVERSION", PARSE_EVERSION);
-    lauxh_pushnum2tbl(L, "EEOL", PARSE_EEOL);
-    lauxh_pushnum2tbl(L, "EHDRNAME", PARSE_EHDRNAME);
-    lauxh_pushnum2tbl(L, "EHDRVAL", PARSE_EHDRVAL);
-    lauxh_pushnum2tbl(L, "EHDRLEN", PARSE_EHDRLEN);
-    lauxh_pushnum2tbl(L, "EHDRNUM", PARSE_EHDRNUM);
-    lauxh_pushnum2tbl(L, "ESTATUS", PARSE_ESTATUS);
+    lauxh_pushint2tbl(L, "EAGAIN", PARSE_EAGAIN);
+    lauxh_pushint2tbl(L, "EMSG", PARSE_EMSG);
+    lauxh_pushint2tbl(L, "EMSGLEN", PARSE_EMSGLEN);
+    lauxh_pushint2tbl(L, "EMETHOD", PARSE_EMETHOD);
+    lauxh_pushint2tbl(L, "EVERSION", PARSE_EVERSION);
+    lauxh_pushint2tbl(L, "EEOL", PARSE_EEOL);
+    lauxh_pushint2tbl(L, "EHDRNAME", PARSE_EHDRNAME);
+    lauxh_pushint2tbl(L, "EHDRVAL", PARSE_EHDRVAL);
+    lauxh_pushint2tbl(L, "EHDRLEN", PARSE_EHDRLEN);
+    lauxh_pushint2tbl(L, "EHDRNUM", PARSE_EHDRNUM);
+    lauxh_pushint2tbl(L, "ESTATUS", PARSE_ESTATUS);
 
     return 1;
 }
