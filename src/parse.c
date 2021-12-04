@@ -30,35 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/**
- *  structure for 64 bit comparison
- */
-typedef union {
-    char str[8];
-    uint64_t bit;
-} match64bit_u;
-
-// methods
-static match64bit_u M_GET     = {.str = "GET"};
-static match64bit_u M_HEAD    = {.str = "HEAD"};
-static match64bit_u M_POST    = {.str = "POST"};
-static match64bit_u M_PUT     = {.str = "PUT"};
-static match64bit_u M_DELETE  = {.str = "DELETE"};
-static match64bit_u M_OPTIONS = {.str = "OPTIONS"};
-static match64bit_u M_TRACE   = {.str = "TRACE"};
-static match64bit_u M_CONNECT = {.str = "CONNECT"};
-// method length
-#define METHOD_LEN 7
-
-// versions
-static match64bit_u V_10 = {.str = "HTTP/1.0"};
-static match64bit_u V_11 = {.str = "HTTP/1.1"};
-// version length: HTTP/x.x
-#define VER_LEN 8
-
-// status length
-#define STATUS_LEN 3
-
 /* delimiters */
 #define CR    '\r'
 #define LF    '\n'
@@ -94,100 +65,6 @@ static match64bit_u V_11 = {.str = "HTTP/1.1"};
 /* invalid status code */
 #define PARSE_ESTATUS  -11
 
-// RFC 6265 HTTP State Management Mechanism
-//
-//  6. Implementation Considerations
-//     https://tools.ietf.org/html/rfc6265#section-6
-//
-//  - At least 4096 bytes per cookie (as measured by the sum of the
-//    length of the cookie's name, value, and attributes).
-//  - At least 50 cookies per domain.
-//
-// Cookie-Header:   field-name: field-value
-// field-name   :   'Set-Cookie: '  ; 12 byte
-// field-value  :   field-value     ; 4096 byte
-#define DEFAULT_MAX_HDRLEN 4108
-#define DEFAULT_MAX_HDRNUM UINT8_MAX
-#define DEFAULT_MAX_MSGLEN 2048
-
-/**
- * RFC 3986
- *
- * alpha         = lowalpha | upalpha
- * lowalpha      = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" |
- *                 "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" |
- *                 "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
- * upalpha       = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" |
- *                 "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" |
- *                 "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
- * --------------------------------------------------------------------------
- * digit         = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
- * --------------------------------------------------------------------------
- * pct-encoded   = "%" hex hex
- * hex           = digit | "A" | "B" | "C" | "D" | "E" | "F" |
- *                         "a" | "b" | "c" | "d" | "e" | "f"
- * --------------------------------------------------------------------------
- * gen-delims    = ":" | "/" | "?" | "#" | "[" | "]" | "@"
- * --------------------------------------------------------------------------
- * sub-delims    = "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";"
- *                 "="
- * --------------------------------------------------------------------------
- * reserved      = gen-delims | sub-delims
- * --------------------------------------------------------------------------
- * unreserved    = alpha | digit | "-" | "." | "_" | "~"
- * --------------------------------------------------------------------------
- * pchar         = unreserved | pct-encoded | sub-delim | ":" | "@"
- * --------------------------------------------------------------------------
- * URI           = scheme "://"
- *                 [ userinfo[ ":" userinfo ] "@" ]
- *                 host
- *                 [ ":" port ]
- *                 path
- *                 [ "?" query ]
- *                 [ "#" fragment ]
- * --------------------------------------------------------------------------
- * scheme        = alpha *( alpha / digit / "+" / "-" / "." )
- * --------------------------------------------------------------------------
- * userinfo      = *( unreserved / pct-encoded / sub-delims )
- * --------------------------------------------------------------------------
- * host          = IP-literal / IPv4address / reg-name
- * --------------------------------------------------------------------------
- * port          = *digit
- * --------------------------------------------------------------------------
- * path          = empty / *( "/" pchar )
- * empty         = zero characters
- * --------------------------------------------------------------------------
- * query         = *( pchar / "/" / "?" )
- * --------------------------------------------------------------------------
- * fragment      = query
- * --------------------------------------------------------------------------
- */
-static const unsigned char URIC_TBL[256] = {
-    //  ctrl-code: 0-32
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-    //  SP       "  #
-    SP, '!', 0, 0, '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
-    //  digit
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-
-    //            <       >
-    ':', ';', 0, '=', 0, '?', '@',
-
-    //  alpha-upper
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-    'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-
-    //       \       ^       `
-    '[', 0, ']', 0, '_', 0,
-
-    //  alpha-lower
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-
-    //  {  |  }
-    0, 0, 0, '~'};
-
 /**
  * RFC 7230
  * 3.2.  Header Fields
@@ -217,7 +94,7 @@ static const unsigned char URIC_TBL[256] = {
  * delimiters     = "(),/:;<=>?@[\]{}
  *
  */
-static const unsigned char HKEYC_TBL[256] = {
+static const unsigned char TCHAR[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     //   !   "   #    $    %    &    '    (  )   *    +   ,   -    .   /
@@ -225,7 +102,7 @@ static const unsigned char HKEYC_TBL[256] = {
     //   0    1    2    3    4    5    6    7    8    9
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     //  :  ;  <  =  >  ?  @
-    2, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0,
     //   A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     //   P   Q     R    S    T    U    V    W    X    Y    Z
@@ -253,15 +130,26 @@ static const unsigned char HKEYC_TBL[256] = {
  * 3.2.  Header Fields
  * https://tools.ietf.org/html/rfc7230#section-3.2
  *
+ * OWS            = *( SP / HTAB )
+ *                   ; optional whitespace
+ * RWS            = 1*( SP / HTAB )
+ *                  ; required whitespace
+ * BWS            = OWS
+ *                  ; "bad" whitespace
+ *
+ * header-field   = field-name ":" OWS field-value OWS
+ *
+ * field-name     = token
  * field-value    = *( field-content / obs-fold )
  * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
  * field-vchar    = VCHAR / obs-text
  *
- * VCHAR          = %x21-7E
- * obs-text       = %x80-FF
  * obs-fold       = CRLF 1*( SP / HTAB )
  *                  ; obsolete line folding
  *                  ; see https://tools.ietf.org/html/rfc7230#section-3.2.4
+ *
+ * VCHAR          = %x21-7E
+ * obs-text       = %x80-FF
  */
 // 1 = field-content
 // 2 = LF or CR
@@ -284,13 +172,6 @@ static const unsigned char VCHAR[256] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //  z  {  |  }  ~
     1, 1, 1, 1, 1};
-
-typedef struct {
-    const char *key;
-    const char *val;
-    size_t klen;
-    size_t vlen;
-} header_t;
 
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
@@ -361,14 +242,14 @@ static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
     unsigned char c = 0;
 
     for (; pos < len; pos++) {
-        c = HKEYC_TBL[str[pos]];
+        c = TCHAR[str[pos]];
         switch (c) {
         // illegal byte sequence
         case 0:
             return PARSE_EHDRNAME;
 
         // found COLON
-        case 2:
+        case 1:
             // check length
             if (pos == 0) {
                 return PARSE_EHDRNAME;
@@ -393,6 +274,29 @@ static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
 
     return PARSE_EAGAIN;
 }
+
+// RFC 6265 HTTP State Management Mechanism
+//
+//  6. Implementation Considerations
+//     https://tools.ietf.org/html/rfc6265#section-6
+//
+//  - At least 4096 bytes per cookie (as measured by the sum of the
+//    length of the cookie's name, value, and attributes).
+//  - At least 50 cookies per domain.
+//
+// Cookie-Header:   field-name: field-value
+// field-name   :   'Set-Cookie: '  ; 12 byte
+// field-value  :   field-value     ; 4096 byte
+#define DEFAULT_MAX_HDRLEN 4108
+#define DEFAULT_MAX_HDRNUM UINT8_MAX
+#define DEFAULT_MAX_MSGLEN 2048
+
+typedef struct {
+    const char *key;
+    const char *val;
+    size_t klen;
+    size_t vlen;
+} header_t;
 
 static int parse_header(lua_State *L, unsigned char *str, size_t len,
                         size_t offset, uint16_t maxhdrlen, uint8_t maxhdrnum)
@@ -538,8 +442,23 @@ static int header_lua(lua_State *L)
     return parse_header(L, str, len, offset, maxhdrlen, maxhdrnum);
 }
 
+/**
+ *  structure for 64 bit comparison
+ */
+typedef union {
+    char str[8];
+    uint64_t bit;
+} match64bit_u;
+
 static int parse_version(unsigned char *str, size_t len, size_t *cur, int *ver)
 {
+// version length: HTTP/x.x
+#define VER_LEN 8
+
+    // versions
+    static match64bit_u V_10 = {.str = "HTTP/1.0"};
+    static match64bit_u V_11 = {.str = "HTTP/1.1"};
+
     if (len < VER_LEN) {
         return PARSE_EAGAIN;
     } else {
@@ -560,11 +479,26 @@ static int parse_version(unsigned char *str, size_t len, size_t *cur, int *ver)
 
     // invalid version format
     return PARSE_EVERSION;
+
+#undef VER_LEN
 }
 
 static int parse_method(unsigned char *str, size_t len, size_t *cur,
                         size_t *mlen)
 {
+// method length
+#define METHOD_LEN 7
+
+    // methods
+    static match64bit_u M_GET     = {.str = "GET"};
+    static match64bit_u M_HEAD    = {.str = "HEAD"};
+    static match64bit_u M_POST    = {.str = "POST"};
+    static match64bit_u M_PUT     = {.str = "PUT"};
+    static match64bit_u M_DELETE  = {.str = "DELETE"};
+    static match64bit_u M_OPTIONS = {.str = "OPTIONS"};
+    static match64bit_u M_TRACE   = {.str = "TRACE"};
+    static match64bit_u M_CONNECT = {.str = "CONNECT"};
+
     if (len <= METHOD_LEN) {
         return PARSE_EAGAIN;
     } else {
@@ -638,7 +572,87 @@ static int parse_method(unsigned char *str, size_t len, size_t *cur,
         // method not implemented
         return PARSE_EMETHOD;
     }
+
+#undef METHOD_LEN
 }
+
+/**
+ * RFC 3986
+ *
+ * alpha         = lowalpha | upalpha
+ * lowalpha      = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" |
+ *                 "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" |
+ *                 "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+ * upalpha       = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" |
+ *                 "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" |
+ *                 "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+ * --------------------------------------------------------------------------
+ * digit         = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+ * --------------------------------------------------------------------------
+ * pct-encoded   = "%" hex hex
+ * hex           = digit | "A" | "B" | "C" | "D" | "E" | "F" |
+ *                         "a" | "b" | "c" | "d" | "e" | "f"
+ * --------------------------------------------------------------------------
+ * gen-delims    = ":" | "/" | "?" | "#" | "[" | "]" | "@"
+ * --------------------------------------------------------------------------
+ * sub-delims    = "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";"
+ *                 "="
+ * --------------------------------------------------------------------------
+ * reserved      = gen-delims | sub-delims
+ * --------------------------------------------------------------------------
+ * unreserved    = alpha | digit | "-" | "." | "_" | "~"
+ * --------------------------------------------------------------------------
+ * pchar         = unreserved | pct-encoded | sub-delim | ":" | "@"
+ * --------------------------------------------------------------------------
+ * URI           = scheme "://"
+ *                 [ userinfo[ ":" userinfo ] "@" ]
+ *                 host
+ *                 [ ":" port ]
+ *                 path
+ *                 [ "?" query ]
+ *                 [ "#" fragment ]
+ * --------------------------------------------------------------------------
+ * scheme        = alpha *( alpha / digit / "+" / "-" / "." )
+ * --------------------------------------------------------------------------
+ * userinfo      = *( unreserved / pct-encoded / sub-delims )
+ * --------------------------------------------------------------------------
+ * host          = IP-literal / IPv4address / reg-name
+ * --------------------------------------------------------------------------
+ * port          = *digit
+ * --------------------------------------------------------------------------
+ * path          = empty / *( "/" pchar )
+ * empty         = zero characters
+ * --------------------------------------------------------------------------
+ * query         = *( pchar / "/" / "?" )
+ * --------------------------------------------------------------------------
+ * fragment      = query
+ * --------------------------------------------------------------------------
+ */
+static const unsigned char URIC_TBL[256] = {
+    //  ctrl-code: 0-32
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    //  SP       "  #
+    SP, '!', 0, 0, '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+    //  digit
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+
+    //            <       >
+    ':', ';', 0, '=', 0, '?', '@',
+
+    //  alpha-upper
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+    'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+
+    //       \       ^       `
+    '[', 0, ']', 0, '_', 0,
+
+    //  alpha-lower
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+
+    //  {  |  }
+    0, 0, 0, '~'};
 
 static int request_lua(lua_State *L)
 {
@@ -655,7 +669,6 @@ static int request_lua(lua_State *L)
     size_t ulen         = 0;
     int ver             = 0;
     size_t cur          = 0;
-    char *sp            = NULL;
     int rv              = 0;
 
     // check container table
@@ -821,6 +834,9 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
 static int parse_status(unsigned char *str, size_t len, size_t *cur,
                         int *status)
 {
+// status length
+#define STATUS_LEN 3
+
     if (len <= STATUS_LEN) {
         return PARSE_EAGAIN;
     } else if (str[STATUS_LEN] != SP) {
@@ -837,6 +853,8 @@ static int parse_status(unsigned char *str, size_t len, size_t *cur,
     *status = (str[0] - 0x30) * 100 + (str[1] - 0x30) * 10 + (str[2] - 0x30);
 
     return PARSE_OK;
+
+#undef STATUS_LEN
 }
 
 static int response_lua(lua_State *L)
