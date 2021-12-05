@@ -100,7 +100,6 @@ local function setStartLine(self)
         -- set version
         arr[narr] = ' HTTP/1.1\r\n'
         self.startLine = concat(arr)
-        self.header:setStartLine(self.startLine)
     end
 end
 
@@ -111,7 +110,6 @@ end
 -- @return timeout
 function Request:sendto(sock)
     setStartLine(self)
-
     local len, err, timeout = sendto(sock, self)
 
     if not len or err or timeout then
@@ -278,14 +276,17 @@ local function new(method, uri, insecure)
         return nil, strformat(
                    'invalid uri - found illegal byte sequence %q at %d', err,
                    offset)
-        -- scheme required
     elseif not req.url.scheme then
+        -- scheme required
         return nil, 'invalid uri - scheme required'
-        -- unknown scheme
+    elseif not req.url.hostname then
+        -- hostname required
+        return nil, strformat('invalid uri - hostname required')
     elseif not SCHEME_LUT[req.url.scheme] then
+        -- unknown scheme
         return nil, 'invalid uri - unsupported scheme'
-        -- set to default port
     elseif not req.url.port then
+        -- set to default port
         req.url.port = SCHEME_LUT[req.url.scheme]
         req.withoutPort = true
         wellknown = true

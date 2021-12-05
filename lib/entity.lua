@@ -25,6 +25,8 @@
 --
 --- assign to local
 local Body = require('net.http.body')
+local concat = table.concat
+local insert = table.insert
 local strsub = string.sub
 local strformat = string.format
 --- constants
@@ -59,7 +61,13 @@ local function recvfrom(sock, parser, ctx, ...)
             return true, strsub(buf, cur + 1)
         elseif cur == EAGAIN then
             -- more bytes need
-            local str, err, timeout = sock:recv()
+            local str, err, timeout
+            for _ = 1, 10 do
+                str, err, timeout = sock:recv()
+                if not timeout then
+                    break
+                end
+            end
 
             if not str or err or timeout then
                 return false, nil, err, timeout
@@ -82,18 +90,13 @@ end
 local function sendto(sock, msg)
     local body = msg.entity.body
     -- append CRLF
-    local id, err = msg.header.iov:add(CRLF)
-    local len, timeout
+    local header = msg.header:getall()
 
-    if err then
-        return nil, err
-    end
+    insert(header, 1, msg.startLine or '')
+    header[#header + 1] = CRLF
 
     -- send header
-    len, err, timeout = sock:writev(msg.header.iov)
-    -- remove CRLF
-    msg.header.iov:del(id)
-
+    local len, err, timeout = sock:send(concat(header))
     if not len or err or timeout or not body then
         return len, err, timeout
     elseif msg.entity.clen then
