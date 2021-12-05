@@ -42,27 +42,21 @@ describe('test net.http.request', function()
                     end
                     data = data .. msg
 
-                    local consumed = ParseRequest({
-                        header = {},
-                    }, data)
+                    local consumed = ParseRequest(data, {header = {}})
                     if consumed > 0 then
                         msg = string.sub(data, 1, consumed)
 
                         if string.find(msg, 'x-response: no-content', 1, true) then
-                            c:send(Status.toLine(204, 1.1) .. table.concat({
-                                'Date: ' .. Date.now(),
-                                'Server: test-server',
-                                '\r\n',
-                            }, '\r\n'))
+                            c:send(Status.toLine(204, 1.1) ..
+                                       table.concat(
+                                           {
+                                        'Date: ' .. Date.now(),
+                                        'Server: test-server', '\r\n'}, '\r\n'))
                         else
                             c:send(Status.toLine(200, 1.1) .. table.concat({
-                                'Date: ' .. Date.now(),
-                                'Server: test-server',
+                                'Date: ' .. Date.now(), 'Server: test-server',
                                 'Content-Length: ' .. #msg,
-                                'Content-Type: text/plain',
-                                '',
-                                msg,
-                            }, '\r\n'))
+                                'Content-Type: text/plain', '', msg}, '\r\n'))
                         end
                         break
                     elseif consumed ~= EAGAIN then
@@ -104,14 +98,9 @@ describe('test net.http.request', function()
 
     it('cannot call with non-string method', function()
         for _, method in ipairs({
-            true,
-            0,
-            {},
-            function()
-            end,
-            coroutine.create(function()
-            end),
-        }) do
+            true, 0, {}, function()
+            end, coroutine.create(function()
+            end)}) do
             assert.has_error(function()
                 Request.new(method, 'http://example.com/')
             end)
@@ -127,15 +116,8 @@ describe('test net.http.request', function()
 
     it('can be called with case-insensitive supported method', function()
         for _, method in ipairs({
-            'CONNECT',
-            'DELETE',
-            'GET',
-            'HEAD',
-            'OPTIONS',
-            'POST',
-            'PUT',
-            'TRACE',
-        }) do
+            'CONNECT', 'DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT',
+            'TRACE'}) do
             local req, err = Request.new(method, 'http://example.com/')
             assert.is_not_nil(req)
             assert.is_nil(err)

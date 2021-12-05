@@ -395,20 +395,14 @@ describe('test net.http.body.newChunkedReader', function()
 
         assert.is_equal(msg, data)
         assert.are.same({
-            hello = {
-                'trailer-part1-1',
-                'trailer-part1-2',
-            },
+            hello = {'trailer-part1-1', 'trailer-part1-2'},
             world = 'trailer-part2',
         }, trailer)
 
         data, trailer = b:read()
         assert.is_equal(msg, data)
         assert.are.same({
-            hello = {
-                'trailer-part1-1',
-                'trailer-part1-2',
-            },
+            hello = {'trailer-part1-1', 'trailer-part1-2'},
             world = 'trailer-part2',
         }, trailer)
     end)
@@ -551,9 +545,8 @@ describe('test net.http.body.newReaderFromHeader', function()
     end)
 
     it('returns the result of newChunkedReader', function()
-        local b = Body.newReaderFromHeader({
-            ['transfer-encoding'] = 'chunked',
-        }, '5\r\nhello\r\n0\r\n\r\n')
+        local b = Body.newReaderFromHeader({['transfer-encoding'] = 'chunked'},
+                                           '5\r\nhello\r\n0\r\n\r\n')
         local data, trailer = b:read()
 
         assert.is_nil(b:length())
@@ -562,9 +555,7 @@ describe('test net.http.body.newReaderFromHeader', function()
     end)
 
     it('returns the result of newContentReader', function()
-        local b = Body.newReaderFromHeader({
-            ['content-length'] = '5',
-        }, 'hello')
+        local b = Body.newReaderFromHeader({['content-length'] = '5'}, 'hello')
 
         assert.is_equal(5, b:length())
         assert.is_equal('hello', b:read())

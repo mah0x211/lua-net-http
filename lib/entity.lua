@@ -53,7 +53,7 @@ local function recvfrom(sock, parser, ctx, ...)
 
         -- parse buffered message
         if #buf > 0 then
-            cur = parser(ctx, buf, ...)
+            cur = parser(buf, ctx, ...)
         end
 
         if cur > 0 then

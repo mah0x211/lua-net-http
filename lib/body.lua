@@ -236,7 +236,7 @@ local function readChunked(self)
 
                     -- parse trailer-part
                     while true do
-                        consumed = ParseHeader(trailer, chunks, consumed)
+                        consumed = ParseHeader(chunks, trailer, consumed)
                         -- parsed
                         if consumed > 0 then
                             self.body = concat(arr)
