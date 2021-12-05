@@ -156,10 +156,10 @@ static const unsigned char TCHAR[256] = {
 // 0 = invalid
 static const unsigned char VCHAR[256] = {
     //                             HT LF       CR
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0,
     //  SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //  0  1  2  3  4  5  6  7  8  9
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //  :  ;  <  =  >  ?  @
@@ -184,10 +184,11 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
+        case 2:
             continue;
 
         // LF or CR
-        case 2:
+        case 3:
             tail = pos;
             // found LF
             if (c == LF) {
@@ -235,6 +236,48 @@ CHECK_AGAIN:
     return PARSE_EAGAIN;
 }
 
+// RFC 6265 HTTP State Management Mechanism
+//
+//  6. Implementation Considerations
+//     https://tools.ietf.org/html/rfc6265#section-6
+//
+//  - At least 4096 bytes per cookie (as measured by the sum of the
+//    length of the cookie's name, value, and attributes).
+//  - At least 50 cookies per domain.
+//
+// Cookie-Header:   field-name: field-value
+// field-name   :   'Set-Cookie: '  ; 12 byte
+// field-value  :   field-value     ; 4096 byte
+#define DEFAULT_MAX_HDRLEN 4108
+#define DEFAULT_MAX_HDRNUM UINT8_MAX
+#define DEFAULT_MAX_MSGLEN 2048
+
+static int header_value_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_MAX_HDRLEN);
+    size_t cur      = 0;
+    int rv          = parse_hval((unsigned char *)str, len, &cur, &maxlen);
+
+    switch (rv) {
+    case PARSE_EAGAIN:
+        if (VCHAR[str[len - 1]] == 1) {
+            lua_pushlstring(L, str, len);
+            return 1;
+        }
+
+    case PARSE_OK:
+    case PARSE_EEOL:
+        // str must not contain the end-of-line terminator (CRLF)
+        rv = PARSE_EHDRVAL;
+    default:
+        lua_pushnil(L);
+        lua_pushinteger(L, rv);
+        return 2;
+    }
+}
+
 static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
@@ -275,21 +318,28 @@ static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
     return PARSE_EAGAIN;
 }
 
-// RFC 6265 HTTP State Management Mechanism
-//
-//  6. Implementation Considerations
-//     https://tools.ietf.org/html/rfc6265#section-6
-//
-//  - At least 4096 bytes per cookie (as measured by the sum of the
-//    length of the cookie's name, value, and attributes).
-//  - At least 50 cookies per domain.
-//
-// Cookie-Header:   field-name: field-value
-// field-name   :   'Set-Cookie: '  ; 12 byte
-// field-value  :   field-value     ; 4096 byte
-#define DEFAULT_MAX_HDRLEN 4108
-#define DEFAULT_MAX_HDRNUM UINT8_MAX
-#define DEFAULT_MAX_MSGLEN 2048
+static int header_name_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_MAX_HDRLEN);
+    size_t cur      = 0;
+    int rv          = parse_hkey((unsigned char *)str, len, &cur, &maxlen);
+
+    switch (rv) {
+    case PARSE_EAGAIN:
+        lua_pushlstring(L, str, len);
+        return 1;
+
+    case PARSE_OK:
+        // str must not contains the field separator (COLON)
+        rv = PARSE_EHDRNAME;
+    default:
+        lua_pushnil(L);
+        lua_pushinteger(L, rv);
+        return 2;
+    }
+}
 
 typedef struct {
     const char *key;
@@ -787,10 +837,11 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
+        case 2:
             continue;
 
         // LF or CR
-        case 2:
+        case 3:
             // phrase-length too large
             if (pos > *maxlen) {
                 return PARSE_EMSGLEN;
@@ -998,11 +1049,13 @@ static int strerror_lua(lua_State *L)
 LUALIB_API int luaopen_net_http_parse(lua_State *L)
 {
     struct luaL_Reg funcs[] = {
-        {"strerror", strerror_lua},
-        {"response", response_lua},
-        {"request",  request_lua },
-        {"header",   header_lua  },
-        {NULL,       NULL        }
+        {"strerror",     strerror_lua    },
+        {"response",     response_lua    },
+        {"request",      request_lua     },
+        {"header",       header_lua      },
+        {"header_name",  header_name_lua },
+        {"header_value", header_value_lua},
+        {NULL,           NULL            }
     };
     struct luaL_Reg *ptr = funcs;
 
