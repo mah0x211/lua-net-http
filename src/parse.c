@@ -199,6 +199,27 @@ static const unsigned char VCHAR[256] = {
     //  z  {  |  }  ~
     1, 1, 1, 1, 1};
 
+static int vchar_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+
+    if (!len) {
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        if (VCHAR[str[i]] != 1) {
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+    }
+    lua_pushinteger(L, PARSE_OK);
+
+    return 1;
+}
+
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
@@ -1086,6 +1107,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
         {"header_name",  header_name_lua },
         {"header_value", header_value_lua},
         {"tchar",        tchar_lua       },
+        {"vchar",        vchar_lua       },
         {NULL,           NULL            }
     };
     struct luaL_Reg *ptr = funcs;
