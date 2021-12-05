@@ -430,14 +430,14 @@ PUSH_HEADERS:
 static int header_lua(lua_State *L)
 {
     size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 2, &len);
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
     size_t offset      = (size_t)lauxh_optuint64(L, 3, 0);
     uint16_t maxhdrlen = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
     uint8_t maxhdrnum  = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
 
     // check container table
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_settop(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
 
     return parse_header(L, str, len, offset, maxhdrlen, maxhdrnum);
 }
@@ -657,7 +657,7 @@ static const unsigned char URIC_TBL[256] = {
 static int request_lua(lua_State *L)
 {
     size_t len          = 0;
-    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 2, &len);
+    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
     uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MAX_MSGLEN);
     uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
     uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
@@ -672,8 +672,8 @@ static int request_lua(lua_State *L)
     int rv              = 0;
 
     // check container table
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_settop(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
 
 SKIP_NEXT_CRLF:
     switch (*str) {
@@ -860,7 +860,7 @@ static int parse_status(unsigned char *str, size_t len, size_t *cur,
 static int response_lua(lua_State *L)
 {
     size_t len          = 0;
-    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 2, &len);
+    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
     uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MAX_MSGLEN);
     uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
     uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
@@ -874,8 +874,8 @@ static int response_lua(lua_State *L)
     int rv              = 0;
 
     // check container table
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_settop(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
 
 SKIP_NEXT_CRLF:
     switch (*str) {
