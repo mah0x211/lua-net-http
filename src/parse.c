@@ -64,6 +64,8 @@
 #define PARSE_EHDRNUM  -10
 /* invalid status code */
 #define PARSE_ESTATUS  -11
+/* illegal byte sequence */
+#define PARSE_EILSEQ   -12
 
 /**
  * RFC 7230
@@ -115,6 +117,30 @@ static const unsigned char TCHAR[256] = {
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
     //  {   |   }   ~
     0, '|', 0, '~'};
+
+static int tchar_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+
+    if (!len) {
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        switch (TCHAR[str[i]]) {
+        case 0:
+        case 1:
+            // illegal byte sequence
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+    }
+    lua_pushinteger(L, PARSE_OK);
+
+    return 1;
+}
 
 /**
  * RFC 7230
@@ -1040,6 +1066,10 @@ static int strerror_lua(lua_State *L)
         lua_pushliteral(L, "invalid status code");
         return 1;
 
+    case PARSE_EILSEQ:
+        lua_pushliteral(L, "illegal byte sequence");
+        return 1;
+
     default:
         lua_pushliteral(L, "unknown error");
         return 1;
@@ -1055,6 +1085,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
         {"header",       header_lua      },
         {"header_name",  header_name_lua },
         {"header_value", header_value_lua},
+        {"tchar",        tchar_lua       },
         {NULL,           NULL            }
     };
     struct luaL_Reg *ptr = funcs;
@@ -1067,6 +1098,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
 
     // constants
     // return code
+    lauxh_pushint2tbl(L, "OK", PARSE_OK);
     lauxh_pushint2tbl(L, "EAGAIN", PARSE_EAGAIN);
     lauxh_pushint2tbl(L, "EMSG", PARSE_EMSG);
     lauxh_pushint2tbl(L, "EMSGLEN", PARSE_EMSGLEN);
@@ -1078,6 +1110,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     lauxh_pushint2tbl(L, "EHDRLEN", PARSE_EHDRLEN);
     lauxh_pushint2tbl(L, "EHDRNUM", PARSE_EHDRNUM);
     lauxh_pushint2tbl(L, "ESTATUS", PARSE_ESTATUS);
+    lauxh_pushint2tbl(L, "EILSEQ", PARSE_EILSEQ);
 
     return 1;
 }
