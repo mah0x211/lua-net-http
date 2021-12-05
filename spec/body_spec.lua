@@ -1,147 +1,153 @@
 local Body = require('net.http.body')
 
-
 describe('test net.http.body.new', function()
-    it('cannot set non-string data or object that does not have a "read" method', function()
-        for _, data in ipairs({
-            true,
-            0,
-            {},
-            function()end,
-            coroutine.create(function()end),
-        }) do
-            assert.has_error(function()
-                Body.new( data )
-            end)
-        end
+    it(
+        'cannot set non-string data or object that does not have a "read" method',
+        function()
+            for _, data in ipairs({
+                true,
+                0,
+                {},
+                function()
+                end,
+                coroutine.create(function()
+                end),
+            }) do
+                assert.has_error(function()
+                    Body.new(data)
+                end)
+            end
 
-        assert.has_error(function()
-            Body.new( nil )
+            assert.has_error(function()
+                Body.new(nil)
+            end)
         end)
-    end)
 
     it('can set string data', function()
         assert.has_no.errors(function()
-            Body.new( 'hello' )
+            Body.new('hello')
         end)
     end)
 
     it('can set object that have "read" or "recv" function', function()
         assert.has_no.errors(function()
             Body.new({
-                read = function() end
+                read = function()
+                end,
             })
         end)
 
         assert.has_no.errors(function()
             Body.new({
-                recv = function() end
+                recv = function()
+                end,
             })
         end)
     end)
 
     it('can get length of string data', function()
-        local b = Body.new( 'hello' )
-        assert.are.equals( 5, b:length() )
+        local b = Body.new('hello')
+        assert.are.equals(5, b:length())
     end)
 
     it('cannot get length of object data', function()
         local b = Body.new({
-            read = function() end
+            read = function()
+            end,
         })
-        assert.are.equals( nil, b:length() )
+        assert.are.equals(nil, b:length())
     end)
 
     it('can read data', function()
-        local b = Body.new( 'hello' )
-        assert.are.equals( 'hello', b:read() )
-        assert.are.equals( 'hello', b:read() )
+        local b = Body.new('hello')
+        assert.are.equals('hello', b:read())
+        assert.are.equals('hello', b:read())
 
         b = Body.new({
             data = 'world',
-            read = function( self )
+            read = function(self)
                 return self.data
-            end
+            end,
         })
-        assert.are.equals( 'world', b:read() )
-        assert.are.equals( 'world', b:read() )
+        assert.are.equals('world', b:read())
+        assert.are.equals('world', b:read())
 
         b = Body.new({
             data = 'world',
-            recv = function( self )
+            recv = function(self)
                 return self.data
-            end
+            end,
         })
-        assert.are.equals( 'world', b:read() )
-        assert.are.equals( 'world', b:read() )
+        assert.are.equals('world', b:read())
+        assert.are.equals('world', b:read())
     end)
 
     it('can read data of specified length', function()
-        local b = Body.new( 'hello' )
-        assert.are.equals( 'he', b:read(2) )
-        assert.are.equals( 'hel', b:read(3) )
+        local b = Body.new('hello')
+        assert.are.equals('he', b:read(2))
+        assert.are.equals('hel', b:read(3))
 
         b = Body.new({
             data = 'hello',
-            read = function( self, len )
+            read = function(self, len)
                 if len then
-                    return string.sub( self.data, 1, len )
+                    return string.sub(self.data, 1, len)
                 end
                 return self.data
-            end
+            end,
         })
-        assert.are.equals( 'he', b:read(2) )
-        assert.are.equals( 'hel', b:read(3) )
+        assert.are.equals('he', b:read(2))
+        assert.are.equals('hel', b:read(3))
 
         b = Body.new({
             data = 'hello',
-            recv = function( self, len )
+            recv = function(self, len)
                 if len then
-                    return string.sub( self.data, 1, len )
+                    return string.sub(self.data, 1, len)
                 end
 
                 return self.data
-            end
+            end,
         })
-        assert.are.equals( 'he', b:read(2) )
-        assert.are.equals( 'hel', b:read(3) )
+        assert.are.equals('he', b:read(2))
+        assert.are.equals('hel', b:read(3))
     end)
 
     it('can set the amount of data to read', function()
-        local b = Body.new( 'hello', 3 )
-        assert.are.equals( 3, b:length() )
-        assert.are.equals( 'hel', b:read() )
-        assert.is_nil( b:read() )
+        local b = Body.new('hello', 3)
+        assert.are.equals(3, b:length())
+        assert.are.equals('hel', b:read())
+        assert.is_nil(b:read())
 
         b = Body.new({
             data = 'world',
-            read = function( self )
+            read = function(self)
                 return self.data
-            end
-        }, 3 )
-        assert.is_nil( b:length() )
+            end,
+        }, 3)
+        assert.is_nil(b:length())
         assert.are.equals('wor', b:read())
-        assert.is_nil( b:read() )
+        assert.is_nil(b:read())
 
         b = Body.new({
             data = 'hello world!',
-            recv = function( self, len )
+            recv = function(self, len)
                 if len > 2 then
-                    local amount = math.floor( len / 2 )
-                    local data = string.sub( self.data, 1, amount )
-                    self.data = string.sub( self.data, amount + 1 )
+                    local amount = math.floor(len / 2)
+                    local data = string.sub(self.data, 1, amount)
+                    self.data = string.sub(self.data, amount + 1)
                     return data
                 end
 
                 return self.data
-            end
-        }, 12 )
-        assert.is_nil( b:length() )
+            end,
+        }, 12)
+        assert.is_nil(b:length())
         assert.are.equals('hello ', b:read())
         assert.are.equals('wor', b:read())
         assert.are.equals('l', b:read())
         assert.are.equals('d!', b:read())
-        assert.is_nil( b:read() )
+        assert.is_nil(b:read())
     end)
 
     it('cannot set non-numeric value to the amount argument', function()
@@ -150,11 +156,13 @@ describe('test net.http.body.new', function()
             true,
             false,
             {},
-            function()end,
-            coroutine.create(function()end)
+            function()
+            end,
+            coroutine.create(function()
+            end),
         }) do
             assert.has_error(function()
-                Body.new( 'hello', amount )
+                Body.new('hello', amount)
             end)
         end
     end)
@@ -164,37 +172,38 @@ describe('test net.http.body.new', function()
             data = 'hello',
             read = function()
                 return nil, 'no-data', false
-            end
-        }, 3 )
+            end,
+        }, 3)
         local data, err, timeout = b:read()
 
-        assert.is_nil( data )
-        assert.is_equal( 'no-data', err )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_equal('no-data', err)
+        assert.is_falsy(timeout)
     end)
 end)
-
 
 describe('test net.http.body.newContentReader', function()
     it('cannot pass non-numeric value to amount argument', function()
         assert.has_error(function()
-            Body.newContentReader( 'hello' )
+            Body.newContentReader('hello')
         end)
         for _, amount in ipairs({
             'str',
             true,
             false,
             {},
-            function()end,
-            coroutine.create(function()end),
+            function()
+            end,
+            coroutine.create(function()
+            end),
         }) do
             assert.has_error(function()
-                Body.newContentReader( 'hello', nil, amount )
+                Body.newContentReader('hello', nil, amount)
             end)
         end
 
         assert.has_error(function()
-            Body.newContentReader( 'hello', nil, nil )
+            Body.newContentReader('hello', nil, nil)
         end)
     end)
 
@@ -204,11 +213,13 @@ describe('test net.http.body.newContentReader', function()
             false,
             0,
             {},
-            function()end,
-            coroutine.create(function()end),
+            function()
+            end,
+            coroutine.create(function()
+            end),
         }) do
             assert.has_error(function()
-                Body.newContentReader( 'hello', chunks, 5 )
+                Body.newContentReader('hello', chunks, 5)
             end)
         end
     end)
@@ -217,44 +228,44 @@ describe('test net.http.body.newContentReader', function()
         local amount
         local b = Body.newContentReader({
             data = 'hello world',
-            read = function( self, len )
+            read = function(self, len)
                 amount = len
                 return self.data
-            end
-        }, nil, 5 )
+            end,
+        }, nil, 5)
 
         b:read()
-        assert.is_equals( 5, amount )
+        assert.is_equals(5, amount)
     end)
 
     it('will use chunks as already loaded data', function()
         local amount
         local b = Body.newContentReader({
             data = 'hello',
-            read = function( self, len )
+            read = function(self, len)
                 amount = len
                 return self.data
-            end
-        }, 'he', 5 )
+            end,
+        }, 'he', 5)
 
         b:read()
-        assert.is_equals( 3, amount )
+        assert.is_equals(3, amount)
     end)
 
     it('never calls a read function after all data has been loaded', function()
         local ncall = 0
         local b = Body.newContentReader({
             data = 'hello',
-            read = function( self )
+            read = function(self)
                 ncall = ncall + 1
                 return self.data
-            end
-        }, nil, 5 )
+            end,
+        }, nil, 5)
 
         b:read()
-        assert.is_equals( 1, ncall )
+        assert.is_equals(1, ncall)
         b:read()
-        assert.is_equals( 1, ncall )
+        assert.is_equals(1, ncall)
     end)
 
     it('returns errors of reader', function()
@@ -262,23 +273,22 @@ describe('test net.http.body.newContentReader', function()
             data = 'hello',
             read = function()
                 return nil, 'no-data', false
-            end
-        }, nil, 5 )
+            end,
+        }, nil, 5)
         local data, trailer, err, timeout = b:read()
 
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equals( 'no-data', err )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equals('no-data', err)
+        assert.is_falsy(timeout)
 
         data, trailer, err, timeout = b:read()
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_nil( err )
-        assert.is_nil( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_nil(err)
+        assert.is_nil(timeout)
     end)
 end)
-
 
 describe('test net.http.body.newChunkedReader', function()
     it('cannot pass value except string or nil to chunks argument', function()
@@ -287,16 +297,18 @@ describe('test net.http.body.newChunkedReader', function()
             false,
             0,
             {},
-            function()end,
-            coroutine.create(function()end),
+            function()
+            end,
+            coroutine.create(function()
+            end),
         }) do
             assert.has_error(function()
-                Body.newChunkedReader( 'hello', chunks )
+                Body.newChunkedReader('hello', chunks)
             end)
         end
 
         assert.has_no.errors(function()
-            Body.newChunkedReader( 'hello', nil )
+            Body.newChunkedReader('hello', nil)
         end)
     end)
 
@@ -304,140 +316,140 @@ describe('test net.http.body.newChunkedReader', function()
         local amount
         local msg = 'hello'
         local chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             '\r\n',
-        }, '\r\n' )
+        }, '\r\n')
         local b = Body.newChunkedReader({
-            read = function( _, len )
+            read = function(_, len)
                 amount = len
                 return chunks
-            end
+            end,
         })
         local data = b:read()
 
-        assert.is_equal( msg, data )
-        assert.is_nil( amount )
+        assert.is_equal(msg, data)
+        assert.is_nil(amount)
     end)
 
     it('will use chunks as already loaded data', function()
         local msg = 'hello'
         local chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             '\r\n',
-        }, '\r\n' )
+        }, '\r\n')
         local b = Body.newChunkedReader({
             read = function()
-                return string.sub( chunks, 3 )
-            end
-        }, string.sub( chunks, 1, 2 ) )
+                return string.sub(chunks, 3)
+            end,
+        }, string.sub(chunks, 1, 2))
         local data = b:read()
 
-        assert.is_equal( msg, data )
+        assert.is_equal(msg, data)
     end)
 
     it('never calls a read function after all data has been loaded', function()
         local ncall = 0
         local msg = 'hello'
         local chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             '\r\n',
-        }, '\r\n' )
+        }, '\r\n')
         local b = Body.newChunkedReader({
             read = function()
                 ncall = ncall + 1
                 return chunks
-            end
+            end,
         })
         local data = b:read()
 
-        assert.is_equal( msg, data )
-        assert.is_equals( 1, ncall )
+        assert.is_equal(msg, data)
+        assert.is_equals(1, ncall)
         b:read()
-        assert.is_equal( msg, data )
-        assert.is_equals( 1, ncall )
+        assert.is_equal(msg, data)
+        assert.is_equals(1, ncall)
     end)
 
     it('returns a trailer-part', function()
         local msg = 'hello'
         local chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             'Hello: trailer-part1-1',
             'Hello: trailer-part1-2',
             'World: trailer-part2',
-            '\r\n'
-        }, '\r\n' )
+            '\r\n',
+        }, '\r\n')
         local b = Body.newChunkedReader({
             read = function()
                 return chunks
-            end
+            end,
         })
         local data, trailer = b:read()
 
-        assert.is_equal( msg, data )
-        assert.are.same( {
+        assert.is_equal(msg, data)
+        assert.are.same({
             hello = {
                 'trailer-part1-1',
-                'trailer-part1-2'
+                'trailer-part1-2',
             },
             world = 'trailer-part2',
-        }, trailer )
+        }, trailer)
 
         data, trailer = b:read()
-        assert.is_equal( msg, data )
-        assert.are.same( {
+        assert.is_equal(msg, data)
+        assert.are.same({
             hello = {
                 'trailer-part1-1',
-                'trailer-part1-2'
+                'trailer-part1-2',
             },
             world = 'trailer-part2',
-        }, trailer )
+        }, trailer)
     end)
 
     it('returns errors of reader', function()
         local ncall = 0
         local msg = 'hello'
         local chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             'Hello: trailer-part1-1',
             'Hello: trailer-part1-2',
             'World: trailer-part2',
-            '\r\n'
-        }, '\r\n' )
+            '\r\n',
+        }, '\r\n')
         local b, data, trailer, err, timeout
 
         -- failed by reading data
         b = Body.newChunkedReader({
             read = function()
                 return nil, 'no-data', false
-            end
+            end,
         })
         data, trailer, err, timeout = b:read()
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equals( 'no-data', err )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equals('no-data', err)
+        assert.is_falsy(timeout)
 
         -- failed by reading invalid chunked data
         b = Body.newChunkedReader({
             read = function()
                 return 'xyz\r\nhello'
-            end
+            end,
         })
         data, trailer, err, timeout = b:read()
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equals( 'invalid chunk-size', err )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equals('invalid chunk-size', err)
+        assert.is_falsy(timeout)
 
         -- failed by reading the partial data
         b = Body.newChunkedReader({
@@ -447,15 +459,15 @@ describe('test net.http.body.newChunkedReader', function()
                 end
 
                 ncall = 1
-                return string.sub( chunks, 1, 3 )
-            end
+                return string.sub(chunks, 1, 3)
+            end,
         })
         data, trailer, err, timeout = b:read()
-        assert.is_equal( 1, ncall )
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equals( 'no-content', err )
-        assert.is_falsy( timeout )
+        assert.is_equal(1, ncall)
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equals('no-content', err)
+        assert.is_falsy(timeout)
 
         -- failed by reading the partial data of trailer-part
         ncall = 0
@@ -466,57 +478,55 @@ describe('test net.http.body.newChunkedReader', function()
                 end
 
                 ncall = 1
-                return string.sub(
-                    chunks, 1, string.find( chunks, 'trailer-part1-1', 1, true )
-                )
-            end
+                return string.sub(chunks, 1, string.find(chunks,
+                                                         'trailer-part1-1', 1,
+                                                         true))
+            end,
         })
         data, trailer, err, timeout = b:read()
-        assert.is_equal( 1, ncall )
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equals( 'no trailer-content', err )
-        assert.is_falsy( timeout )
+        assert.is_equal(1, ncall)
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equals('no trailer-content', err)
+        assert.is_falsy(timeout)
 
         -- failed by reading the invalid trailer-part
         chunks = table.concat({
-            string.format( '%02x', #msg ),
+            string.format('%02x', #msg),
             msg,
             '0',
             'Hello trailer-part1-1',
             'Hello: trailer-part1-2',
             'World: trailer-part2',
-            '\r\n'
-        }, '\r\n' )
+            '\r\n',
+        }, '\r\n')
         b = Body.newChunkedReader({
             read = function()
                 return chunks
-            end
+            end,
         })
         data, trailer, err, timeout = b:read()
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_equal( 'string', type( err ) )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_equal('string', type(err))
+        assert.is_falsy(timeout)
 
         -- returns nil values
         data, trailer, err, timeout = b:read()
-        assert.is_nil( data )
-        assert.is_nil( trailer )
-        assert.is_nil( err )
-        assert.is_falsy( timeout )
+        assert.is_nil(data)
+        assert.is_nil(trailer)
+        assert.is_nil(err)
+        assert.is_falsy(timeout)
     end)
 end)
-
 
 describe('test net.http.body.newNilReader', function()
     it('always returns nil', function()
         local b = Body.newNilReader()
-        assert.is_nil( b:read() )
-        assert.is_nil( b:length() )
+        assert.is_nil(b:read())
+        assert.is_nil(b:length())
     end)
 end)
-
 
 describe('test net.http.body.newReaderFromHeader', function()
     it('does not accept non-table values for header arguments', function()
@@ -525,45 +535,46 @@ describe('test net.http.body.newReaderFromHeader', function()
             true,
             false,
             0,
-            function()end,
-            coroutine.create(function()end),
+            function()
+            end,
+            coroutine.create(function()
+            end),
         }) do
             assert.has_error(function()
-                Body.newReaderFromHeader( header, 'hello' )
+                Body.newReaderFromHeader(header, 'hello')
             end)
         end
 
         assert.has_error(function()
-            Body.newReaderFromHeader( nil, 'hello' )
+            Body.newReaderFromHeader(nil, 'hello')
         end)
     end)
 
     it('returns the result of newChunkedReader', function()
         local b = Body.newReaderFromHeader({
-            ['transfer-encoding'] = 'chunked'
-        }, '5\r\nhello\r\n0\r\n\r\n' )
+            ['transfer-encoding'] = 'chunked',
+        }, '5\r\nhello\r\n0\r\n\r\n')
         local data, trailer = b:read()
 
-        assert.is_nil( b:length() )
-        assert.is_equal( 'hello', data )
-        assert.are.same( {}, trailer )
+        assert.is_nil(b:length())
+        assert.is_equal('hello', data)
+        assert.are.same({}, trailer)
     end)
 
     it('returns the result of newContentReader', function()
         local b = Body.newReaderFromHeader({
-            ['content-length'] = '5'
-        }, 'hello' )
+            ['content-length'] = '5',
+        }, 'hello')
 
-        assert.is_equal( 5, b:length() )
-        assert.is_equal( 'hello', b:read() )
+        assert.is_equal(5, b:length())
+        assert.is_equal('hello', b:read())
     end)
 
-
     it('returns the result of newNilReader', function()
-        local b = Body.newReaderFromHeader( {}, 'hello' )
+        local b = Body.newReaderFromHeader({}, 'hello')
 
-        assert.is_nil( b:length() )
-        assert.is_nil( b:read() )
+        assert.is_nil(b:length())
+        assert.is_nil(b:read())
     end)
 end)
 

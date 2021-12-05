@@ -1,4 +1,4 @@
-/*
+/**
  *  Copyright (C) 2017 Masatoshi Teruya
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,34 +24,32 @@
  *  Created by Masatoshi Teruya on 17/10/11.
  */
 
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 
-
-static int createtable_lua( lua_State *L )
+static int createtable_lua(lua_State *L)
 {
-    lua_Integer narr = luaL_optinteger( L, 1, 0 );
-    lua_Integer nrec = luaL_optinteger( L, 2, 0 );
+    lua_Integer narr = luaL_optinteger(L, 1, 0);
+    lua_Integer nrec = luaL_optinteger(L, 2, 0);
 
-    lua_createtable( L, narr, nrec );
+    lua_createtable(L, narr, nrec);
 
     return 1;
 }
 
-
-LUALIB_API int luaopen_net_http_util_implc( lua_State *L )
+LUALIB_API int luaopen_net_http_util_implc(lua_State *L)
 {
     struct luaL_Reg method[] = {
-        { "createtable", createtable_lua },
-        { NULL, NULL }
+        {"createtable", createtable_lua},
+        {NULL,          NULL           }
     };
     struct luaL_Reg *ptr = method;
 
-    lua_newtable( L );
-    while( ptr->name ){
-        lua_pushstring( L, ptr->name );
-        lua_pushcfunction( L, ptr->func );
-        lua_rawset( L, -3 );
+    lua_newtable(L);
+    while (ptr->name) {
+        lua_pushstring(L, ptr->name);
+        lua_pushcfunction(L, ptr->func);
+        lua_rawset(L, -3);
         ptr++;
     }
 
