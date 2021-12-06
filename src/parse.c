@@ -25,18 +25,22 @@
  */
 
 #include "lauxhlib.h"
+#include <ctype.h>
 #include <errno.h>
 #include <lua.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* delimiters */
-#define CR    '\r'
-#define LF    '\n'
-#define SP    ' '
-#define HT    '\t'
-#define COLON ':'
+#define CR        '\r'
+#define LF        '\n'
+#define HT        '\t'
+#define SP        ' '
+#define EQ        '='
+#define COLON     ':'
+#define SEMICOLON ';'
 #define DQUOTE    '"'
+#define BACKSLASH '\\'
 
 /**
  * return code
@@ -67,6 +71,10 @@
 #define PARSE_ESTATUS  -11
 /* illegal byte sequence */
 #define PARSE_EILSEQ   -12
+/* result too large */
+#define PARSE_ERANGE   -13
+/* disallow empty definitions */
+#define PARSE_EEMPTY   -14
 
 /**
  * https://www.ietf.org/rfc/rfc6265.txt
@@ -294,6 +302,322 @@ static int vchar_lua(lua_State *L)
     return 1;
 }
 
+/**
+ * https://tools.ietf.org/html/rfc7230#section-4.1
+ * 4.1.  Chunked Transfer Coding
+ *
+ * chunked-body   = *chunk
+ *                  last-chunk
+ *                  trailer-part
+ *                  CRLF
+ *
+ * chunk          = chunk-size [ chunk-ext ] CRLF
+ *                  chunk-data CRLF
+ * chunk-size     = 1*HEXDIG
+ * last-chunk     = 1*("0") [ chunk-ext ] CRLF
+ *
+ * chunk-data     = 1*OCTET ; a sequence of chunk-size octets
+ */
+static const unsigned char HEXDIGIT[256] = {
+    //  ctrl-code: 0-32
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    //  SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    //  0  1  2  3  4  5  6  7  8  9
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    //  :  ;  <  =  >  ?  @
+    0, 0, 0, 0, 0, 0, 0,
+    //  A   B   C   D   E   F
+    11, 12, 13, 14, 15, 16,
+    //  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X  Y  Z  [  \  ]
+    //  ^  _  `
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+    //  a   b   c   d   e   f
+    11, 12, 13, 14, 15, 16,
+    //  g  h  i  j  k  l  m  n  o  p  q  r  s  t  u  v  w  x  y  z  {  |  }
+    //  ~
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+static ssize_t hex2size(unsigned char *str, size_t len, size_t *sz)
+{
+    size_t dec = 0;
+
+    if (!len) {
+        return PARSE_EAGAIN;
+    }
+
+    // hex to decimal
+    for (ssize_t cur = 0; cur < len; cur++) {
+        unsigned char c = HEXDIGIT[str[cur]];
+        if (!c) {
+            // found non hexdigit
+            *sz = dec;
+            return cur;
+        } else if (cur >= 8) {
+            // limit to max value of 32bit (0xFFFFFFFF)
+            return PARSE_ERANGE;
+        }
+        dec = (dec << 4) | (c - 1);
+    }
+    *sz = dec;
+
+    // return number of consumed bytes
+    return (ssize_t)len;
+}
+
+/**
+ * 4.1.1.  Chunk Extensions
+ *
+ * chunk-ext    = *( BWS ";" BWS ext-name [ BWS "=" BWS ext-val ] )
+ * ext-name     = token
+ * ext-val      = token / quoted-string
+ *
+ * trailer-part   = *( header-field CRLF )
+ *
+ * OWS (Optional Whitespace)        = *( SP / HTAB )
+ * BWS (Must be removed by parser)  = OWS
+ *                                  ; "bad" whitespace
+ *
+ * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+ * qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
+ * quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
+ * obs-text       = %x80-FF
+ */
+static const unsigned char QDTEXT[256] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, '\t', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    //        "
+    ' ', '!', 0, '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.',
+    '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=',
+    '>', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    //  0x5C[backslash]
+    '[', 0, ']', '^', '_', '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i',
+    'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
+    'y', 'z', '{', '|', '}', '~'};
+
+#define DEFAULT_CHUNKSIZE_MAXLEN 4096
+
+static int chunksize_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
+    size_t size     = 0;
+    ssize_t cur     = 0;
+    ssize_t head    = 0;
+    ssize_t tail    = 0;
+    const char *key = NULL;
+    ssize_t klen    = 0;
+    const char *val = NULL;
+    ssize_t vlen    = 0;
+
+    // check container table
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
+
+    if (!len) {
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    }
+
+    // parse chunk-size
+    cur = hex2size((unsigned char *)str, len, &size);
+    if (cur < 0) {
+        lua_pushinteger(L, cur);
+        return 1;
+    }
+
+#define skip_bws()                                                             \
+ do {                                                                          \
+  /* chunksize line-length too large */                                        \
+  if (cur >= maxlen) {                                                         \
+   lua_pushinteger(L, PARSE_EMSGLEN);                                          \
+   return 1;                                                                   \
+  }                                                                            \
+  switch (str[cur]) {                                                          \
+  case SP:                                                                     \
+  case HT:                                                                     \
+   cur++;                                                                      \
+   continue;                                                                   \
+  case 0:                                                                      \
+   /* more bytes need */                                                       \
+   lua_pushinteger(L, PARSE_EAGAIN);                                           \
+   return 1;                                                                   \
+  }                                                                            \
+  break;                                                                       \
+ } while (1)
+
+    // found tail
+    if (str[cur] == CR) {
+CHECK_EOL:
+        switch (str[cur + 1]) {
+        case 0:
+            // more bytes need
+            lua_pushinteger(L, PARSE_EAGAIN);
+            return 1;
+
+        case LF:
+            // push extension
+            if (klen) {
+                lua_pushlstring(L, key, klen);
+                if (vlen) {
+                    lua_pushlstring(L, val, vlen);
+                } else {
+                    lua_pushliteral(L, "");
+                }
+                lua_rawset(L, 2);
+            }
+            // return chunksize and number of bytes consumed
+            lua_pushinteger(L, size);
+            lua_pushinteger(L, cur + 2);
+            return 2;
+
+        default:
+            // invalid end-of-line terminator
+            lua_pushinteger(L, PARSE_EEOL);
+            return 1;
+        }
+    }
+
+    // parse semicolon
+    skip_bws();
+    if (str[cur] != SEMICOLON) {
+        lua_pushinteger(L, PARSE_EILSEQ);
+        return 1;
+    }
+    cur++;
+
+    // parse chunk-extensions
+CHECK_EXTNAME:
+    // push previous extension
+    if (klen) {
+        lua_pushlstring(L, key, klen);
+        if (vlen) {
+            lua_pushlstring(L, val, vlen);
+        } else {
+            lua_pushliteral(L, "");
+        }
+        lua_rawset(L, 2);
+        klen = 0;
+        vlen = 0;
+    }
+    skip_bws();
+    head = cur;
+    while (TCHAR[str[cur]] > 1) {
+        cur++;
+    }
+    tail = cur;
+    if (tail == head) {
+        // disallow empty ext-name
+        lua_pushinteger(L, PARSE_EEMPTY);
+        return 1;
+    }
+    key  = str + head;
+    klen = tail - head;
+
+    // found tail
+    if (str[cur] == CR) {
+        goto CHECK_EOL;
+    }
+    skip_bws();
+
+    switch (str[cur]) {
+    case SEMICOLON:
+        cur++;
+        goto CHECK_EXTNAME;
+
+    case EQ:
+        // parse ext-value
+        cur++;
+        break;
+
+    default:
+        // illegal byte sequence
+        lua_pushinteger(L, PARSE_EILSEQ);
+        return 1;
+    }
+
+    // parse ext-val
+    skip_bws();
+    if (str[cur] == DQUOTE) {
+        // parse as a quoted-string
+        cur++;
+        head = cur;
+        goto PARSE_QUOTED_VAL;
+    }
+
+    // parse as a token
+    head = cur;
+    while (TCHAR[str[cur]] > 1) {
+        cur++;
+    }
+    tail = cur;
+    val  = str + head;
+    vlen = tail - head;
+    switch (str[cur]) {
+    case 0:
+        // more bytes need
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    case CR:
+        // found tail
+        goto CHECK_EOL;
+
+    default:
+CHECK_EOB:
+        skip_bws();
+        switch (str[cur]) {
+        case SEMICOLON:
+            cur++;
+            goto CHECK_EXTNAME;
+
+        default:
+            // illegal byte sequence
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+    }
+
+PARSE_QUOTED_VAL:
+    while (QDTEXT[str[cur]]) {
+        cur++;
+    }
+    tail = cur;
+    switch (str[cur]) {
+    case 0:
+        // more bytes need
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+
+    case DQUOTE:
+        val  = str + head;
+        vlen = tail - head;
+        // found tail
+        if (str[++cur] == CR) {
+            goto CHECK_EOL;
+        }
+        goto CHECK_EOB;
+
+    case BACKSLASH:
+        // quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
+        switch (VCHAR[str[cur + 1]]) {
+        case 1:
+        case 2: // HT, SP
+            cur += 2;
+            goto PARSE_QUOTED_VAL;
+        }
+        // pass-through
+    default:
+        // found illegal byte sequence
+        lua_pushinteger(L, PARSE_EILSEQ);
+        return 1;
+    }
+#undef skip_bws
+}
+
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
@@ -369,15 +693,15 @@ CHECK_AGAIN:
 // Cookie-Header:   field-name: field-value
 // field-name   :   'Set-Cookie: '  ; 12 byte
 // field-value  :   field-value     ; 4096 byte
-#define DEFAULT_MAX_HDRLEN 4108
-#define DEFAULT_MAX_HDRNUM UINT8_MAX
-#define DEFAULT_MAX_MSGLEN 2048
+#define DEFAULT_HDR_MAXLEN 4108
+#define DEFAULT_HDR_MAXNUM UINT8_MAX
+#define DEFAULT_MSG_MAXLEN 2048
 
 static int header_value_lua(lua_State *L)
 {
     size_t len      = 0;
     const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_MAX_HDRLEN);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
     size_t cur      = 0;
     int rv          = parse_hval((unsigned char *)str, len, &cur, &maxlen);
 
@@ -443,7 +767,7 @@ static int header_name_lua(lua_State *L)
 {
     size_t len      = 0;
     const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_MAX_HDRLEN);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
     size_t cur      = 0;
     int rv          = parse_hkey((unsigned char *)str, len, &cur, &maxlen);
 
@@ -603,8 +927,8 @@ static int header_lua(lua_State *L)
     size_t len         = 0;
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
     size_t offset      = (size_t)lauxh_optuint64(L, 3, 0);
-    uint16_t maxhdrlen = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
-    uint8_t maxhdrnum  = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
+    uint16_t maxhdrlen = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum  = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
 
     // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -829,9 +1153,9 @@ static int request_lua(lua_State *L)
 {
     size_t len          = 0;
     unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MAX_MSGLEN);
-    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
-    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
+    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
+    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
     unsigned char *head = str;
     size_t hlen         = len;
     const char *method  = NULL;
@@ -1033,9 +1357,9 @@ static int response_lua(lua_State *L)
 {
     size_t len          = 0;
     unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MAX_MSGLEN);
-    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_MAX_HDRLEN);
-    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_MAX_HDRNUM);
+    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
+    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
     unsigned char *head = str;
     size_t hlen         = len;
     size_t cur          = 0;
@@ -1165,6 +1489,14 @@ static int strerror_lua(lua_State *L)
         lua_pushliteral(L, "illegal byte sequence");
         return 1;
 
+    case PARSE_ERANGE:
+        lua_pushliteral(L, "result too large");
+        return 1;
+
+    case PARSE_EEMPTY:
+        lua_pushliteral(L, "disallow empty definitions");
+        return 1;
+
     default:
         lua_pushliteral(L, "unknown error");
         return 1;
@@ -1180,6 +1512,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
         {"header",       header_lua      },
         {"header_name",  header_name_lua },
         {"header_value", header_value_lua},
+        {"chunksize",    chunksize_lua   },
         {"tchar",        tchar_lua       },
         {"vchar",        vchar_lua       },
         {"cookie_value", cookie_value_lua},
@@ -1208,6 +1541,8 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     lauxh_pushint2tbl(L, "EHDRNUM", PARSE_EHDRNUM);
     lauxh_pushint2tbl(L, "ESTATUS", PARSE_ESTATUS);
     lauxh_pushint2tbl(L, "EILSEQ", PARSE_EILSEQ);
+    lauxh_pushint2tbl(L, "ERANGE", PARSE_ERANGE);
+    lauxh_pushint2tbl(L, "EEMPTY", PARSE_EEMPTY);
 
     return 1;
 }
