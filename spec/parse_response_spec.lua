@@ -85,7 +85,7 @@ describe('test net.http.parse.response', function()
         local msg = 'HTTP/1.1 418 i\'m a tea pot\n' ..
                         'Server: example-server\n' .. '\n'
 
-        assert.are.equal(Parse.EMSGLEN, ParseResponse(msg, {}, 10))
+        assert.are.equal(Parse.ELEN, ParseResponse(msg, {}, 10))
     end)
 
     it('returns EAGAIN to the incomplete message', function()
