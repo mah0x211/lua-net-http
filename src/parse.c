@@ -51,8 +51,8 @@
 #define PARSE_EAGAIN   -1
 /* invalid message */
 #define PARSE_EMSG     -2
-/* message-length too large */
-#define PARSE_EMSGLEN  -3
+/* length too large */
+#define PARSE_ELEN     -3
 /* method not implemented */
 #define PARSE_EMETHOD  -4
 /* version not supported */
@@ -434,7 +434,7 @@ static int chunksize_lua(lua_State *L)
  do {                                                                          \
   /* chunksize line-length too large */                                        \
   if (cur >= maxlen) {                                                         \
-   lua_pushinteger(L, PARSE_EMSGLEN);                                          \
+   lua_pushinteger(L, PARSE_ELEN);                                             \
    return 1;                                                                   \
   }                                                                            \
   switch (str[cur]) {                                                          \
@@ -1201,7 +1201,7 @@ CHECK_URI:
         lua_pushinteger(L, PARSE_EAGAIN);
         return 1;
     } else if (ulen > maxmsglen) {
-        lua_pushinteger(L, PARSE_EMSGLEN);
+        lua_pushinteger(L, PARSE_ELEN);
         return 1;
     }
     switch (URIC_TBL[str[ulen]]) {
@@ -1289,7 +1289,7 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
         case 3:
             // phrase-length too large
             if (pos > *maxlen) {
-                return PARSE_EMSGLEN;
+                return PARSE_ELEN;
             }
             *maxlen = pos;
 
@@ -1321,7 +1321,7 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
 
     // phrase-length too large
     if (len > *maxlen) {
-        return PARSE_EMSGLEN;
+        return PARSE_ELEN;
     }
 
     return PARSE_EAGAIN;
@@ -1449,8 +1449,8 @@ static int strerror_lua(lua_State *L)
         lua_pushliteral(L, "invalid message");
         return 1;
 
-    case PARSE_EMSGLEN:
-        lua_pushliteral(L, "message-length too large");
+    case PARSE_ELEN:
+        lua_pushliteral(L, "length too large");
         return 1;
 
     case PARSE_EMETHOD:
@@ -1531,7 +1531,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     lauxh_pushint2tbl(L, "OK", PARSE_OK);
     lauxh_pushint2tbl(L, "EAGAIN", PARSE_EAGAIN);
     lauxh_pushint2tbl(L, "EMSG", PARSE_EMSG);
-    lauxh_pushint2tbl(L, "EMSGLEN", PARSE_EMSGLEN);
+    lauxh_pushint2tbl(L, "ELEN", PARSE_ELEN);
     lauxh_pushint2tbl(L, "EMETHOD", PARSE_EMETHOD);
     lauxh_pushint2tbl(L, "EVERSION", PARSE_EVERSION);
     lauxh_pushint2tbl(L, "EEOL", PARSE_EEOL);

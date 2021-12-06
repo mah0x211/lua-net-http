@@ -76,7 +76,7 @@ describe('test net.http.parse.request', function()
             'GET /foo/bar/baz/qux HTTP/1.0\n' .. 'Host: example.com\n' .. '\n'
         local req = {header = {}}
 
-        assert.are.equal(Parse.EMSGLEN, ParseRequest(msg, req, 10))
+        assert.are.equal(Parse.ELEN, ParseRequest(msg, req, 10))
     end)
 
     it('returns EAGAIN to the incomplete message', function()

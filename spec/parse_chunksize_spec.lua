@@ -36,7 +36,7 @@ describe("test net.http.parse.chunksize", function()
 
     it("can limit the maximum length of chunksize-line", function()
         local size, cur = ParseChunkSize('71e20 ; foo; bar = baz\r\n', {}, 4)
-        assert.are.equal(Parse.EMSGLEN, size)
+        assert.are.equal(Parse.ELEN, size)
         assert.is_nil(cur)
     end)
 
