@@ -36,6 +36,7 @@
 #define SP    ' '
 #define HT    '\t'
 #define COLON ':'
+#define DQUOTE    '"'
 
 /**
  * return code
@@ -66,6 +67,79 @@
 #define PARSE_ESTATUS  -11
 /* illegal byte sequence */
 #define PARSE_EILSEQ   -12
+
+/**
+ * https://www.ietf.org/rfc/rfc6265.txt
+ * 4.1.1.  Syntax
+ *
+ * cookie-name  = token (RFC2616)
+ * cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+ * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
+ *                  ; ! # $ % & ' ( ) * + - . / 0-9 : < = > ? @ A-Z [ ] ^ _ `
+ *                  ; a-z { | } ~
+ *                  ; US-ASCII characters excluding CTLs,
+ *                  ; whitespace, DQUOTE, comma, semicolon,
+ *                  ; and backslash
+ */
+static const unsigned char COOKIE_OCTET[256] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    //  0x21
+    '!',
+    //  0x22
+    0,
+    //  0x23-2B
+    '#', '$', '%', '&', '\'', '(', ')', '*', '+',
+    //  0x2C
+    0,
+    //  0x2D-3A
+    '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':',
+    //  0x3B
+    0,
+    //  0x3C-5B
+    '<', '=', '>', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y',
+    'Z', '[',
+    //  0x5C
+    0,
+    //  0x5D-7E
+    ']', '^', '_', '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+    'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '{', '|', '}', '~'};
+
+static int cookie_value_lua(lua_State *L)
+{
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t i        = 0;
+
+    if (!len) {
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    }
+
+    // found DQUOTE at head
+    if (str[0] == DQUOTE) {
+        // not found DQUOTE at tail
+        if (len == 1 || str[len - 1] != DQUOTE) {
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+        // skip head and tail
+        i++;
+        len--;
+    }
+
+    for (; i < len; i++) {
+        if (!COOKIE_OCTET[str[i]]) {
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+    }
+    lua_pushinteger(L, PARSE_OK);
+
+    return 1;
+}
 
 /**
  * RFC 7230
@@ -1108,6 +1182,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
         {"header_value", header_value_lua},
         {"tchar",        tchar_lua       },
         {"vchar",        vchar_lua       },
+        {"cookie_value", cookie_value_lua},
         {NULL,           NULL            }
     };
     struct luaL_Reg *ptr = funcs;
