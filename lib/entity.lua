@@ -26,7 +26,6 @@
 --- assign to local
 local Body = require('net.http.body')
 local concat = table.concat
-local insert = table.insert
 local strsub = string.sub
 local strformat = string.format
 --- constants
@@ -89,10 +88,13 @@ end
 -- @return timeout
 local function sendto(sock, msg)
     local body = msg.entity.body
-    -- append CRLF
-    local header = msg.header:getall()
+    local header = {
+        msg.startLine or '',
+    }
 
-    insert(header, 1, msg.startLine or '')
+    for k, v in msg.header:pairs() do
+        header[#header + 1] = k .. ': ' .. v .. CRLF
+    end
     header[#header + 1] = CRLF
 
     -- send header
@@ -175,7 +177,7 @@ local function setBody(msg, data, ctype)
         msg.entity.clen = true
         msg.header:set('Content-Length', clen)
     else
-        msg.header:set('Transfer-Encoding', 'chunked', true)
+        msg.header:add('Transfer-Encoding', 'chunked')
     end
 end
 
@@ -187,15 +189,15 @@ local function unsetBody(msg)
         -- unset content-type header
         if msg.entity.ctype then
             msg.entity.ctype = nil
-            msg.header:del('Content-Type')
+            msg.header:set('Content-Type')
         end
 
         -- unset content-length header
         if msg.entity.clen then
             msg.entity.clen = nil
-            msg.header:del('Content-Length')
+            msg.header:set('Content-Length')
         else
-            msg.header:del('Transfer-Encoding')
+            msg.header:set('Transfer-Encoding')
         end
     end
 end

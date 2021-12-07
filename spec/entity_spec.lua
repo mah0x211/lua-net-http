@@ -1,5 +1,5 @@
 local Entity = require('net.http.entity')
-local header = require('net.http.header')
+local header = require('net.http').header
 local EAGAIN = require('net.http.parse').EAGAIN
 local EMSG = require('net.http.parse').EMSG
 local strerror = require('net.http.parse').strerror
@@ -34,16 +34,18 @@ describe('test net.http.entity', function()
         Entity.setBody(msg, 'hello', 'text/plain')
         assert.is_not_nil(msg.entity.body)
         assert.is_true(msg.entity.ctype)
-        assert.is_equal('Content-Type: text/plain\r\n',
-                        msg.header:get('content-type'))
+        assert.is_same({
+            'text/plain',
+        }, msg.header:get('content-type'))
     end)
 
     it('unset a message body', function()
         Entity.setBody(msg, 'hello', 'text/plain')
         assert.is_not_nil(msg.entity.body)
         assert.is_true(msg.entity.ctype)
-        assert.is_equal('Content-Type: text/plain\r\n',
-                        msg.header:get('content-type'))
+        assert.is_same({
+            'text/plain',
+        }, msg.header:get('content-type'))
         Entity.unsetBody(msg)
         assert.is_nil(msg.entity.body)
         assert.is_nil(msg.entity.ctype)
@@ -77,8 +79,12 @@ describe('test net.http.entity', function()
                 end,
             },
         })
-        local expect = 'Content-Length: 12\r\n' .. 'my-header: hello\r\n' ..
-                           'my-header: world\r\n' .. '\r\n' .. 'hello world!'
+        local expect = table.concat({
+            'my-header: hello',
+            'my-header: world',
+            'content-length: 12\r\n',
+            'hello world!',
+        }, '\r\n')
 
         Entity.setBody(msg, 'hello world!')
         assert.is_equal(#expect, Entity.sendto(sock, msg))
@@ -100,12 +106,12 @@ describe('test net.http.entity', function()
             },
         })
         local expect = {
-            [1] = 'Transfer-Encoding: chunked\r\n' .. 'my-header: hello\r\n' ..
-                'my-header: world\r\n' .. '\r\n',
-            [2] = 'e\r\n' .. 'chunked-data-1\r\n',
-            [3] = 'e\r\n' .. 'chunked-data-2\r\n',
-            [4] = 'e\r\n' .. 'chunked-data-3\r\n',
-            [5] = '0\r\n\r\n',
+            'my-header: hello\r\n' .. 'my-header: world\r\n' ..
+                'transfer-encoding: chunked\r\n' .. '\r\n',
+            'e\r\n' .. 'chunked-data-1\r\n',
+            'e\r\n' .. 'chunked-data-2\r\n',
+            'e\r\n' .. 'chunked-data-3\r\n',
+            '0\r\n\r\n',
         }
         local nchunk = 3
         local n = 0
@@ -144,10 +150,10 @@ describe('test net.http.entity', function()
             },
         })
         local expect = {
-            [1] = 'Transfer-Encoding: chunked\r\n' .. 'my-header: hello\r\n' ..
-                'my-header: world\r\n' .. '\r\n',
-            [2] = 'e\r\n' .. 'chunked-data-1\r\n',
-            [3] = 'e\r\n' .. 'chunked-data-2\r\n',
+            'my-header: hello\r\n' .. 'my-header: world\r\n' ..
+                'transfer-encoding: chunked\r\n' .. '\r\n',
+            'e\r\n' .. 'chunked-data-1\r\n',
+            'e\r\n' .. 'chunked-data-2\r\n',
         }
 
         Entity.setBody(msg, {
