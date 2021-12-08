@@ -24,7 +24,7 @@
 -- Created by Masatoshi Teruya on 17/08/08.
 --
 --- assign to local
-local Header = require('net.http.header')
+local Header = require('net.http').header
 local toline = require('net.http.status').toline
 local Entity = require('net.http.entity')
 local sendto = Entity.sendto
@@ -84,7 +84,7 @@ local function new(ver, sock)
     return setmetatable(Entity.init({
         sock = sock,
         ver = ver,
-        header = Header.new(15, 15),
+        header = Header.new(),
     }), {
         __index = Response,
     })
