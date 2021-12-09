@@ -3,12 +3,12 @@
 #
 # generate private key
 #
-openssl genrsa 2048 > cert/server.key
+openssl genrsa 2048 > cert/cert.key
 
 #
 # generate cert sign request
 #
-openssl req -new -key cert/server.key <<EOF > cert/server.csr
+openssl req -new -key cert/cert.key <<EOF > cert/cert.csr
 JP
 Tokyo
 
@@ -23,4 +23,4 @@ EOF
 #
 # generate cert
 #
-openssl x509 -days 365 -req -signkey cert/server.key < cert/server.csr > cert/server.crt
+openssl x509 -days 365 -req -signkey cert/cert.key < cert/cert.csr > cert/cert.crt
