@@ -39,6 +39,10 @@ jobs:
       with:
         submodules: 'true'
     -
+      name: Generate Certificate For Testing
+      run: |
+        sh cert/certgen.sh
+    -
       name: Setup Lua ${{ matrix.lua-version }}
       uses: leafo/gh-actions-lua@v8.0.0
       with:
@@ -50,12 +54,11 @@ jobs:
       name: Install Tools
       run: |
         luarocks install luacov-coveralls
-        luarocks install busted
         luarocks install cluacov
-        luarocks install luacheck
-        luarocks install string-split
+        luarocks install assertex
         luarocks install process
         luarocks install signal
+        luarocks install testcase
         luarocks install llsocket 0.11.1
         luarocks install libtls 2.7.4
         luarocks install net 0.25.0
@@ -66,8 +69,7 @@ jobs:
     -
       name: Run Test
       run: |
-        sh cert/certgen.sh
-        busted -c
+        testcase --coverage ./test/
     -
       name: Coveralls
       continue-on-error: true

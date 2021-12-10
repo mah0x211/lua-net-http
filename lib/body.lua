@@ -444,7 +444,7 @@ local function newReaderFromHeader(header, sock, chunks)
         return newNilReader()
     end
 
-    error('header must not be nil')
+    error('header must be table')
 end
 
 return {
