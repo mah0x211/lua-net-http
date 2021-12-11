@@ -31,17 +31,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* delimiters */
-#define CR        '\r'
-#define LF        '\n'
-#define HT        '\t'
-#define SP        ' '
-#define EQ        '='
-#define COLON     ':'
-#define SEMICOLON ';'
-#define DQUOTE    '"'
-#define BACKSLASH '\\'
-
 /**
  * return code
  */
@@ -75,6 +64,19 @@
 #define PARSE_ERANGE   -13
 /* disallow empty definitions */
 #define PARSE_EEMPTY   -14
+
+/* delimiters */
+#define CR        '\r'
+#define LF        '\n'
+#define HT        '\t'
+#define SP        ' '
+#define EQ        '='
+#define COLON     ':'
+#define SEMICOLON ';'
+#define DQUOTE    '"'
+#define BACKSLASH '\\'
+
+#define DEFAULT_STR_MAXLEN 4096
 
 /**
  * https://www.ietf.org/rfc/rfc6265.txt
@@ -368,18 +370,10 @@ static ssize_t hex2size(unsigned char *str, size_t len, size_t *sz)
 }
 
 /**
- * 4.1.1.  Chunk Extensions
+ * 5.6.6. Parameters
+ * https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#section-5.6.6
  *
- * chunk-ext    = *( BWS ";" BWS ext-name [ BWS "=" BWS ext-val ] )
- * ext-name     = token
- * ext-val      = token / quoted-string
- *
- * trailer-part   = *( header-field CRLF )
- *
- * OWS (Optional Whitespace)        = *( SP / HTAB )
- * BWS (Must be removed by parser)  = OWS
- *                                  ; "bad" whitespace
- *
+ * parameter-value = token / quoted-string
  * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
  * qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
  * quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -398,21 +392,82 @@ static const unsigned char QDTEXT[256] = {
     'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
     'y', 'z', '{', '|', '}', '~'};
 
+static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
+                               size_t *maxlen)
+{
+    size_t pos  = *cur;
+    size_t head = pos + 1;
+
+    if (str[pos] != DQUOTE) {
+        return PARSE_EILSEQ;
+    }
+
+    pos++;
+    for (; pos < len; pos++) {
+        if (pos > *maxlen) {
+            return PARSE_ELEN;
+        } else if (!QDTEXT[str[pos]]) {
+            switch (str[pos]) {
+            case DQUOTE:
+                *maxlen = pos - head;
+                *cur    = pos + 1;
+                return PARSE_OK;
+
+            case BACKSLASH:
+                // quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
+                switch (VCHAR[str[pos + 1]]) {
+                case 1:
+                case 2: // HT, SP
+                    pos += 2;
+                    continue;
+                }
+                // pass-through
+            default:
+                // found illegal byte sequence
+                return PARSE_EILSEQ;
+            }
+        }
+    }
+
+    // more bytes need
+    return PARSE_EAGAIN;
+}
+
+static int quoted_string_lua(lua_State *L)
+{
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_STR_MAXLEN);
+
+    if (len) {
+        size_t cur = 0;
+        int rv     = parse_quoted_string(str, len, &cur, &maxlen);
+        // did not parse to the end of string
+        if (rv == PARSE_OK && cur != len) {
+            rv = PARSE_EILSEQ;
+        }
+        lua_pushinteger(L, rv);
+    } else {
+        lua_pushinteger(L, PARSE_EAGAIN);
+    }
+
+    return 1;
+}
+
 #define DEFAULT_CHUNKSIZE_MAXLEN 4096
 
 static int chunksize_lua(lua_State *L)
 {
     size_t len         = 0;
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    ssize_t maxlen  = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
     size_t size     = 0;
-    ssize_t cur     = 0;
-    ssize_t head    = 0;
-    ssize_t tail    = 0;
+    size_t cur      = 0;
+    size_t head     = 0;
     const char *key = NULL;
-    ssize_t klen    = 0;
+    size_t klen     = 0;
     const char *val = NULL;
-    ssize_t vlen    = 0;
+    size_t vlen     = 0;
 
     // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -490,6 +545,23 @@ CHECK_EOL:
     }
     cur++;
 
+    // 4.1.1.  Chunk Extensions
+    //
+    // chunk-ext    = *( BWS ";" BWS ext-name [ BWS "=" BWS ext-val ] )
+    // ext-name     = token
+    // ext-val      = token / quoted-string
+    //
+    // trailer-part = *( header-field CRLF )
+    //
+    // OWS (Optional Whitespace)        = *( SP / HTAB )
+    // BWS (Must be removed by parser)  = OWS
+    //                                  ; "bad" whitespace
+    //
+    // quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+    // qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
+    // quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
+    // obs-text       = %x80-FF
+    //
     // parse chunk-extensions
 CHECK_EXTNAME:
     // push previous extension
@@ -509,14 +581,13 @@ CHECK_EXTNAME:
     while (TCHAR[str[cur]] > 1) {
         cur++;
     }
-    tail = cur;
-    if (tail == head) {
+    if (cur == head) {
         // disallow empty ext-name
         lua_pushinteger(L, PARSE_EEMPTY);
         return 1;
     }
     key  = (const char *)str + head;
-    klen = tail - head;
+    klen = cur - head;
 
     // found tail
     if (str[cur] == CR) {
@@ -543,10 +614,28 @@ CHECK_EXTNAME:
     // parse ext-val
     skip_bws();
     if (str[cur] == DQUOTE) {
+        int rv = 0;
+
         // parse as a quoted-string
-        cur++;
-        head = cur;
-        goto PARSE_QUOTED_VAL;
+        head = cur + 1;
+        vlen = maxlen;
+        rv   = parse_quoted_string(str, len, &cur, &vlen);
+        switch (rv) {
+        case PARSE_OK:
+            val = (const char *)str + head;
+            // found tail
+            if (str[cur] == CR) {
+                goto CHECK_EOL;
+            }
+            goto CHECK_EOB;
+
+        default:
+            // PARSE_EAGAIN
+            // PARSE_ELEN
+            // PARSE_EILSEQ
+            lua_pushinteger(L, rv);
+            return 1;
+        }
     }
 
     // parse as a token
@@ -554,9 +643,8 @@ CHECK_EXTNAME:
     while (TCHAR[str[cur]] > 1) {
         cur++;
     }
-    tail = cur;
     val  = (const char *)str + head;
-    vlen = tail - head;
+    vlen = cur - head;
     switch (str[cur]) {
     case 0:
         // more bytes need
@@ -579,41 +667,6 @@ CHECK_EOB:
             lua_pushinteger(L, PARSE_EILSEQ);
             return 1;
         }
-    }
-
-PARSE_QUOTED_VAL:
-    while (QDTEXT[str[cur]]) {
-        cur++;
-    }
-    tail = cur;
-    switch (str[cur]) {
-    case 0:
-        // more bytes need
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
-
-    case DQUOTE:
-        val  = (const char *)str + head;
-        vlen = tail - head;
-        // found tail
-        if (str[++cur] == CR) {
-            goto CHECK_EOL;
-        }
-        goto CHECK_EOB;
-
-    case BACKSLASH:
-        // quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
-        switch (VCHAR[str[cur + 1]]) {
-        case 1:
-        case 2: // HT, SP
-            cur += 2;
-            goto PARSE_QUOTED_VAL;
-        }
-        // pass-through
-    default:
-        // found illegal byte sequence
-        lua_pushinteger(L, PARSE_EILSEQ);
-        return 1;
     }
 #undef skip_bws
 }
@@ -1511,17 +1564,18 @@ static int strerror_lua(lua_State *L)
 LUALIB_API int luaopen_net_http_parse(lua_State *L)
 {
     struct luaL_Reg funcs[] = {
-        {"strerror",     strerror_lua    },
-        {"response",     response_lua    },
-        {"request",      request_lua     },
-        {"header",       header_lua      },
-        {"header_name",  header_name_lua },
-        {"header_value", header_value_lua},
-        {"chunksize",    chunksize_lua   },
-        {"tchar",        tchar_lua       },
-        {"vchar",        vchar_lua       },
-        {"cookie_value", cookie_value_lua},
-        {NULL,           NULL            }
+        {"strerror",      strerror_lua     },
+        {"response",      response_lua     },
+        {"request",       request_lua      },
+        {"header",        header_lua       },
+        {"header_name",   header_name_lua  },
+        {"header_value",  header_value_lua },
+        {"chunksize",     chunksize_lua    },
+        {"quoted_string", quoted_string_lua},
+        {"tchar",         tchar_lua        },
+        {"vchar",         vchar_lua        },
+        {"cookie_value",  cookie_value_lua },
+        {NULL,            NULL             }
     };
     struct luaL_Reg *ptr = funcs;
 
