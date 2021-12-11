@@ -117,9 +117,9 @@ static const unsigned char COOKIE_OCTET[256] = {
 
 static int cookie_value_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t i        = 0;
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t i           = 0;
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -202,8 +202,8 @@ static const unsigned char TCHAR[256] = {
 
 static int tchar_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -283,8 +283,8 @@ static const unsigned char VCHAR[256] = {
 
 static int vchar_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -349,7 +349,7 @@ static ssize_t hex2size(unsigned char *str, size_t len, size_t *sz)
     }
 
     // hex to decimal
-    for (ssize_t cur = 0; cur < len; cur++) {
+    for (size_t cur = 0; cur < len; cur++) {
         unsigned char c = HEXDIGIT[str[cur]];
         if (!c) {
             // found non hexdigit
@@ -402,9 +402,9 @@ static const unsigned char QDTEXT[256] = {
 
 static int chunksize_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    ssize_t maxlen  = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
     size_t size     = 0;
     ssize_t cur     = 0;
     ssize_t head    = 0;
@@ -424,7 +424,7 @@ static int chunksize_lua(lua_State *L)
     }
 
     // parse chunk-size
-    cur = hex2size((unsigned char *)str, len, &size);
+    cur = hex2size(str, len, &size);
     if (cur < 0) {
         lua_pushinteger(L, cur);
         return 1;
@@ -515,7 +515,7 @@ CHECK_EXTNAME:
         lua_pushinteger(L, PARSE_EEMPTY);
         return 1;
     }
-    key  = str + head;
+    key  = (const char *)str + head;
     klen = tail - head;
 
     // found tail
@@ -555,7 +555,7 @@ CHECK_EXTNAME:
         cur++;
     }
     tail = cur;
-    val  = str + head;
+    val  = (const char *)str + head;
     vlen = tail - head;
     switch (str[cur]) {
     case 0:
@@ -593,7 +593,7 @@ PARSE_QUOTED_VAL:
         return 1;
 
     case DQUOTE:
-        val  = str + head;
+        val  = (const char *)str + head;
         vlen = tail - head;
         // found tail
         if (str[++cur] == CR) {
@@ -699,16 +699,16 @@ CHECK_AGAIN:
 
 static int header_value_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
-    size_t cur      = 0;
-    int rv          = parse_hval((unsigned char *)str, len, &cur, &maxlen);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
+    size_t cur         = 0;
+    int rv             = parse_hval((unsigned char *)str, len, &cur, &maxlen);
 
     switch (rv) {
     case PARSE_EAGAIN:
         if (VCHAR[str[len - 1]] == 1) {
-            lua_pushlstring(L, str, len);
+            lua_pushlstring(L, (const char *)str, len);
             return 1;
         }
 
