@@ -117,9 +117,9 @@ static const unsigned char COOKIE_OCTET[256] = {
 
 static int cookie_value_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t i        = 0;
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t i           = 0;
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -202,8 +202,8 @@ static const unsigned char TCHAR[256] = {
 
 static int tchar_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -283,8 +283,8 @@ static const unsigned char VCHAR[256] = {
 
 static int vchar_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
         lua_pushinteger(L, PARSE_EAGAIN);
@@ -349,7 +349,7 @@ static ssize_t hex2size(unsigned char *str, size_t len, size_t *sz)
     }
 
     // hex to decimal
-    for (ssize_t cur = 0; cur < len; cur++) {
+    for (size_t cur = 0; cur < len; cur++) {
         unsigned char c = HEXDIGIT[str[cur]];
         if (!c) {
             // found non hexdigit
@@ -402,9 +402,9 @@ static const unsigned char QDTEXT[256] = {
 
 static int chunksize_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    ssize_t maxlen  = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
     size_t size     = 0;
     ssize_t cur     = 0;
     ssize_t head    = 0;
@@ -424,7 +424,7 @@ static int chunksize_lua(lua_State *L)
     }
 
     // parse chunk-size
-    cur = hex2size((unsigned char *)str, len, &size);
+    cur = hex2size(str, len, &size);
     if (cur < 0) {
         lua_pushinteger(L, cur);
         return 1;
@@ -515,7 +515,7 @@ CHECK_EXTNAME:
         lua_pushinteger(L, PARSE_EEMPTY);
         return 1;
     }
-    key  = str + head;
+    key  = (const char *)str + head;
     klen = tail - head;
 
     // found tail
@@ -555,7 +555,7 @@ CHECK_EXTNAME:
         cur++;
     }
     tail = cur;
-    val  = str + head;
+    val  = (const char *)str + head;
     vlen = tail - head;
     switch (str[cur]) {
     case 0:
@@ -593,7 +593,7 @@ PARSE_QUOTED_VAL:
         return 1;
 
     case DQUOTE:
-        val  = str + head;
+        val  = (const char *)str + head;
         vlen = tail - head;
         // found tail
         if (str[++cur] == CR) {
@@ -699,16 +699,16 @@ CHECK_AGAIN:
 
 static int header_value_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
-    size_t cur      = 0;
-    int rv          = parse_hval((unsigned char *)str, len, &cur, &maxlen);
+    size_t len         = 0;
+    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
+    size_t cur         = 0;
+    int rv             = parse_hval((unsigned char *)str, len, &cur, &maxlen);
 
     switch (rv) {
     case PARSE_EAGAIN:
         if (VCHAR[str[len - 1]] == 1) {
-            lua_pushlstring(L, str, len);
+            lua_pushlstring(L, (const char *)str, len);
             return 1;
         }
 
@@ -880,37 +880,42 @@ RETRY:
 
 PUSH_HEADERS:
     while (nhdr) {
-        // check existing value of key
+        // check existing kv table of key
         lua_pushlstring(L, hdridx->key, hdridx->klen);
         lua_rawget(L, tblidx);
         switch (lua_type(L, -1)) {
-        case LUA_TNIL:
+        default: {
+            int ord = lauxh_rawlen(L, tblidx) + 1;
             lua_pop(L, 1);
-            lua_pushlstring(L, hdridx->key, hdridx->klen);
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawset(L, tblidx);
-            break;
-
-        case LUA_TSTRING:
-            lua_pushlstring(L, hdridx->key, hdridx->klen);
+            // create kv table
             lua_createtable(L, 3, 0);
-            // set existing value to table
-            lua_pushvalue(L, -3);
-            lua_rawseti(L, -2, 1);
-            // set value to table
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawseti(L, -2, 2);
-            // replace existing value to table
-            lua_rawset(L, tblidx);
-            lua_pop(L, 1);
-            break;
+            lauxh_pushint2tbl(L, "ord", ord);
+            lauxh_pushlstr2tbl(L, "key", hdridx->key, hdridx->klen);
+            // create kv->vals table
+            lua_pushliteral(L, "vals");
+            lua_createtable(L, 1, 0);
+            lauxh_pushlstr2arr(L, 1, hdridx->val, hdridx->vlen);
+            lua_rawset(L, -3);
 
-        case LUA_TTABLE:
-            // set value to table
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawseti(L, -2, lauxh_rawlen(L, -2) + 1);
-            lua_pop(L, 1);
-            break;
+            // push kv table to tbl[key]
+            lua_pushlstring(L, hdridx->key, hdridx->klen);
+            // copy kv table
+            lua_pushvalue(L, -2);
+            lua_rawset(L, tblidx);
+
+            // push kv table to tbl[ord]
+            lua_rawseti(L, tblidx, ord);
+        } break;
+
+        case LUA_TTABLE: {
+            // get kv->vals table
+            lua_pushliteral(L, "vals");
+            lua_rawget(L, -2);
+            // append to tail
+            lauxh_pushlstr2arr(L, lauxh_rawlen(L, -1) + 1, hdridx->val,
+                               hdridx->vlen);
+            lua_pop(L, 2);
+        } break;
         }
 
         nhdr--;

@@ -17,12 +17,20 @@ function testcase.parse_response()
         header = {},
     }
     assert.equal(parse_response(msg, res), #msg)
+    local kv_server = {
+        ord = 1,
+        key = 'server',
+        vals = {
+            'example-server',
+        },
+    }
     assert.equal(res, {
         status = 200,
         reason = 'OK',
         version = 10,
         header = {
-            server = 'example-server',
+            kv_server,
+            server = kv_server,
         },
     })
 
@@ -41,7 +49,8 @@ function testcase.parse_response()
         reason = 'OK',
         version = 11,
         header = {
-            server = 'example-server',
+            kv_server,
+            server = kv_server,
         },
     })
 
@@ -111,7 +120,8 @@ function testcase.parse_response()
         reason = 'OK',
         version = 10,
         header = {
-            server = 'example-server',
+            kv_server,
+            server = kv_server,
         },
     })
 

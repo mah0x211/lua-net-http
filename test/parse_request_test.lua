@@ -17,12 +17,20 @@ function testcase.parse_request()
         header = {},
     }
     assert.equal(parse_request(msg, req), #msg)
+    local kv_host = {
+        ord = 1,
+        key = 'host',
+        vals = {
+            'example.com',
+        },
+    }
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
         version = 10,
         header = {
-            host = 'example.com',
+            kv_host,
+            host = kv_host,
         },
     })
 
@@ -41,7 +49,8 @@ function testcase.parse_request()
         uri = '/foo/bar/baz/qux',
         version = 11,
         header = {
-            host = 'example.com',
+            kv_host,
+            host = kv_host,
         },
     })
 
@@ -155,16 +164,18 @@ function testcase.parse_request()
             assert.equal(parse_request(msg, req), #msg)
         end
     end
+    kv_host.vals = {
+        'example1.com',
+        'example2.com',
+        'example3.com',
+    }
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
         version = 10,
         header = {
-            host = {
-                'example1.com',
-                'example2.com',
-                'example3.com',
-            },
+            kv_host,
+            host = kv_host,
         },
     })
 

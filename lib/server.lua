@@ -27,6 +27,7 @@
 local InetServer = require('net.stream.inet').server
 local UnixServer = require('net.stream.unix').server
 local ParseRequest = require('net.http.parse').request
+local new_header = require('net.http').header.new
 local NewReaderFromHeader = require('net.http.body').newReaderFromHeader
 local recvfrom = require('net.http.entity').recvfrom
 
@@ -42,12 +43,14 @@ Peer.inherits {
 -- @return err
 -- @return timeout
 function Peer:recvRequest()
+    local header = new_header()
     local req = {
-        header = {},
+        header = header.dict,
     }
     local ok, excess, err, timeout = recvfrom(self, ParseRequest, req)
 
     if ok then
+        req.header = header
         req.body = NewReaderFromHeader(req.header, self, excess)
         return req
     end
