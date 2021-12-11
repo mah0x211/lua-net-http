@@ -115,14 +115,16 @@ function Request:sendto(sock)
     if not len or err or timeout then
         return nil, err, timeout
     else
+        local header = Header.new()
         local res = {
-            header = {},
+            header = header.dict,
         }
         local ok, excess
 
         -- recv response
         ok, excess, err, timeout = recvfrom(sock, ParseResponse, res)
         if ok then
+            res.header = header
             res.body = Body.newReaderFromHeader(res.header, sock, excess)
             return res
         end

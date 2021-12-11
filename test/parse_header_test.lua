@@ -8,20 +8,23 @@ function testcase.parse_header()
     local msg = 'Foo: foo-value\r\n' .. 'Bar: bar-value\r\n' .. '\r\n'
     local header = {}
     assert.equal(parse_header(msg, header), #msg)
-    assert.equal(header, {foo = 'foo-value', bar = 'bar-value'})
+    local kv_foo = {ord = 1, key = 'foo', vals = {'foo-value'}}
+    local kv_bar = {ord = 2, key = 'bar', vals = {'bar-value'}}
+    assert.equal(header, {kv_foo, kv_bar, foo = kv_foo, bar = kv_bar})
 
     -- test that parse header lines that terminate by LF
     msg = 'Foo: foo-value\n' .. 'Bar: bar-value\n' .. '\n'
     header = {}
     assert.equal(parse_header(msg, header), #msg)
-    assert.equal(header, {foo = 'foo-value', bar = 'bar-value'})
+    assert.equal(header, {kv_foo, kv_bar, foo = kv_foo, bar = kv_bar})
 
     -- test that ignore empty-value
     msg = table.concat({
         'Foo: foo-value', 'Bar: ', 'Baz: baz-value', 'Qux: \n\n'}, '\n')
     header = {}
     assert.equal(parse_header(msg, header), #msg)
-    assert.equal(header, {foo = 'foo-value', baz = 'baz-value'})
+    local kv_baz = {ord = 2, key = 'baz', vals = {'baz-value'}}
+    assert.equal(header, {kv_foo, kv_baz, foo = kv_foo, baz = kv_baz})
 
     -- test that insert multiple same name headers into array
     msg = table.concat({
@@ -30,12 +33,15 @@ function testcase.parse_header()
         'Host: 1.example.com 2.example.com\t3.example.com\n\n'}, '\n')
     header = {}
     assert.equal(parse_header(msg, header), #msg)
-    assert.equal(header, {
-        hello = 'world!',
-        host = {
+    local kv_hello = {ord = 1, key = 'hello', vals = {'world!'}}
+    local kv_host = {
+        ord = 2,
+        key = 'host',
+        vals = {
             'example1.com', 'example2.com', 'example3.com',
             '1.example.com 2.example.com\t3.example.com'},
-    })
+    }
+    assert.equal(header, {kv_hello, kv_host, hello = kv_hello, host = kv_host})
 
     -- test that cannot parse header lines that not terminate by LF
     msg = 'Foo: foo-value\r' .. 'Bar: bar-value\r' .. '\r'
@@ -46,7 +52,7 @@ function testcase.parse_header()
     msg = line .. 'Foo: foo-value\n' .. 'Bar: bar-value\n' .. '\n'
     header = {}
     assert.equal(parse_header(msg, header, #line), #msg)
-    assert.equal(header, {foo = 'foo-value', bar = 'bar-value'})
+    assert.equal(header, {kv_foo, kv_bar, foo = kv_foo, bar = kv_bar})
 
     -- test that limit the length of header line
     msg = 'Foo: foo-value\n' .. 'Bar: bar-value\n' .. '\n'
@@ -59,11 +65,17 @@ function testcase.parse_header()
     header = {}
     assert.equal(parse_header(msg, {}, nil, nil, 3), parse.EHDRNUM)
     assert.equal(parse_header(msg, header, nil, nil, 4), #msg)
+    local kv_qux = {ord = 4, key = 'qux', vals = {'qux-value'}}
+    kv_baz.ord = 3
     assert.equal(header, {
-        foo = 'foo-value',
-        bar = 'bar-value',
-        baz = 'baz-value',
-        qux = 'qux-value',
+        kv_foo,
+        kv_bar,
+        kv_baz,
+        kv_qux,
+        foo = kv_foo,
+        bar = kv_bar,
+        baz = kv_baz,
+        qux = kv_qux,
     })
 
     -- test that cannot parse invalide header name

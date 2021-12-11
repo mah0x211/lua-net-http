@@ -880,37 +880,42 @@ RETRY:
 
 PUSH_HEADERS:
     while (nhdr) {
-        // check existing value of key
+        // check existing kv table of key
         lua_pushlstring(L, hdridx->key, hdridx->klen);
         lua_rawget(L, tblidx);
         switch (lua_type(L, -1)) {
-        case LUA_TNIL:
+        default: {
+            int ord = lauxh_rawlen(L, tblidx) + 1;
             lua_pop(L, 1);
-            lua_pushlstring(L, hdridx->key, hdridx->klen);
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawset(L, tblidx);
-            break;
-
-        case LUA_TSTRING:
-            lua_pushlstring(L, hdridx->key, hdridx->klen);
+            // create kv table
             lua_createtable(L, 3, 0);
-            // set existing value to table
-            lua_pushvalue(L, -3);
-            lua_rawseti(L, -2, 1);
-            // set value to table
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawseti(L, -2, 2);
-            // replace existing value to table
-            lua_rawset(L, tblidx);
-            lua_pop(L, 1);
-            break;
+            lauxh_pushint2tbl(L, "ord", ord);
+            lauxh_pushlstr2tbl(L, "key", hdridx->key, hdridx->klen);
+            // create kv->vals table
+            lua_pushliteral(L, "vals");
+            lua_createtable(L, 1, 0);
+            lauxh_pushlstr2arr(L, 1, hdridx->val, hdridx->vlen);
+            lua_rawset(L, -3);
 
-        case LUA_TTABLE:
-            // set value to table
-            lua_pushlstring(L, hdridx->val, hdridx->vlen);
-            lua_rawseti(L, -2, lauxh_rawlen(L, -2) + 1);
-            lua_pop(L, 1);
-            break;
+            // push kv table to tbl[key]
+            lua_pushlstring(L, hdridx->key, hdridx->klen);
+            // copy kv table
+            lua_pushvalue(L, -2);
+            lua_rawset(L, tblidx);
+
+            // push kv table to tbl[ord]
+            lua_rawseti(L, tblidx, ord);
+        } break;
+
+        case LUA_TTABLE: {
+            // get kv->vals table
+            lua_pushliteral(L, "vals");
+            lua_rawget(L, -2);
+            // append to tail
+            lauxh_pushlstr2arr(L, lauxh_rawlen(L, -1) + 1, hdridx->val,
+                               hdridx->vlen);
+            lua_pop(L, 2);
+        } break;
         }
 
         nhdr--;

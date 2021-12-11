@@ -1,6 +1,7 @@
 require('luacov')
 local assert = require('assertex')
 local testcase = require('testcase')
+local new_header = require('net.http').header.new
 local body = require('net.http.body')
 
 function testcase.new()
@@ -328,12 +329,26 @@ function testcase.chunk_reader()
     local bdata, trailer, err, timeout = b:read()
     assert.equal(ncall, 1)
     assert.equal(bdata, msg)
-    assert.equal(trailer, {
-        hello = {
+    local kv_hello = {
+        ord = 1,
+        key = 'hello',
+        vals = {
             'trailer-part1-1',
             'trailer-part1-2',
         },
-        world = 'trailer-part2',
+    }
+    local kv_world = {
+        ord = 2,
+        key = 'world',
+        vals = {
+            'trailer-part2',
+        },
+    }
+    assert.equal(trailer, {
+        kv_hello,
+        kv_world,
+        hello = kv_hello,
+        world = kv_world,
     })
     assert.is_nil(err)
     assert.is_nil(timeout)
@@ -343,11 +358,10 @@ function testcase.chunk_reader()
     assert.equal(ncall, 1)
     assert.equal(bdata, msg)
     assert.equal(trailer, {
-        hello = {
-            'trailer-part1-1',
-            'trailer-part1-2',
-        },
-        world = 'trailer-part2',
+        kv_hello,
+        kv_world,
+        hello = kv_hello,
+        world = kv_world,
     })
     assert.is_nil(err)
     assert.is_nil(timeout)
@@ -459,27 +473,35 @@ function testcase.chunk_reader()
 end
 
 function testcase.new_reader_from_header()
+    local header = new_header()
     -- test that returns the result of newNilReader
-    local b = body.newReaderFromHeader({}, 'hello')
+    local b = body.newReaderFromHeader(header, 'hello')
     assert.is_nil(b:length())
     assert.is_nil(b:read())
 
     -- test that returns the result of newContentReader
-    b = body.newReaderFromHeader({
-        ['content-length'] = '5',
-    }, 'hello')
+    header:set('content-length', 5)
+    b = body.newReaderFromHeader(header, 'hello')
     assert.equal(b:length(), 5)
     assert.equal(b:read(), 'hello')
 
     -- test that returns the result of newChunkedReader
-    b = body.newReaderFromHeader({
-        ['transfer-encoding'] = 'chunked',
-    }, '5\r\nhello\r\n0\r\nhello: world\r\n\r\n')
+    header:set('transfer-encoding', 'chunked')
+    b = body.newReaderFromHeader(header,
+                                 '5\r\nhello\r\n0\r\nhello: world\r\n\r\n')
     local bdata, trailer = b:read()
     assert.is_nil(b:length())
     assert.equal(bdata, 'hello')
+    local kv_hello = {
+        ord = 1,
+        key = 'hello',
+        vals = {
+            'world',
+        },
+    }
     assert.equal(trailer, {
-        hello = 'world',
+        kv_hello,
+        hello = kv_hello,
     })
 
     -- test that throws an error with invalid header argument
