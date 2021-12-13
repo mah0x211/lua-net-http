@@ -679,6 +679,11 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
     unsigned char c = 0;
 
     for (; pos < len; pos++) {
+        // check length
+        if (pos > *maxhdrlen) {
+            return PARSE_EHDRLEN;
+        }
+
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
@@ -708,11 +713,6 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
             // remove OWS
             while (tail > 0 && (str[tail - 1] == SP || str[tail - 1] == HT)) {
                 tail--;
-            }
-
-            // check length
-            if (tail > *maxhdrlen) {
-                return PARSE_EHDRLEN;
             }
 
             *cur       = pos;
@@ -783,6 +783,10 @@ static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
     unsigned char c = 0;
 
     for (; pos < len; pos++) {
+        if (pos > *maxhdrlen) {
+            return PARSE_EHDRLEN;
+        }
+
         c = TCHAR[str[pos]];
         switch (c) {
         // illegal byte sequence
@@ -794,8 +798,6 @@ static int parse_hkey(unsigned char *str, size_t len, size_t *cur,
             // check length
             if (pos == 0) {
                 return PARSE_EHDRNAME;
-            } else if (pos > *maxhdrlen) {
-                return PARSE_EHDRLEN;
             }
 
             *maxhdrlen = pos;
@@ -1039,8 +1041,8 @@ static int parse_version(unsigned char *str, size_t len, size_t *cur, int *ver)
 static int parse_method(unsigned char *str, size_t len, size_t *cur,
                         size_t *mlen)
 {
-// method length
-#define METHOD_LEN 7
+// maximum method length with SP
+#define METHOD_LEN 8
 
     // methods
     static match64bit_u M_GET     = {.str = "GET"};
@@ -1052,79 +1054,83 @@ static int parse_method(unsigned char *str, size_t len, size_t *cur,
     static match64bit_u M_TRACE   = {.str = "TRACE"};
     static match64bit_u M_CONNECT = {.str = "CONNECT"};
 
-    if (len <= METHOD_LEN) {
+    size_t pos       = *cur;
+    size_t maxlen    = pos + METHOD_LEN;
+    match64bit_u src = {.bit = 0};
+
+    if (len < maxlen) {
         return PARSE_EAGAIN;
-    } else {
-        void *sp = memchr((const void *)str, SP, len);
-
-        if (sp) {
-            size_t slen      = (uintptr_t)sp - (uintptr_t)str;
-            match64bit_u src = {.bit = 0};
-
-            *mlen = slen;
-            *cur  = slen + 1;
-
-            switch (slen) {
-            case 3:
-                src.str[0] = str[0];
-                src.str[1] = str[1];
-                src.str[2] = str[2];
-                if (src.bit == M_GET.bit || src.bit == M_PUT.bit) {
-                    return PARSE_OK;
-                }
-                return PARSE_EMETHOD;
-
-            case 4:
-                src.str[0] = str[0];
-                src.str[1] = str[1];
-                src.str[2] = str[2];
-                src.str[3] = str[3];
-                if (src.bit == M_POST.bit || src.bit == M_HEAD.bit) {
-                    return PARSE_OK;
-                }
-                return PARSE_EMETHOD;
-
-            case 5:
-                src.str[0] = str[0];
-                src.str[1] = str[1];
-                src.str[2] = str[2];
-                src.str[3] = str[3];
-                src.str[4] = str[4];
-                if (src.bit == M_TRACE.bit) {
-                    return PARSE_OK;
-                }
-                return PARSE_EMETHOD;
-
-            case 6:
-                src.str[0] = str[0];
-                src.str[1] = str[1];
-                src.str[2] = str[2];
-                src.str[3] = str[3];
-                src.str[4] = str[4];
-                src.str[5] = str[5];
-                if (src.bit == M_DELETE.bit) {
-                    return PARSE_OK;
-                }
-                return PARSE_EMETHOD;
-
-            case 7:
-                src.str[0] = str[0];
-                src.str[1] = str[1];
-                src.str[2] = str[2];
-                src.str[3] = str[3];
-                src.str[4] = str[4];
-                src.str[5] = str[5];
-                src.str[6] = str[6];
-                if (src.bit == M_OPTIONS.bit || src.bit == M_CONNECT.bit) {
-                    return PARSE_OK;
-                }
-                return PARSE_EMETHOD;
-            }
+    }
+    while (str[pos] != SP) {
+        pos++;
+        if (pos == maxlen) {
+            // method not implemented
+            return PARSE_EMETHOD;
         }
+    }
+    len   = pos - *cur;
+    *mlen = len;
+    *cur  = pos + 1;
 
-        // method not implemented
+    switch (len) {
+    case 3:
+        src.str[0] = str[0];
+        src.str[1] = str[1];
+        src.str[2] = str[2];
+        if (src.bit == M_GET.bit || src.bit == M_PUT.bit) {
+            return PARSE_OK;
+        }
+        return PARSE_EMETHOD;
+
+    case 4:
+        src.str[0] = str[0];
+        src.str[1] = str[1];
+        src.str[2] = str[2];
+        src.str[3] = str[3];
+        if (src.bit == M_POST.bit || src.bit == M_HEAD.bit) {
+            return PARSE_OK;
+        }
+        return PARSE_EMETHOD;
+
+    case 5:
+        src.str[0] = str[0];
+        src.str[1] = str[1];
+        src.str[2] = str[2];
+        src.str[3] = str[3];
+        src.str[4] = str[4];
+        if (src.bit == M_TRACE.bit) {
+            return PARSE_OK;
+        }
+        return PARSE_EMETHOD;
+
+    case 6:
+        src.str[0] = str[0];
+        src.str[1] = str[1];
+        src.str[2] = str[2];
+        src.str[3] = str[3];
+        src.str[4] = str[4];
+        src.str[5] = str[5];
+        if (src.bit == M_DELETE.bit) {
+            return PARSE_OK;
+        }
+        return PARSE_EMETHOD;
+
+    case 7:
+        src.str[0] = str[0];
+        src.str[1] = str[1];
+        src.str[2] = str[2];
+        src.str[3] = str[3];
+        src.str[4] = str[4];
+        src.str[5] = str[5];
+        src.str[6] = str[6];
+        if (src.bit == M_OPTIONS.bit || src.bit == M_CONNECT.bit) {
+            return PARSE_OK;
+        }
         return PARSE_EMETHOD;
     }
+
+    // method not implemented
+    return PARSE_EMETHOD;
 
 #undef METHOD_LEN
 }
@@ -1337,6 +1343,11 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
     unsigned char c = 0;
 
     for (; pos < len; pos++) {
+        // phrase-length too large
+        if (pos > *maxlen) {
+            return PARSE_ELEN;
+        }
+
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
@@ -1345,10 +1356,6 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
 
         // LF or CR
         case 3:
-            // phrase-length too large
-            if (pos > *maxlen) {
-                return PARSE_ELEN;
-            }
             *maxlen = pos;
 
             // found LF
