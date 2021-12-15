@@ -1146,7 +1146,8 @@ typedef union {
     uint64_t bit;
 } match64bit_u;
 
-static int parse_version(unsigned char *str, size_t len, size_t *cur, int *ver)
+static int parse_version(unsigned char *str, size_t len, size_t *cur,
+                         double *ver)
 {
 // version length: HTTP/x.x
 #define VER_LEN 8
@@ -1163,12 +1164,12 @@ static int parse_version(unsigned char *str, size_t len, size_t *cur, int *ver)
         *cur = VER_LEN;
         // HTTP/1.1
         if (src.bit == V_11.bit) {
-            *ver = 11;
+            *ver = 1.1;
             return PARSE_OK;
         }
         // HTTP/1.0
         else if (src.bit == V_10.bit) {
-            *ver = 10;
+            *ver = 1.0;
             return PARSE_OK;
         }
     }
@@ -1367,7 +1368,7 @@ static int request_lua(lua_State *L)
     size_t mlen         = 0;
     const char *uri     = NULL;
     size_t ulen         = 0;
-    int ver             = 0;
+    double ver          = 0;
     size_t cur          = 0;
     int rv              = 0;
 
@@ -1459,7 +1460,7 @@ CHECK_URI:
     // set result to table
     lauxh_pushlstr2tbl(L, "method", method, mlen);
     lauxh_pushlstr2tbl(L, "uri", uri, ulen);
-    lauxh_pushint2tbl(L, "version", ver);
+    lauxh_pushnum2tbl(L, "version", ver);
     // number of bytes consumed
     str += cur;
 
@@ -1569,7 +1570,7 @@ static int response_lua(lua_State *L)
     unsigned char *head = str;
     size_t hlen         = len;
     size_t cur          = 0;
-    int ver             = 0;
+    double ver          = 0;
     int status          = 0;
     const char *reason  = NULL;
     size_t rlen         = 0;
@@ -1624,7 +1625,7 @@ SKIP_NEXT_CRLF:
     }
 
     // set result to table
-    lauxh_pushint2tbl(L, "version", ver);
+    lauxh_pushnum2tbl(L, "version", ver);
     lauxh_pushint2tbl(L, "status", status);
     lauxh_pushlstr2tbl(L, "reason", reason, rlen);
     // number of bytes consumed

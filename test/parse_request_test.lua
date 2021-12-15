@@ -27,7 +27,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 10,
+        version = 1.0,
         header = {
             kv_host,
             host = kv_host,
@@ -47,7 +47,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 11,
+        version = 1.1,
         header = {
             kv_host,
             host = kv_host,
@@ -71,7 +71,7 @@ function testcase.parse_request()
         assert.equal(req, {
             method = method,
             uri = '/foo/bar/baz/qux',
-            version = 11,
+            version = 1.1,
         })
     end
 
@@ -98,7 +98,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 11,
+        version = 1.1,
         header = {},
     })
 
@@ -111,7 +111,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 11,
+        version = 1.1,
         header = {},
     })
 
@@ -172,7 +172,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 10,
+        version = 1.0,
         header = {
             kv_host,
             host = kv_host,
@@ -187,8 +187,7 @@ function testcase.parse_request()
     assert.equal(req, {
         method = 'GET',
         uri = '/foo/bar/baz/qux',
-        version = 10,
+        version = 1.0,
     })
-
 end
 

@@ -27,7 +27,7 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 10,
+        version = 1.0,
         header = {
             kv_server,
             server = kv_server,
@@ -47,7 +47,7 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 11,
+        version = 1.1,
         header = {
             kv_server,
             server = kv_server,
@@ -71,7 +71,7 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 10,
+        version = 1.0,
         header = {},
     })
 
@@ -84,7 +84,7 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 11,
+        version = 1.1,
         header = {},
     })
 
@@ -118,7 +118,7 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 10,
+        version = 1.0,
         header = {
             kv_server,
             server = kv_server,
@@ -133,6 +133,6 @@ function testcase.parse_response()
     assert.equal(res, {
         status = 200,
         reason = 'OK',
-        version = 10,
+        version = 1.0,
     })
 end
