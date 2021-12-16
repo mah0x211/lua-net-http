@@ -24,9 +24,10 @@
 -- Created by Masatoshi Teruya on 17/08/01.
 --
 --- assign to local
-local type = type
-local assert = assert
-local strformat = string.format
+local error = error
+local format = string.format
+local is_uint = require('isa').uint
+local is_finite = require('isa').finite
 --- constants
 local CRLF = '\r\n'
 local STATUS_MSG = {
@@ -103,40 +104,40 @@ for k, v in pairs(STATUS_MSG) do
     STATUS_LINE11[k] = 'HTTP/1.1 ' .. v .. CRLF
 end
 
---- toLine
--- @param code
--- @param ver
--- @return msg
--- @return err
-local function toLine(code, ver)
+--- toline
+--- @param code integer
+--- @param ver number
+--- @return string msg
+--- @return string err
+local function toline(code, ver)
     local msg
 
-    assert(type(code) == 'number', 'code must be number')
-    if ver == nil then
+    if not is_uint(code) then
+        error('code must be number', 2)
+    elseif ver == nil then
         msg = STATUS_MSG[code]
-    else
-        assert(type(ver) == 'number', 'ver must be number')
+    elseif not is_finite(ver) then
+        error('ver must be finite-number', 2)
+    elseif ver == 1.0 then
         -- http/1.0
-        if ver == 1.0 then
-            msg = STATUS_LINE10[code]
-            -- http/1.1
-        elseif ver == 1.1 then
-            msg = STATUS_LINE11[code]
-            -- invalid version number
-        else
-            return nil, strformat('unsupported version %q', ver)
-        end
+        msg = STATUS_LINE10[code]
+    elseif ver == 1.1 then
+        -- http/1.1
+        msg = STATUS_LINE11[code]
+    else
+        -- invalid version number
+        return nil, format('unsupported version %q', ver)
     end
 
     if not msg then
-        return nil, strformat('unsupported status code %q', code)
+        return nil, format('unsupported status code %q', code)
     end
 
     return msg
 end
 
 return {
-    toLine = toLine,
+    toline = toline,
     --- status names
     -- 1×× Informational
     CONTINUE = 100,
