@@ -454,6 +454,155 @@ static int quoted_string_lua(lua_State *L)
     return 1;
 }
 
+static inline int skip_ws(unsigned char *str, size_t len, size_t *cur,
+                          size_t maxlen)
+{
+    size_t pos = *cur;
+
+SKIP_NEXT:
+    if (pos < len) {
+        // length too large
+        if (pos >= maxlen) {
+            return PARSE_ELEN;
+        }
+
+        // skip SP and HT
+        switch (str[pos]) {
+        case SP:
+        case HT:
+            pos++;
+            goto SKIP_NEXT;
+        }
+    }
+
+    *cur = pos;
+    return PARSE_OK;
+}
+
+/**
+ * 5.6.6. Parameters
+ * https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#parameter
+ *
+ * Parameters are instances of name=value pairs; they are often used in
+ * field values as a common syntax for appending auxiliary information to an
+ * item. Each parameter is usually delimited by an immediately preceding
+ * semicolon.
+ *
+ *  parameters      = *( OWS ";" OWS [ parameter ] )
+ *  parameter       = parameter-name "=" parameter-value
+ *  parameter-name  = token
+ *  parameter-value = ( token / quoted-string )
+ *
+ * Parameter names are case-insensitive. Parameter values might or might
+ * not be case-sensitive, depending on the semantics of the parameter name.
+ * Examples of parameters and some equivalent forms can be seen in media
+ * types (Section 8.3.1) and the Accept header field (Section 12.5.1).
+ *
+ * A parameter value that matches the token production can be transmitted
+ * either as a token or within a quoted-string. The quoted and unquoted
+ * values are equivalent.
+ *
+ * Note: Parameters do not allow whitespace (not even "bad" whitespace)
+ * around the "=" character.
+ * verify parameters
+ */
+
+static int parameters_lua(lua_State *L)
+{
+    size_t len            = 0;
+    unsigned char *str    = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    const uint16_t maxlen = lauxh_optuint16(L, 3, DEFAULT_STR_MAXLEN);
+    size_t cur            = 0;
+    size_t head           = 0;
+
+    // check container table
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
+
+    if (!len) {
+        lua_pushinteger(L, PARSE_EAGAIN);
+        return 1;
+    }
+
+    // parse parameter-name
+CHECK_PARAM:
+    // skip OWS
+    if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
+        lua_pushinteger(L, PARSE_ELEN);
+        return 1;
+    }
+    head = cur;
+    for (unsigned char c = TCHAR[str[cur]]; c > 1; c = TCHAR[str[cur]]) {
+        str[cur++] = c;
+        if (cur > maxlen) {
+            lua_pushinteger(L, PARSE_ELEN);
+            return 1;
+        }
+    }
+    if (str[cur] != '=') {
+        lua_pushinteger(L, PARSE_EILSEQ);
+        return 1;
+    }
+    lua_pushlstring(L, (const char *)str + head, cur - head);
+    cur++;
+
+    // parse parameter-value
+    head = cur;
+    if (str[cur] == DQUOTE) {
+        size_t qlen = maxlen;
+        // parse as a quoted-string
+        head++;
+        switch (parse_quoted_string(str, len, &cur, &qlen)) {
+        case PARSE_OK:
+            lua_pushlstring(L, (const char *)str + head, qlen);
+            lua_rawset(L, 2);
+            goto CHECK_EOL;
+
+        case PARSE_EAGAIN:
+            // more bytes need
+            lua_pushinteger(L, PARSE_EAGAIN);
+            return 1;
+
+        // PARSE_EILSEQ
+        default:
+            // found illegal byte sequence
+            lua_pushinteger(L, PARSE_EILSEQ);
+            return 1;
+        }
+    }
+    // parse as a token
+    while (TCHAR[str[cur]] > 1) {
+        if (cur >= maxlen) {
+            lua_pushinteger(L, PARSE_ELEN);
+            return 1;
+        }
+        cur++;
+    }
+    lua_pushlstring(L, (const char *)str + head, cur - head);
+    lua_rawset(L, 2);
+
+CHECK_EOL:
+    if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
+        lua_pushinteger(L, PARSE_ELEN);
+        return 1;
+    }
+    switch (str[cur]) {
+    case 0:
+        lua_pushinteger(L, PARSE_OK);
+        return 1;
+
+    case ';':
+        // check next parameter
+        cur++;
+        goto CHECK_PARAM;
+
+    default:
+        // found illegal byte sequence
+        lua_pushinteger(L, PARSE_EILSEQ);
+        return 1;
+    }
+}
+
 #define DEFAULT_CHUNKSIZE_MAXLEN 4096
 
 static int chunksize_lua(lua_State *L)
@@ -487,23 +636,15 @@ static int chunksize_lua(lua_State *L)
 
 #define skip_bws()                                                             \
  do {                                                                          \
-  /* chunksize line-length too large */                                        \
-  if (cur >= maxlen) {                                                         \
+  if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {                           \
    lua_pushinteger(L, PARSE_ELEN);                                             \
    return 1;                                                                   \
-  }                                                                            \
-  switch (str[cur]) {                                                          \
-  case SP:                                                                     \
-  case HT:                                                                     \
-   cur++;                                                                      \
-   continue;                                                                   \
-  case 0:                                                                      \
+  } else if (str[cur] == 0) {                                                  \
    /* more bytes need */                                                       \
    lua_pushinteger(L, PARSE_EAGAIN);                                           \
    return 1;                                                                   \
   }                                                                            \
-  break;                                                                       \
- } while (1)
+ } while (0)
 
     // found tail
     if (str[cur] == CR) {
@@ -1578,6 +1719,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
         {"header_name",   header_name_lua  },
         {"header_value",  header_value_lua },
         {"chunksize",     chunksize_lua    },
+        {"parameters",    parameters_lua   },
         {"quoted_string", quoted_string_lua},
         {"tchar",         tchar_lua        },
         {"vchar",         vchar_lua        },
