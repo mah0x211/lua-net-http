@@ -79,7 +79,7 @@ function testcase.status_code()
 end
 
 function testcase.toline()
-    local toline = status.toLine
+    local toline = status.toline
 
     -- test that returns a status message
     for _, code in pairs(STATUS_CODE) do

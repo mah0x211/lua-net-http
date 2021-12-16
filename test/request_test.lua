@@ -49,13 +49,13 @@ local function create_server(tlscfg)
                 msg = string.sub(data, 1, consumed)
 
                 if string.find(msg, 'x-response: no-content', 1, true) then
-                    c:send(status.toLine(204, 1.1) .. table.concat({
+                    c:send(status.toline(204, 1.1) .. table.concat({
                         'Date: ' .. date.now(),
                         'Server: test-server',
                         '\r\n',
                     }, '\r\n'))
                 else
-                    c:send(status.toLine(200, 1.1) .. table.concat({
+                    c:send(status.toline(200, 1.1) .. table.concat({
                         'Date: ' .. date.now(),
                         'Server: test-server',
                         'Content-Length: ' .. #msg,
