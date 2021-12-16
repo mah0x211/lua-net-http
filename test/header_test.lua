@@ -219,6 +219,48 @@ function testcase.pairs()
         'field-foo: baz',
         'field-qux: quux',
     })
+end
 
+function testcase.write()
+    local h = header.new()
+    assert(h:set('field-foo', {
+        'foo',
+        'bar',
+        'baz',
+    }))
+    assert(h:set('field-qux', {
+        'quux',
+    }))
+
+    -- test that send headers
+    local arr = {}
+    local len, err, timeout = h:write({
+        write = function(_, data)
+            arr[#arr + 1] = data
+            return true
+        end,
+    })
+    assert.equal(len, #table.concat(arr))
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.equal(arr, {
+        'field-foo: foo\r\n',
+        'field-foo: bar\r\n',
+        'field-foo: baz\r\n',
+        'field-qux: quux\r\n',
+        '\r\n',
+    })
+
+    -- test that return error
+    arr = {}
+    len, err, timeout = h:write({
+        write = function()
+            return false, 'write-error', true
+        end,
+    })
+    assert.equal(len, 0)
+    assert.equal(err, 'write-error')
+    assert.is_true(timeout)
+    assert.equal(arr, {})
 end
 
