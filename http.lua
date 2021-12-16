@@ -24,12 +24,16 @@ local tointeger = require('tointeger')
 local string = require('stringex')
 local lower = string.lower
 local trim_space = string.trim_space
+local split = string.split
 local isa = require('isa')
 local is_string = isa.string
 local is_table = isa.table
-local parse_strerror = require('net.http.parse').strerror
-local parse_header_name = require('net.http.parse').header_name
-local parse_header_value = require('net.http.parse').header_value
+local parse = require('net.http.parse')
+local parse_strerror = parse.strerror
+local parse_header_name = parse.header_name
+local parse_header_value = parse.header_value
+local parse_tchar = parse.tchar
+local parse_parameters = parse.parameters
 --- constants
 
 --- @class net.http.Header
@@ -41,6 +45,75 @@ local Header = {}
 function Header:init()
     self.dict = {}
     return self
+end
+
+--- has_content_type
+--- @return boolean ok
+--- @return string err
+--- @return string mime
+--- @return table<string, string> params
+function Header:has_content_type()
+    local kv = self.dict['content-type']
+    if not kv then
+        return false
+    end
+    -- use last value
+    local mime = split(trim_space(kv.vals[#kv.vals]), '%s*;%s*', false, 1)
+
+    -- 8.3.1. Media Type
+    -- https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#name-media-type
+    --
+    -- HTTP uses media types [RFC2046] in the Content-Type (Section 8.3) and
+    -- Accept (Section 12.5.1) header fields in order to provide open and extensible
+    -- data typing and type negotiation. Media types define both a data format and
+    -- various processing models: how to process that data in accordance with the
+    -- message context.
+    --
+    --  media-type = type "/" subtype parameters
+    --  type       = token
+    --  subtype    = token
+    --
+    -- verify media-type
+    local media = split(mime[1], '/', true, 1)
+    if #media ~= 2 or parse_tchar(media[1]) ~= parse.OK or parse_tchar(media[2]) ~=
+        parse.OK then
+        return false, 'invalid media-type format'
+    elseif #mime == 1 then
+        return true, nil, mime[1]
+    end
+
+    -- 5.6.6. Parameters
+    -- https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#parameter
+    --
+    -- Parameters are instances of name=value pairs; they are often used in
+    -- field values as a common syntax for appending auxiliary information to an
+    -- item. Each parameter is usually delimited by an immediately preceding
+    -- semicolon.
+    --
+    --  parameters      = *( OWS ";" OWS [ parameter ] )
+    --  parameter       = parameter-name "=" parameter-value
+    --  parameter-name  = token
+    --  parameter-value = ( token / quoted-string )
+    --
+    -- Parameter names are case-insensitive. Parameter values might or might
+    -- not be case-sensitive, depending on the semantics of the parameter name.
+    -- Examples of parameters and some equivalent forms can be seen in media
+    -- types (Section 8.3.1) and the Accept header field (Section 12.5.1).
+    --
+    -- A parameter value that matches the token production can be transmitted
+    -- either as a token or within a quoted-string. The quoted and unquoted
+    -- values are equivalent.
+    --
+    -- Note: Parameters do not allow whitespace (not even "bad" whitespace)
+    -- around the "=" character.
+    --
+    -- verify parameters
+    local parameters = {}
+    if parse_parameters(mime[2], parameters) ~= parse.OK then
+        return false, 'invalid media-type parameters format'
+    end
+
+    return true, nil, mime[1], parameters
 end
 
 --- has_transfer_encoding_chunked

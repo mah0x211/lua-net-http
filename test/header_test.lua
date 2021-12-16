@@ -145,6 +145,58 @@ function testcase.has_content_length()
     assert.equal(len, 123)
 end
 
+function testcase.has_content_type()
+    local h = header.new()
+
+    -- test that return false
+    assert.is_false(h:has_content_type())
+
+    -- test that return true and content-type
+    h:set('content-type', 'foo/bar')
+    local ok, err, mime, params = h:has_content_type()
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(mime, 'foo/bar')
+    assert.is_nil(params)
+
+    -- test that use last value
+    h:add('content-type', 'baa/baz')
+    ok, err, mime, params = h:has_content_type()
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(mime, 'baa/baz')
+    assert.is_nil(params)
+
+    -- test that parse parameters
+    h:add('content-type',
+          'baa/baz ; charset=hello ; Charset="utf-8"; format=flowed; delsp=yes ')
+    ok, err, mime, params = h:has_content_type()
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(mime, 'baa/baz')
+    assert.equal(params, {
+        charset = 'utf-8',
+        format = 'flowed',
+        delsp = 'yes',
+    })
+
+    -- test that returns invalid media-type format error
+    h:set('content-type', 'foo/b@r')
+    ok, err, mime, params = h:has_content_type()
+    assert.is_false(ok)
+    assert.match(err, 'invalid media-type format')
+    assert.is_nil(mime)
+    assert.is_nil(params)
+
+    -- test that returns invalid media-type parameters format error
+    h:set('content-type', 'foo/bar ; n@me=value')
+    ok, err, mime, params = h:has_content_type()
+    assert.is_false(ok)
+    assert.match(err, 'invalid media-type parameters format')
+    assert.is_nil(mime)
+    assert.is_nil(params)
+end
+
 function testcase.pairs()
     local h = header.new()
 
