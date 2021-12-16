@@ -23,6 +23,7 @@ local error = error
 local tointeger = require('tointeger')
 local string = require('stringex')
 local lower = string.lower
+local format = string.format
 local trim_space = string.trim_space
 local split = string.split
 local isa = require('isa')
@@ -309,6 +310,31 @@ function Header:pairs()
             kv = dict[ord]
         end
     end
+end
+
+--- send headers to peer
+--- @param writer table|userdata
+--- @return integer len
+--- @return string? err
+--- @return boolean? timeout
+function Header:write(writer)
+    local total = 0
+
+    for k, v in self:pairs() do
+        local s = format('%s: %s\r\n', k, v)
+        local ok, err, timeout = writer:write(s)
+        if not ok or err or timeout then
+            return total, err, timeout
+        end
+        total = total + #s
+    end
+
+    local ok, err, timeout = writer:write('\r\n')
+    if not ok then
+        return total, err, timeout
+    end
+
+    return total + 2
 end
 
 Header = require('metamodule').new.Header(Header)
