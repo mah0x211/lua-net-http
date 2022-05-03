@@ -1,5 +1,4 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
 local date = require('net.http.date')
 local nsleep = require('process').nsleep

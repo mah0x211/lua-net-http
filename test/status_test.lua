@@ -1,5 +1,4 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
 local status = require('net.http.status')
 local STATUS_CODE = {

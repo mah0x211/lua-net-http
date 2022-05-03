@@ -1,4 +1,3 @@
-local assert = require('assertex')
 local testcase = require('testcase')
 local parse = require('net.http.parse')
 local parse_response = parse.response

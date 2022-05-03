@@ -1,5 +1,4 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
 local string = require('stringex')
 local signal = require('signal')

@@ -1,5 +1,4 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
 local entity = require('net.http.entity')
 local header = require('net.http').header

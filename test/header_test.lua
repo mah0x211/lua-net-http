@@ -1,6 +1,5 @@
 require('luacov')
 local format = string.format
-local assert = require('assertex')
 local testcase = require('testcase')
 local header = require('net.http').header
 
