@@ -82,32 +82,28 @@ function testcase.toline()
 
     -- test that returns a status message
     for _, code in pairs(STATUS_CODE) do
-        local msg = assert(toline(code))
-        assert.match(msg, '^' .. code .. ' ', false)
+        assert.match(toline(code), '^' .. code .. ' ', false)
     end
 
     -- test that returns a status message with version number
     for _, code in pairs(STATUS_CODE) do
-        local msg = assert(toline(code, 1))
         -- version 1.0
-        assert.match(msg, '^HTTP/1.0 ' .. code .. ' .+\r\n$', false)
-
+        assert.match(toline(code, 1), '^HTTP/1.0 ' .. code .. ' .+\r\n$', false)
         -- version 1.1
-        msg = assert(toline(code, 1.1))
-        assert.match(msg, '^HTTP/1.1 ' .. code .. ' .+\r\n$', false)
+        assert.match(toline(code, 1.1), '^HTTP/1.1 ' .. code .. ' .+\r\n$',
+                     false)
     end
 
     -- test that returns an error with unsupported code
-    local msg, err = toline(900)
-    assert.is_nil(msg)
-    assert.match(err, 'unsupported status code.+900', false)
+    assert.match(toline(900), '900 Unknown Status Code')
 
     -- test that returns an error with unsupported version
-    msg, err = toline(100, 2)
-    assert.is_nil(msg)
-    assert.match(err, 'unsupported version.+2', false)
+    local err = assert.throws(toline, 100, 2)
+    assert.match(err, 'unsupported version ')
 
     -- test that throw an erro with invalid arguments
+    err = assert.throws(toline)
+    assert.match(err, 'code must be uint')
     for _, code in ipairs({
         'hello',
         true,
@@ -118,15 +114,10 @@ function testcase.toline()
         coroutine.create(function()
         end),
     }) do
-        assert.throws(function()
-            toline(code)
-        end)
-        assert.throws(function()
-            toline(1, code)
-        end)
+        err = assert.throws(toline, code)
+        assert.match(err, 'code must be uint')
+        err = assert.throws(toline, 1, code)
+        assert.match(err, 'unsupported version ')
     end
-    assert.throws(function()
-        toline(nil)
-    end)
 end
 

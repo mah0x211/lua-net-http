@@ -25,11 +25,14 @@
 --
 --- assign to local
 local error = error
+local tostring = tostring
 local format = string.format
 local is_uint = require('isa').uint
-local is_finite = require('isa').finite
 --- constants
-local CRLF = '\r\n'
+local HTTP_VER = {
+    [1] = 'HTTP/1.0',
+    [1.1] = 'HTTP/1.1',
+}
 local STATUS_MSG = {
     -- 1×× Informational
     [100] = '100 Continue',
@@ -97,42 +100,30 @@ local STATUS_MSG = {
     [510] = '510 Not Extended',
     [511] = '511 Network Authentication Required',
 }
-local STATUS_LINE10 = {}
-local STATUS_LINE11 = {}
-for k, v in pairs(STATUS_MSG) do
-    STATUS_LINE10[k] = 'HTTP/1.0 ' .. v .. CRLF
-    STATUS_LINE11[k] = 'HTTP/1.1 ' .. v .. CRLF
-end
 
 --- toline
 --- @param code integer
 --- @param ver number
 --- @return string msg
---- @return string err
 local function toline(code, ver)
-    local msg
-
     if not is_uint(code) then
-        error('code must be number', 2)
-    elseif ver == nil then
-        msg = STATUS_MSG[code]
-    elseif not is_finite(ver) then
-        error('ver must be finite-number', 2)
-    elseif ver == 1.0 then
-        -- http/1.0
-        msg = STATUS_LINE10[code]
-    elseif ver == 1.1 then
-        -- http/1.1
-        msg = STATUS_LINE11[code]
-    else
-        -- invalid version number
-        return nil, format('unsupported version %q', ver)
+        error('code must be uint', 2)
+    elseif ver ~= nil then
+        local httpver = HTTP_VER[ver]
+        if not httpver then
+            error(format('unsupported version %q', tostring(ver)), 2)
+        end
+        ver = httpver
     end
 
+    local msg = STATUS_MSG[code]
     if not msg then
-        return nil, format('unsupported status code %q', code)
+        msg = format('%d Unknown Status Code', code)
     end
 
+    if ver then
+        return format('%s %s\r\n', ver, msg)
+    end
     return msg
 end
 
