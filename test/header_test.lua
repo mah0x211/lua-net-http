@@ -1,33 +1,23 @@
 require('luacov')
-local format = string.format
 local testcase = require('testcase')
-local header = require('net.http').header
+local header = require('net.http.header')
 
 function testcase.set()
     local h = header.new()
 
-    -- test that sets non-nil field-value
-    for _, val in ipairs({
+    -- test that throwssets non-nil field-value
+    assert(h:set('field-name', 'hello'))
+    assert.equal(h:size(), 1)
+    assert.equal(h:get('field-name'), {
         'hello',
-        true,
-        false,
-        0,
-        function()
-        end,
-        coroutine.create(function()
-        end),
-    }) do
-        assert(h:set('field-name', val))
-        assert.equal(h:get('field-name'), {
-            tostring(val),
-        })
-    end
+    })
 
     -- test that sets multiple field-values
     assert(h:set('field-name', {
         'value1',
         'value2',
     }))
+    assert.equal(h:size(), 1)
     assert.equal(h:get('field-name'), {
         'value1',
         'value2',
@@ -37,20 +27,23 @@ function testcase.set()
     assert(h:set('field-name', {
         'new-value',
     }))
+    assert.equal(h:size(), 1)
     assert.equal(h:get('field-name'), {
         'new-value',
     })
 
     -- test that the specified field-name will be deleted with a nil value
     assert(h:set('field-name'))
+    assert.equal(h:size(), 0)
     assert.is_nil(h:get('field-name'))
 
     -- test that return an error with invalid field-name
-    local ok, err = h:set('invalid field name', 1)
-    assert.is_false(ok)
-    assert.match(err, 'invalid header field-name')
+    local err = assert.throws(function()
+        h:set('field name', 1)
+    end)
+    assert.match(err, 'invalid key: invalid header field-name')
 
-    -- test that throws an error with invalid field-name
+    -- test that throws an error if key is not string
     for _, name in ipairs({
         true,
         0,
@@ -63,14 +56,12 @@ function testcase.set()
         err = assert.throws(function()
             h:set(name, 'val')
         end)
-        assert.match(err,
-                     format('#1 .+ [(]string expected, got %s', type(name)),
-                     false)
+        assert.match(err, 'invalid key: must be string')
     end
     err = assert.throws(function()
         h:set(nil, 'val')
     end)
-    assert.match(err, '#1 .+ [(]string expected, got nil', false)
+    assert.match(err, 'invalid key: must be string')
 end
 
 function testcase.add()
@@ -87,6 +78,7 @@ function testcase.add()
         'foo',
         'bar',
     }))
+    assert.equal(h:size(), 1)
     assert.equal(h:get('field-name'), {
         'hello',
         'world',
@@ -120,48 +112,44 @@ function testcase.get()
     assert.match(err, 'key must be string')
 end
 
-function testcase.has_transfer_encoding_chunked()
+function testcase.is_transfer_encoding_chunked()
     local h = header.new()
 
     -- test that returns true if transfer-encoding header contains a 'chunked' value
-    assert.is_false(h:has_transfer_encoding_chunked())
+    assert.is_false(h:is_transfer_encoding_chunked())
     assert(h:set('transfer-encoding', 'gzip'))
-    assert.is_false(h:has_transfer_encoding_chunked())
+    assert.is_false(h:is_transfer_encoding_chunked())
     assert(h:add('transfer-encoding', 'chunked'))
-    assert.is_true(h:has_transfer_encoding_chunked())
+    assert.is_true(h:is_transfer_encoding_chunked())
 end
 
-function testcase.has_content_length()
+function testcase.content_length()
     local h = header.new()
 
-    -- test that returns true and length if valid content-length header is exists
-    assert.is_false(h:has_content_length())
+    -- test that return content-length if valid content-length header is exists
+    assert.is_nil(h:content_length())
     assert(h:set('Content-Length', 'foo'))
-    assert.is_false(h:has_content_length())
+    assert.is_nil(h:content_length())
     assert(h:add('Content-Length', '123'))
-    local ok, len = h:has_content_length()
-    assert.is_true(ok)
-    assert.equal(len, 123)
+    assert.equal(h:content_length(), 123)
 end
 
-function testcase.has_content_type()
+function testcase.content_type()
     local h = header.new()
 
-    -- test that return false
-    assert.is_false(h:has_content_type())
+    -- test that return nil
+    assert.is_nil(h:content_type())
 
-    -- test that return true and content-type
+    -- test that return content-type
     h:set('content-type', 'foo/bar')
-    local ok, err, mime, params = h:has_content_type()
-    assert.is_true(ok)
+    local mime, err, params = h:content_type()
     assert.is_nil(err)
     assert.equal(mime, 'foo/bar')
     assert.is_nil(params)
 
     -- test that use last value
     h:add('content-type', 'baa/baz')
-    ok, err, mime, params = h:has_content_type()
-    assert.is_true(ok)
+    mime, err, params = h:content_type()
     assert.is_nil(err)
     assert.equal(mime, 'baa/baz')
     assert.is_nil(params)
@@ -169,8 +157,7 @@ function testcase.has_content_type()
     -- test that parse parameters
     h:add('content-type',
           'baa/baz ; charset=hello ; Charset="utf-8"; format=flowed; delsp=yes ')
-    ok, err, mime, params = h:has_content_type()
-    assert.is_true(ok)
+    mime, err, params = h:content_type()
     assert.is_nil(err)
     assert.equal(mime, 'baa/baz')
     assert.equal(params, {
@@ -181,16 +168,14 @@ function testcase.has_content_type()
 
     -- test that returns invalid media-type format error
     h:set('content-type', 'foo/b@r')
-    ok, err, mime, params = h:has_content_type()
-    assert.is_false(ok)
+    mime, err, params = h:content_type()
     assert.match(err, 'invalid media-type format')
     assert.is_nil(mime)
     assert.is_nil(params)
 
     -- test that returns invalid media-type parameters format error
     h:set('content-type', 'foo/bar ; n@me=value')
-    ok, err, mime, params = h:has_content_type()
-    assert.is_false(ok)
+    mime, err, params = h:content_type()
     assert.match(err, 'invalid media-type parameters format')
     assert.is_nil(mime)
     assert.is_nil(params)
@@ -208,15 +193,16 @@ function testcase.pairs()
     assert(h:set('field-qux', {
         'quux',
     }))
+    assert.equal(h:size(), 2)
     local arr = {}
-    for k, v in h:pairs() do
+    for _, k, v in h:pairs() do
         arr[#arr + 1] = k .. ': ' .. v
     end
     assert.equal(arr, {
-        'field-foo: foo',
-        'field-foo: bar',
-        'field-foo: baz',
-        'field-qux: quux',
+        'Field-Foo: foo',
+        'Field-Foo: bar',
+        'Field-Foo: baz',
+        'Field-Qux: quux',
     })
 end
 
@@ -230,10 +216,11 @@ function testcase.write()
     assert(h:set('field-qux', {
         'quux',
     }))
+    assert.equal(h:size(), 2)
 
     -- test that send headers
     local arr = {}
-    local len, err, timeout = h:write({
+    local len, err = h:write({
         write = function(_, data)
             arr[#arr + 1] = data
             return true
@@ -241,25 +228,23 @@ function testcase.write()
     })
     assert.equal(len, #table.concat(arr))
     assert.is_nil(err)
-    assert.is_nil(timeout)
     assert.equal(arr, {
-        'field-foo: foo\r\n',
-        'field-foo: bar\r\n',
-        'field-foo: baz\r\n',
-        'field-qux: quux\r\n',
+        'Field-Foo: foo\r\n',
+        'Field-Foo: bar\r\n',
+        'Field-Foo: baz\r\n',
+        'Field-Qux: quux\r\n',
         '\r\n',
     })
 
     -- test that return error
     arr = {}
-    len, err, timeout = h:write({
+    len, err = h:write({
         write = function()
-            return false, 'write-error', true
+            return false, 'write-error'
         end,
     })
     assert.equal(len, 0)
     assert.equal(err, 'write-error')
-    assert.is_true(timeout)
     assert.equal(arr, {})
 end
 
