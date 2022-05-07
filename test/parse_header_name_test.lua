@@ -4,7 +4,7 @@ local parse_header_name = parse.header_name
 
 function testcase.parse_header_name()
     -- test that parse header-name
-    assert.equal(parse_header_name('Foo'), 'foo')
+    assert.equal(parse_header_name('Foo'), 'Foo')
 
     -- test that limit the maximum length of header-name
     local s, err = parse_header_name('FooBarBaz', 4)

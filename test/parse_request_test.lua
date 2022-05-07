@@ -17,9 +17,9 @@ function testcase.parse_request()
     }
     assert.equal(parse_request(msg, req), #msg)
     local kv_host = {
-        ord = 1,
-        key = 'host',
-        vals = {
+        idx = 1,
+        key = 'Host',
+        val = {
             'example.com',
         },
     }
@@ -163,7 +163,7 @@ function testcase.parse_request()
             assert.equal(parse_request(msg, req), #msg)
         end
     end
-    kv_host.vals = {
+    kv_host.val = {
         'example1.com',
         'example2.com',
         'example3.com',

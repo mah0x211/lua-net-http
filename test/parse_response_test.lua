@@ -17,9 +17,9 @@ function testcase.parse_response()
     }
     assert.equal(parse_response(msg, res), #msg)
     local kv_server = {
-        ord = 1,
-        key = 'server',
-        vals = {
+        idx = 1,
+        key = 'Server',
+        val = {
             'example-server',
         },
     }
