@@ -39,6 +39,7 @@ build = {
         ['net.http.util.implc'] = {
             sources = { "src/implc.c" }
         },
+        ['net.http.writer'] = "lib/writer.lua",
         ['net.http.parse'] = {
             incdirs = { "deps/lauxhlib" },
             sources = { "src/parse.c" }
