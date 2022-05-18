@@ -2,6 +2,7 @@ std = "max"
 include_files = {
     "http.lua",
     "lib/*.lua",
+    "lib/*/*.lua",
     "test/*_test.lua",
 }
 ignore = {
