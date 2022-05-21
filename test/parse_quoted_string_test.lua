@@ -3,7 +3,7 @@ local parse = require('net.http.parse')
 local parse_quoted_string = parse.quoted_string
 
 function testcase.parse_quoted_string()
-    -- test that return OK
+    -- test that return true
     for _, range in ipairs({
         {
             -- HT
@@ -25,18 +25,22 @@ function testcase.parse_quoted_string()
     }) do
         for i = range[1], range[2] do
             local c = '"' .. string.char(i) .. '"'
-            assert.equal(parse_quoted_string(c), parse.OK)
+            assert(parse_quoted_string(c))
         end
     end
 
-    -- test that return OK
-    assert.equal(parse_quoted_string([["quoted '\"' pair"]]), parse.OK)
+    -- test that return true
+    assert(parse_quoted_string([["quoted '\"' pair"]]))
 
     -- test that return EAGAIN
-    assert.equal(parse_quoted_string(''), parse.EAGAIN)
+    local ok, err = parse_quoted_string('')
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EAGAIN)
 
     -- test that return ELEN
-    assert.equal(parse_quoted_string('"foo-bar-baz"', 3), parse.ELEN)
+    ok, err = parse_quoted_string('"foo-bar-baz"', 3)
+    assert.is_false(ok)
+    assert.equal(err.type, parse.ELEN)
 
     -- test that return EILSEQ
     for _, range in ipairs({
@@ -55,7 +59,9 @@ function testcase.parse_quoted_string()
     }) do
         for i = range[1], range[2] do
             local c = '"' .. string.char(i) .. '"'
-            assert.equal(parse_quoted_string(c), parse.EILSEQ)
+            ok, err = parse_quoted_string(c)
+            assert.is_false(ok)
+            assert.equal(err.type, parse.EILSEQ)
         end
     end
 end

@@ -98,7 +98,9 @@ function testcase.parse_header()
 
     -- test that cannot parse header lines that not terminate by LF
     msg = 'Foo: foo-value\r' .. 'Bar: bar-value\r' .. '\r'
-    assert.equal(parse_header(msg, {}), parse.EEOL)
+    local pos, err = parse_header(msg, {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EEOL)
 
     -- test that parse header lines from specified offset position
     local line = 'Hello world'
@@ -114,7 +116,9 @@ function testcase.parse_header()
 
     -- test that limit the length of header line
     msg = 'Foo: foo-value\n' .. 'Bar: bar-value\n' .. '\n'
-    assert.equal(parse_header(msg, {}, nil, 10), parse.EHDRLEN)
+    pos, err = parse_header(msg, {}, nil, 10)
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EHDRLEN)
 
     -- test that limit the number of header line
     msg = table.concat({
@@ -124,7 +128,9 @@ function testcase.parse_header()
         'Qux: qux-value\n\n',
     }, '\n')
     header = {}
-    assert.equal(parse_header(msg, {}, nil, nil, 3), parse.EHDRNUM)
+    pos, err = parse_header(msg, {}, nil, nil, 3)
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EHDRNUM)
     assert.equal(parse_header(msg, header, nil, nil, 4), #msg)
     local kv_qux = {
         idx = 4,
@@ -282,12 +288,18 @@ function testcase.parse_header()
     for i = 0x0, 0x7e do
         if not VALID_HKEY[i + 1] then
             local c = string.char(i)
-            assert.equal(parse_header(c .. 'Host: example.com\n\n', {}),
-                         parse.EHDRNAME)
+            pos, err = parse_header(c .. 'Host: example.com\n\n', {})
+            assert.is_nil(pos)
+            assert.equal(err.type, parse.EHDRNAME)
         end
     end
-    assert.equal(parse_header(' Host : example.com\n\n', {}), parse.EHDRNAME)
-    assert.equal(parse_header('Host : example.com\n\n', {}), parse.EHDRNAME)
+    pos, err = parse_header(' Host : example.com\n\n', {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EHDRNAME)
+
+    pos, err = parse_header('Host : example.com\n\n', {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EHDRNAME)
 
     -- test that cannot parse invalide header value
     local VCHAR = {
@@ -425,8 +437,9 @@ function testcase.parse_header()
     for i = 0x0, 0x7e do
         if not VCHAR[i + 1] then
             local c = string.char(i)
-            assert.equal(parse_header('Host: ' .. c .. 'example.com\n\n', {}),
-                         parse.EHDRVAL)
+            pos, err = parse_header('Host: ' .. c .. 'example.com\n\n', {})
+            assert.is_nil(pos)
+            assert.equal(err.type, parse.EHDRVAL)
         end
     end
 end

@@ -24,46 +24,144 @@
  *  Created by Masatoshi Teruya on 18/06/04.
  */
 
-#include "lauxhlib.h"
-#include <ctype.h>
-#include <errno.h>
-#include <lua.h>
-#include <stdlib.h>
-#include <string.h>
+// lua
+#include <lua_error.h>
 
 /**
  * return code
  */
-/* success */
-#define PARSE_OK       0
-/* need more bytes */
-#define PARSE_EAGAIN   -1
-/* invalid message */
-#define PARSE_EMSG     -2
-/* length too large */
-#define PARSE_ELEN     -3
-/* method not implemented */
-#define PARSE_EMETHOD  -4
-/* version not supported */
-#define PARSE_EVERSION -5
-/* invalid end-of-line terminator */
-#define PARSE_EEOL     -6
-/* invalid header field-name */
-#define PARSE_EHDRNAME -7
-/* invalid header field-val */
-#define PARSE_EHDRVAL  -8
-/* header-length too large */
-#define PARSE_EHDRLEN  -9
-/* too many headers */
-#define PARSE_EHDRNUM  -10
-/* invalid status code */
-#define PARSE_ESTATUS  -11
-/* illegal byte sequence */
-#define PARSE_EILSEQ   -12
-/* result too large */
-#define PARSE_ERANGE   -13
-/* disallow empty definitions */
-#define PARSE_EEMPTY   -14
+#define PARSE_OK       0   // success
+#define PARSE_EAGAIN   -1  // need more bytes
+#define PARSE_EMSG     -2  // invalid message
+#define PARSE_ELEN     -3  // length too large
+#define PARSE_EMETHOD  -4  // method not implemented
+#define PARSE_EVERSION -5  // version not supported
+#define PARSE_EEOL     -6  // invalid end-of-line terminator
+#define PARSE_EHDRNAME -7  // invalid header field-name
+#define PARSE_EHDRVAL  -8  // invalid header field-val
+#define PARSE_EHDRLEN  -9  // header-length too large
+#define PARSE_EHDRNUM  -10 // too many headers
+#define PARSE_ESTATUS  -11 // invalid status code
+#define PARSE_EILSEQ   -12 // illegal byte sequence
+#define PARSE_ERANGE   -13 // result too large
+#define PARSE_EEMPTY   -14 // disallow empty definitions
+static int PARSE_ERR_EAGAIN   = LUA_NOREF;
+static int PARSE_ERR_EMSG     = LUA_NOREF;
+static int PARSE_ERR_ELEN     = LUA_NOREF;
+static int PARSE_ERR_EMETHOD  = LUA_NOREF;
+static int PARSE_ERR_EVERSION = LUA_NOREF;
+static int PARSE_ERR_EEOL     = LUA_NOREF;
+static int PARSE_ERR_EHDRNAME = LUA_NOREF;
+static int PARSE_ERR_EHDRVAL  = LUA_NOREF;
+static int PARSE_ERR_EHDRLEN  = LUA_NOREF;
+static int PARSE_ERR_EHDRNUM  = LUA_NOREF;
+static int PARSE_ERR_ESTATUS  = LUA_NOREF;
+static int PARSE_ERR_EILSEQ   = LUA_NOREF;
+static int PARSE_ERR_ERANGE   = LUA_NOREF;
+static int PARSE_ERR_EEMPTY   = LUA_NOREF;
+
+static void init_error_types(lua_State *L)
+{
+    int nameidx = lua_gettop(L) + 1;
+
+    le_loadlib(L, 1);
+
+#define create_error_type(name, message)                                       \
+ do {                                                                          \
+  lua_pushstring(L, "net.http.parse." #name);                                  \
+  lua_pushinteger(L, PARSE_##name);                                            \
+  lua_pushstring(L, (message));                                                \
+  le_new_type(L, nameidx);                                                     \
+  PARSE_ERR_##name = lauxh_ref(L);                                             \
+ } while (0)
+
+    create_error_type(EAGAIN, "resource temporarily unavailable");
+    create_error_type(EMSG, "invalid message");
+    create_error_type(ELEN, "length too large");
+    create_error_type(EMETHOD, "method not implemented");
+    create_error_type(EVERSION, "version not supported");
+    create_error_type(EEOL, "invalid end-of-line terminator");
+    create_error_type(EHDRNAME, "invalid header field-name");
+    create_error_type(EHDRVAL, "invalid header field-val");
+    create_error_type(EHDRLEN, "header-length too large");
+    create_error_type(EHDRNUM, "too many headers");
+    create_error_type(ESTATUS, "invalid status code");
+    create_error_type(EILSEQ, "illegal byte sequence");
+    create_error_type(ERANGE, "result too large");
+    create_error_type(EEMPTY, "disallow empty definitions");
+
+#undef create_error_type
+}
+
+static int error_result_ex(lua_State *L, int err, const char *op, int as_bool)
+{
+    int typeidx = 2;
+
+    lua_settop(L, 0);
+    if (as_bool) {
+        lua_pushboolean(L, 0);
+    } else {
+        lua_pushnil(L);
+    }
+
+    switch (err) {
+    case PARSE_EAGAIN:
+        lauxh_pushref(L, PARSE_ERR_EAGAIN);
+        break;
+    case PARSE_EMSG:
+        lauxh_pushref(L, PARSE_ERR_EMSG);
+        break;
+    case PARSE_ELEN:
+        lauxh_pushref(L, PARSE_ERR_ELEN);
+        break;
+    case PARSE_EMETHOD:
+        lauxh_pushref(L, PARSE_ERR_EMETHOD);
+        break;
+    case PARSE_EVERSION:
+        lauxh_pushref(L, PARSE_ERR_EVERSION);
+        break;
+    case PARSE_EEOL:
+        lauxh_pushref(L, PARSE_ERR_EEOL);
+        break;
+    case PARSE_EHDRNAME:
+        lauxh_pushref(L, PARSE_ERR_EHDRNAME);
+        break;
+    case PARSE_EHDRVAL:
+        lauxh_pushref(L, PARSE_ERR_EHDRVAL);
+        break;
+    case PARSE_EHDRLEN:
+        lauxh_pushref(L, PARSE_ERR_EHDRLEN);
+        break;
+    case PARSE_EHDRNUM:
+        lauxh_pushref(L, PARSE_ERR_EHDRNUM);
+        break;
+    case PARSE_ESTATUS:
+        lauxh_pushref(L, PARSE_ERR_ESTATUS);
+        break;
+    case PARSE_EILSEQ:
+        lauxh_pushref(L, PARSE_ERR_EILSEQ);
+        break;
+    case PARSE_ERANGE:
+        lauxh_pushref(L, PARSE_ERR_ERANGE);
+        break;
+    case PARSE_EEMPTY:
+        lauxh_pushref(L, PARSE_ERR_EEMPTY);
+        break;
+
+    default:
+        return luaL_error(L, "unknown errtype %d", err);
+    }
+
+    if (op) {
+        lua_pushnil(L);
+        lua_pushstring(L, op);
+        le_new_message(L, typeidx + 1);
+    }
+    le_new_typed_error(L, typeidx);
+    return 2;
+}
+#define error_result_as_false(L, err, op) error_result_ex(L, err, op, 1)
+#define error_result_as_nil(L, err, op)   error_result_ex(L, err, op, 0)
 
 /* delimiters */
 #define CR        '\r'
@@ -124,16 +222,14 @@ static int cookie_value_lua(lua_State *L)
     size_t i           = 0;
 
     if (!len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_false(L, PARSE_EAGAIN, "cookie_values");
     }
 
     // found DQUOTE at head
     if (str[0] == DQUOTE) {
         // not found DQUOTE at tail
         if (len == 1 || str[len - 1] != DQUOTE) {
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_false(L, PARSE_EILSEQ, "cookie_values");
         }
         // skip head and tail
         i++;
@@ -142,12 +238,10 @@ static int cookie_value_lua(lua_State *L)
 
     for (; i < len; i++) {
         if (!COOKIE_OCTET[str[i]]) {
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_false(L, PARSE_EILSEQ, "cookie_values");
         }
     }
-    lua_pushinteger(L, PARSE_OK);
-
+    lua_pushboolean(L, 1);
     return 1;
 }
 
@@ -183,24 +277,20 @@ static int cookie_value_lua(lua_State *L)
 static const unsigned char TCHAR[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    //   !   "   #    $    %    &    '    (  )   *    +   ,   -    .   /
+    //   "                            (  )            ,            /
     '!', 0, '#', '$', '%', '&', '\'', 0, 0, '*', '+', 0, '-', '.', 0,
-    //   0    1    2    3    4    5    6    7    8    9
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    //  :  ;  <  =  >  ?  @
-    1, 0, 0, 0, 0, 0, 0,
-    //   A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
+    //                                                :  ;  <  =  >  ?  @
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 1, 0, 0, 0, 0, 0, 0,
+    // upper case
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    //   P   Q     R    S    T    U    V    W    X    Y    Z
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    //  [  \  ]   ^    _    `
-    0, 0, 0, '^', '_', '`',
-    //   a    b    c    d    e    f    g    h    i    j    k    l    m    n    o
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y',
+    //   [  \  ]
+    'z', 0, 0, 0, '^', '_', '`',
+    // lower case
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    //   p    q    r    s    t    u    v    w    x    y    z
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    //  {   |   }   ~
-    0, '|', 0, '~'};
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y',
+    //   {       }
+    'z', 0, '|', 0, '~'};
 
 static int tchar_lua(lua_State *L)
 {
@@ -208,8 +298,7 @@ static int tchar_lua(lua_State *L)
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_false(L, PARSE_EAGAIN, "tchar");
     }
 
     for (size_t i = 0; i < len; i++) {
@@ -217,12 +306,10 @@ static int tchar_lua(lua_State *L)
         case 0:
         case 1:
             // illegal byte sequence
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_false(L, PARSE_EILSEQ, "tchar");
         }
     }
-    lua_pushinteger(L, PARSE_OK);
-
+    lua_pushboolean(L, 1);
     return 1;
 }
 
@@ -265,11 +352,11 @@ static int tchar_lua(lua_State *L)
 // 2 = LF or CR
 // 0 = invalid
 static const unsigned char VCHAR[256] = {
-    //                             HT LF       CR
+    //                         HT LF       CR
     0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-    //  SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
-    2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0,
+    // SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
+    0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //  0  1  2  3  4  5  6  7  8  9
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //  :  ;  <  =  >  ?  @
@@ -289,18 +376,15 @@ static int vchar_lua(lua_State *L)
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
 
     if (!len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_false(L, PARSE_EAGAIN, "vchar");
     }
 
     for (size_t i = 0; i < len; i++) {
         if (VCHAR[str[i]] != 1) {
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_false(L, PARSE_EILSEQ, "vchar");
         }
     }
-    lua_pushinteger(L, PARSE_OK);
-
+    lua_pushboolean(L, 1);
     return 1;
 }
 
@@ -342,31 +426,30 @@ static const unsigned char HEXDIGIT[256] = {
     //  ~
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-static ssize_t hex2size(unsigned char *str, size_t len, size_t *sz)
+static ssize_t hex2size(unsigned char *str, size_t len, size_t *cur)
 {
-    size_t dec = 0;
+    ssize_t dec = 0;
 
     if (!len) {
         return PARSE_EAGAIN;
     }
 
     // hex to decimal
-    for (size_t cur = 0; cur < len; cur++) {
-        unsigned char c = HEXDIGIT[str[cur]];
+    for (size_t pos = 0; pos < len; pos++) {
+        unsigned char c = HEXDIGIT[str[pos]];
         if (!c) {
             // found non hexdigit
-            *sz = dec;
-            return cur;
-        } else if (cur >= 8) {
+            *cur = pos;
+            return dec;
+        } else if (pos >= 8) {
             // limit to max value of 32bit (0xFFFFFFFF)
             return PARSE_ERANGE;
         }
         dec = (dec << 4) | (c - 1);
     }
-    *sz = dec;
 
-    // return number of consumed bytes
-    return (ssize_t)len;
+    *cur = len;
+    return dec;
 }
 
 /**
@@ -438,19 +521,21 @@ static int quoted_string_lua(lua_State *L)
     size_t len         = 0;
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
     size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_STR_MAXLEN);
+    size_t cur         = 0;
+    int rv             = PARSE_EAGAIN;
 
     if (len) {
-        size_t cur = 0;
-        int rv     = parse_quoted_string(str, len, &cur, &maxlen);
-        // did not parse to the end of string
+        rv = parse_quoted_string(str, len, &cur, &maxlen);
         if (rv == PARSE_OK && cur != len) {
+            // did not parse to the end of string
             rv = PARSE_EILSEQ;
         }
-        lua_pushinteger(L, rv);
-    } else {
-        lua_pushinteger(L, PARSE_EAGAIN);
     }
 
+    if (rv != PARSE_OK) {
+        return error_result_as_false(L, rv, "quoted_string");
+    }
+    lua_pushboolean(L, 1);
     return 1;
 }
 
@@ -520,28 +605,24 @@ static int parameters_lua(lua_State *L)
     lua_settop(L, 2);
 
     if (!len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_false(L, PARSE_EAGAIN, "parameters");
     }
 
     // parse parameter-name
 CHECK_PARAM:
     // skip OWS
     if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
-        lua_pushinteger(L, PARSE_ELEN);
-        return 1;
+        return error_result_as_false(L, PARSE_ELEN, "parameters");
     }
     head = cur;
     for (unsigned char c = TCHAR[str[cur]]; c > 1; c = TCHAR[str[cur]]) {
         str[cur++] = c;
         if (cur > maxlen) {
-            lua_pushinteger(L, PARSE_ELEN);
-            return 1;
+            return error_result_as_false(L, PARSE_ELEN, "parameters");
         }
     }
     if (str[cur] != '=') {
-        lua_pushinteger(L, PARSE_EILSEQ);
-        return 1;
+        return error_result_as_false(L, PARSE_EILSEQ, "parameters");
     }
     lua_pushlstring(L, (const char *)str + head, cur - head);
     cur++;
@@ -560,21 +641,18 @@ CHECK_PARAM:
 
         case PARSE_EAGAIN:
             // more bytes need
-            lua_pushinteger(L, PARSE_EAGAIN);
-            return 1;
+            return error_result_as_false(L, PARSE_EAGAIN, "parameters");
 
         // PARSE_EILSEQ
         default:
             // found illegal byte sequence
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_false(L, PARSE_EILSEQ, "parameters");
         }
     }
     // parse as a token
     while (TCHAR[str[cur]] > 1) {
         if (cur >= maxlen) {
-            lua_pushinteger(L, PARSE_ELEN);
-            return 1;
+            return error_result_as_false(L, PARSE_ELEN, "parameters");
         }
         cur++;
     }
@@ -583,12 +661,11 @@ CHECK_PARAM:
 
 CHECK_EOL:
     if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
-        lua_pushinteger(L, PARSE_ELEN);
-        return 1;
+        return error_result_as_false(L, PARSE_ELEN, "parameters");
     }
     switch (str[cur]) {
     case 0:
-        lua_pushinteger(L, PARSE_OK);
+        lua_pushboolean(L, 1);
         return 1;
 
     case ';':
@@ -598,8 +675,7 @@ CHECK_EOL:
 
     default:
         // found illegal byte sequence
-        lua_pushinteger(L, PARSE_EILSEQ);
-        return 1;
+        return error_result_as_false(L, PARSE_EILSEQ, "parameters");
     }
 }
 
@@ -610,7 +686,7 @@ static int chunksize_lua(lua_State *L)
     size_t len         = 0;
     unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
     size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
-    size_t size     = 0;
+    ssize_t size    = 0;
     size_t cur      = 0;
     size_t head     = 0;
     const char *key = NULL;
@@ -623,26 +699,22 @@ static int chunksize_lua(lua_State *L)
     lua_settop(L, 2);
 
     if (!len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
     }
 
     // parse chunk-size
-    cur = hex2size(str, len, &size);
-    if (cur < 0) {
-        lua_pushinteger(L, cur);
-        return 1;
+    size = hex2size(str, len, &cur);
+    if (size < 0) {
+        return error_result_as_nil(L, size, "chunksize");
     }
 
 #define skip_bws()                                                             \
  do {                                                                          \
   if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {                           \
-   lua_pushinteger(L, PARSE_ELEN);                                             \
-   return 1;                                                                   \
+   return error_result_as_nil(L, PARSE_ELEN, "chunksize");                     \
   } else if (str[cur] == 0) {                                                  \
    /* more bytes need */                                                       \
-   lua_pushinteger(L, PARSE_EAGAIN);                                           \
-   return 1;                                                                   \
+   return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");                   \
   }                                                                            \
  } while (0)
 
@@ -652,8 +724,7 @@ CHECK_EOL:
         switch (str[cur + 1]) {
         case 0:
             // more bytes need
-            lua_pushinteger(L, PARSE_EAGAIN);
-            return 1;
+            return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
 
         case LF:
             // push extension
@@ -668,21 +739,20 @@ CHECK_EOL:
             }
             // return chunksize and number of bytes consumed
             lua_pushinteger(L, size);
+            lua_pushnil(L);
             lua_pushinteger(L, cur + 2);
-            return 2;
+            return 3;
 
         default:
             // invalid end-of-line terminator
-            lua_pushinteger(L, PARSE_EEOL);
-            return 1;
+            return error_result_as_nil(L, PARSE_EEOL, "chunksize");
         }
     }
 
     // parse semicolon
     skip_bws();
     if (str[cur] != SEMICOLON) {
-        lua_pushinteger(L, PARSE_EILSEQ);
-        return 1;
+        return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
     }
     cur++;
 
@@ -724,8 +794,7 @@ CHECK_EXTNAME:
     }
     if (cur == head) {
         // disallow empty ext-name
-        lua_pushinteger(L, PARSE_EEMPTY);
-        return 1;
+        return error_result_as_nil(L, PARSE_EEMPTY, "chunksize");
     }
     key  = (const char *)str + head;
     klen = cur - head;
@@ -748,8 +817,7 @@ CHECK_EXTNAME:
 
     default:
         // illegal byte sequence
-        lua_pushinteger(L, PARSE_EILSEQ);
-        return 1;
+        return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
     }
 
     // parse ext-val
@@ -774,8 +842,7 @@ CHECK_EXTNAME:
             // PARSE_EAGAIN
             // PARSE_ELEN
             // PARSE_EILSEQ
-            lua_pushinteger(L, rv);
-            return 1;
+            return error_result_as_nil(L, rv, "chunksize");
         }
     }
 
@@ -789,8 +856,8 @@ CHECK_EXTNAME:
     switch (str[cur]) {
     case 0:
         // more bytes need
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
+
     case CR:
         // found tail
         goto CHECK_EOL;
@@ -805,8 +872,7 @@ CHECK_EOB:
 
         default:
             // illegal byte sequence
-            lua_pushinteger(L, PARSE_EILSEQ);
-            return 1;
+            return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
         }
     }
 #undef skip_bws
@@ -901,8 +967,9 @@ static int header_value_lua(lua_State *L)
 
     switch (rv) {
     case PARSE_EAGAIN:
+        // end with field-content
         if (VCHAR[str[len - 1]] == 1) {
-            lua_pushlstring(L, (const char *)str, len);
+            lua_pushboolean(L, 1);
             return 1;
         }
 
@@ -911,9 +978,7 @@ static int header_value_lua(lua_State *L)
         // str must not contain the end-of-line terminator (CRLF)
         rv = PARSE_EHDRVAL;
     default:
-        lua_pushnil(L);
-        lua_pushinteger(L, rv);
-        return 2;
+        return error_result_as_false(L, rv, "header_value");
     }
 }
 
@@ -985,16 +1050,14 @@ static int header_name_lua(lua_State *L)
 
     switch (rv) {
     case PARSE_EAGAIN:
-        lua_pushlstring(L, str, len);
+        lua_pushboolean(L, 1);
         return 1;
 
     case PARSE_OK:
         // str must not contains the field separator (COLON)
         rv = PARSE_EHDRNAME;
     default:
-        lua_pushnil(L);
-        lua_pushinteger(L, rv);
-        return 2;
+        return error_result_as_false(L, rv, "header_name");
     }
 }
 
@@ -1007,40 +1070,27 @@ typedef struct {
 } header_t;
 
 static int parse_header(lua_State *L, unsigned char *str, size_t len,
-                        size_t offset, uint16_t maxhdrlen, uint8_t maxhdrnum)
+                        size_t *cur, uint16_t maxhdrlen, uint8_t maxhdrnum)
 {
-    int tblidx       = lua_gettop(L);
-    header_t *hdridx = lua_newuserdata(L, sizeof(header_t) * maxhdrnum);
-    uintptr_t top    = (uintptr_t)str;
-    uintptr_t head   = 0;
-    uint8_t nhdr     = 0;
-    size_t cur       = 0;
-    int rv           = 0;
-
-    // set offset
-    if (offset > len) {
-        str += len;
-        len -= len;
-    } else {
-        str += offset;
-        len -= offset;
-    }
+    int tblidx         = lua_gettop(L);
+    header_t *hdridx   = lua_newuserdata(L, sizeof(header_t) * maxhdrnum);
+    unsigned char *top = str;
+    uintptr_t head     = 0;
+    uint8_t nhdr       = 0;
+    size_t pos         = 0;
+    int rv             = 0;
 
 RETRY:
     switch (*str) {
     // need more bytes
     case 0:
-        lua_settop(L, 0);
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return PARSE_EAGAIN;
 
     // check header-tail
     case CR:
         // null-terminated
         if (!str[1]) {
-            lua_settop(L, 0);
-            lua_pushinteger(L, PARSE_EAGAIN);
-            return 1;
+            return PARSE_EAGAIN;
         } else if (str[1] == LF) {
             // skip CR
             str++;
@@ -1053,38 +1103,32 @@ RETRY:
 
     // too many headers
     if (nhdr >= maxhdrnum) {
-        lua_settop(L, 0);
-        lua_pushinteger(L, PARSE_EHDRNUM);
-        return 1;
+        return PARSE_EHDRNUM;
     }
 
     head              = (uintptr_t)str;
     hdridx[nhdr].lkey = LUA_NOREF;
     hdridx[nhdr].key  = (char *)str;
     hdridx[nhdr].klen = maxhdrlen;
-    rv = parse_hkey(L, &hdridx[nhdr].lkey, str, len, &cur, &hdridx[nhdr].klen);
+    rv = parse_hkey(L, &hdridx[nhdr].lkey, str, len, &pos, &hdridx[nhdr].klen);
     if (rv != PARSE_OK) {
-        lua_settop(L, 0);
-        lua_pushinteger(L, rv);
-        return 1;
+        return rv;
     }
     // skip OWS
-    while (str[cur] == SP || str[cur] == HT) {
-        cur++;
+    while (str[pos] == SP || str[pos] == HT) {
+        pos++;
     }
-    str += cur;
-    len -= cur;
+    str += pos;
+    len -= pos;
 
     hdridx[nhdr].val  = (char *)str;
-    hdridx[nhdr].vlen = maxhdrlen - ((uintptr_t)str - head);
-    rv                = parse_hval(str, len, &cur, &hdridx[nhdr].vlen);
+    hdridx[nhdr].vlen = maxhdrlen - ((intptr_t)str - head);
+    rv                = parse_hval(str, len, &pos, &hdridx[nhdr].vlen);
     if (rv != PARSE_OK) {
-        lua_settop(L, 0);
-        lua_pushinteger(L, rv);
-        return 1;
+        return rv;
     }
-    str += cur;
-    len -= cur;
+    str += pos;
+    len -= pos;
     // set header
     if (hdridx[nhdr].vlen) {
         nhdr++;
@@ -1136,24 +1180,41 @@ PUSH_HEADERS:
         hdridx++;
     }
 
-    lua_settop(L, 0);
-    lua_pushinteger(L, (uintptr_t)str - top);
-    return 1;
+    *cur = (uintptr_t)str - (uintptr_t)top;
+    return PARSE_OK;
 }
 
 static int header_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    size_t offset      = (size_t)lauxh_optuint64(L, 3, 0);
-    uint16_t maxhdrlen = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
-    uint8_t maxhdrnum  = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
+    size_t len          = 0;
+    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t cur          = (size_t)lauxh_optuint64(L, 3, 0);
+    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
+    unsigned char *head = str;
+    int rv              = 0;
 
     // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_settop(L, 2);
 
-    return parse_header(L, str, len, offset, maxhdrlen, maxhdrnum);
+    // set offset
+    if (cur > len) {
+        str += len;
+        len -= len;
+    } else {
+        str += cur;
+        len -= cur;
+    }
+
+    rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
+    if (rv < 0) {
+        return error_result_as_nil(L, rv, "header");
+    }
+    str += cur;
+    lua_settop(L, 1);
+    lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
+    return 1;
 }
 
 /**
@@ -1381,7 +1442,6 @@ static int request_lua(lua_State *L)
     uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
     uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
     unsigned char *head = str;
-    size_t hlen         = len;
     const char *method  = NULL;
     size_t mlen         = 0;
     const char *uri     = NULL;
@@ -1398,8 +1458,7 @@ SKIP_NEXT_CRLF:
     switch (*str) {
     // need more bytes
     case 0:
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "request");
 
     case CR:
     case LF:
@@ -1411,8 +1470,7 @@ SKIP_NEXT_CRLF:
     method = (const char *)str;
     rv     = parse_method(str, len, &cur, &mlen);
     if (rv != PARSE_OK) {
-        lua_pushinteger(L, rv);
-        return 1;
+        return error_result_as_nil(L, rv, "request");
     }
     str += cur;
     len -= cur;
@@ -1422,16 +1480,13 @@ SKIP_NEXT_CRLF:
     ulen = 0;
 CHECK_URI:
     if (ulen >= len) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "request");
     } else if (ulen > maxmsglen) {
-        lua_pushinteger(L, PARSE_ELEN);
-        return 1;
+        return error_result_as_nil(L, PARSE_ELEN, "request");
     }
     switch (URIC_TBL[str[ulen]]) {
     case 0:
-        lua_pushinteger(L, PARSE_EMSG);
-        return 1;
+        return error_result_as_nil(L, PARSE_EMSG, "request");
 
     case SP:
         break;
@@ -1445,24 +1500,20 @@ CHECK_URI:
 
     rv = parse_version(str, len, &cur, &ver);
     if (rv != PARSE_OK) {
-        lua_pushinteger(L, rv);
-        return 1;
+        return error_result_as_nil(L, rv, "request");
     }
     switch (str[cur]) {
     case 0:
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "request");
 
     case CR:
         // null-terminated
         if (!str[cur + 1]) {
-            lua_pushinteger(L, PARSE_EAGAIN);
-            return 1;
+            return error_result_as_nil(L, PARSE_EAGAIN, "request");
         }
         // invalid end-of-line terminator
         else if (str[cur + 1] != LF) {
-            lua_pushinteger(L, PARSE_EEOL);
-            return 1;
+            return error_result_as_nil(L, PARSE_EEOL, "request");
         }
         cur++;
 
@@ -1471,8 +1522,7 @@ CHECK_URI:
         break;
 
     default:
-        lua_pushinteger(L, PARSE_EVERSION);
-        return 1;
+        return error_result_as_nil(L, PARSE_EVERSION, "request");
     }
 
     // set result to table
@@ -1481,18 +1531,21 @@ CHECK_URI:
     lauxh_pushnum2tbl(L, "version", ver);
     // number of bytes consumed
     str += cur;
+    len -= cur;
 
     // parse header if exists
     lua_pushliteral(L, "header");
     lua_rawget(L, -2);
     if (lua_type(L, -1) == LUA_TTABLE) {
-        return parse_header(L, head, hlen, (uintptr_t)str - (uintptr_t)head,
-                            maxhdrlen, maxhdrnum);
+        rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
+        if (rv < 0) {
+            return error_result_as_nil(L, rv, "request");
+        }
+        str += cur;
     }
 
-    lua_settop(L, 0);
+    lua_settop(L, 1);
     lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
-
     return 1;
 }
 
@@ -1572,7 +1625,6 @@ static int parse_status(unsigned char *str, size_t len, size_t *cur,
     *cur    = STATUS_LEN + 1;
     // set status
     *status = (str[0] - 0x30) * 100 + (str[1] - 0x30) * 10 + (str[2] - 0x30);
-
     return PARSE_OK;
 
 #undef STATUS_LEN
@@ -1586,7 +1638,6 @@ static int response_lua(lua_State *L)
     uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
     uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
     unsigned char *head = str;
-    size_t hlen         = len;
     size_t cur          = 0;
     double ver          = 0;
     int status          = 0;
@@ -1602,8 +1653,7 @@ SKIP_NEXT_CRLF:
     switch (*str) {
     // need more bytes
     case 0:
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_ERR_EAGAIN, "response");
 
     case CR:
     case LF:
@@ -1614,22 +1664,18 @@ SKIP_NEXT_CRLF:
 
     rv = parse_version(str, len, &cur, &ver);
     if (rv != PARSE_OK) {
-        lua_pushinteger(L, rv);
-        return 1;
+        return error_result_as_nil(L, rv, "response");
     } else if (!str[cur]) {
-        lua_pushinteger(L, PARSE_EAGAIN);
-        return 1;
+        return error_result_as_nil(L, PARSE_EAGAIN, "response");
     } else if (str[cur] != SP) {
-        lua_pushinteger(L, PARSE_EVERSION);
-        return 1;
+        return error_result_as_nil(L, PARSE_EVERSION, "response");
     }
     str += cur + 1;
     len -= cur + 1;
 
     rv = parse_status(str, len, &cur, &status);
     if (rv != PARSE_OK) {
-        lua_pushinteger(L, rv);
-        return 1;
+        return error_result_as_nil(L, rv, "response");
     }
     str += cur;
     len -= cur;
@@ -1638,8 +1684,7 @@ SKIP_NEXT_CRLF:
     rlen   = maxmsglen;
     rv     = parse_reason(str, len, &cur, &rlen);
     if (rv != PARSE_OK) {
-        lua_pushinteger(L, rv);
-        return 1;
+        return error_result_as_nil(L, rv, "response");
     }
 
     // set result to table
@@ -1648,90 +1693,27 @@ SKIP_NEXT_CRLF:
     lauxh_pushlstr2tbl(L, "reason", reason, rlen);
     // number of bytes consumed
     str += cur;
+    len -= cur;
 
     // parse header if exists
     lua_pushliteral(L, "header");
     lua_rawget(L, -2);
     if (lua_type(L, -1) == LUA_TTABLE) {
-        return parse_header(L, head, hlen, (uintptr_t)str - (uintptr_t)head,
-                            maxhdrlen, maxhdrnum);
+        rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
+        if (rv < 0) {
+            return error_result_as_nil(L, rv, "response");
+        }
+        str += cur;
     }
 
-    lua_settop(L, 0);
+    lua_settop(L, 1);
     lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
-
     return 1;
-}
-
-static int strerror_lua(lua_State *L)
-{
-    switch (lauxh_checkinteger(L, 1)) {
-    case PARSE_EAGAIN:
-        lua_pushliteral(L, "need more bytes");
-        return 1;
-
-    case PARSE_EMSG:
-        lua_pushliteral(L, "invalid message");
-        return 1;
-
-    case PARSE_ELEN:
-        lua_pushliteral(L, "length too large");
-        return 1;
-
-    case PARSE_EMETHOD:
-        lua_pushliteral(L, "method not implemented");
-        return 1;
-
-    case PARSE_EVERSION:
-        lua_pushliteral(L, "version not supported");
-        return 1;
-
-    case PARSE_EEOL:
-        lua_pushliteral(L, "invalid end-of-line terminator");
-        return 1;
-
-    case PARSE_EHDRNAME:
-        lua_pushliteral(L, "invalid header field-name");
-        return 1;
-
-    case PARSE_EHDRVAL:
-        lua_pushliteral(L, "invalid header field-value");
-        return 1;
-
-    case PARSE_EHDRLEN:
-        lua_pushliteral(L, "header-length too large");
-        return 1;
-
-    case PARSE_EHDRNUM:
-        lua_pushliteral(L, "too many headers");
-        return 1;
-
-    case PARSE_ESTATUS:
-        lua_pushliteral(L, "invalid status code");
-        return 1;
-
-    case PARSE_EILSEQ:
-        lua_pushliteral(L, "illegal byte sequence");
-        return 1;
-
-    case PARSE_ERANGE:
-        lua_pushliteral(L, "result too large");
-        return 1;
-
-    case PARSE_EEMPTY:
-        lua_pushliteral(L, "disallow empty definitions");
-        return 1;
-
-    default:
-        lua_pushliteral(L, "unknown error");
-        return 1;
-    }
 }
 
 LUALIB_API int luaopen_net_http_parse(lua_State *L)
 {
     struct luaL_Reg funcs[] = {
-        {"strerror",      strerror_lua     },
         {"response",      response_lua     },
         {"request",       request_lua      },
         {"header",        header_lua       },
@@ -1747,6 +1729,8 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     };
     struct luaL_Reg *ptr = funcs;
 
+    init_error_types(L);
+
     lua_createtable(L, 0, sizeof(funcs) / sizeof(struct luaL_Reg) + 12);
     do {
         lauxh_pushfn2tbl(L, ptr->name, ptr->func);
@@ -1754,22 +1738,34 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     } while (ptr->name);
 
     // constants
-    // return code
-    lauxh_pushint2tbl(L, "OK", PARSE_OK);
-    lauxh_pushint2tbl(L, "EAGAIN", PARSE_EAGAIN);
-    lauxh_pushint2tbl(L, "EMSG", PARSE_EMSG);
-    lauxh_pushint2tbl(L, "ELEN", PARSE_ELEN);
-    lauxh_pushint2tbl(L, "EMETHOD", PARSE_EMETHOD);
-    lauxh_pushint2tbl(L, "EVERSION", PARSE_EVERSION);
-    lauxh_pushint2tbl(L, "EEOL", PARSE_EEOL);
-    lauxh_pushint2tbl(L, "EHDRNAME", PARSE_EHDRNAME);
-    lauxh_pushint2tbl(L, "EHDRVAL", PARSE_EHDRVAL);
-    lauxh_pushint2tbl(L, "EHDRLEN", PARSE_EHDRLEN);
-    lauxh_pushint2tbl(L, "EHDRNUM", PARSE_EHDRNUM);
-    lauxh_pushint2tbl(L, "ESTATUS", PARSE_ESTATUS);
-    lauxh_pushint2tbl(L, "EILSEQ", PARSE_EILSEQ);
-    lauxh_pushint2tbl(L, "ERANGE", PARSE_ERANGE);
-    lauxh_pushint2tbl(L, "EEMPTY", PARSE_EEMPTY);
+    lauxh_pushref(L, PARSE_ERR_EAGAIN);
+    lua_setfield(L, -2, "EAGAIN");
+    lauxh_pushref(L, PARSE_ERR_EMSG);
+    lua_setfield(L, -2, "EMSG");
+    lauxh_pushref(L, PARSE_ERR_ELEN);
+    lua_setfield(L, -2, "ELEN");
+    lauxh_pushref(L, PARSE_ERR_EMETHOD);
+    lua_setfield(L, -2, "EMETHOD");
+    lauxh_pushref(L, PARSE_ERR_EVERSION);
+    lua_setfield(L, -2, "EVERSION");
+    lauxh_pushref(L, PARSE_ERR_EEOL);
+    lua_setfield(L, -2, "EEOL");
+    lauxh_pushref(L, PARSE_ERR_EHDRNAME);
+    lua_setfield(L, -2, "EHDRNAME");
+    lauxh_pushref(L, PARSE_ERR_EHDRVAL);
+    lua_setfield(L, -2, "EHDRVAL");
+    lauxh_pushref(L, PARSE_ERR_EHDRLEN);
+    lua_setfield(L, -2, "EHDRLEN");
+    lauxh_pushref(L, PARSE_ERR_EHDRNUM);
+    lua_setfield(L, -2, "EHDRNUM");
+    lauxh_pushref(L, PARSE_ERR_ESTATUS);
+    lua_setfield(L, -2, "ESTATUS");
+    lauxh_pushref(L, PARSE_ERR_EILSEQ);
+    lua_setfield(L, -2, "EILSEQ");
+    lauxh_pushref(L, PARSE_ERR_ERANGE);
+    lua_setfield(L, -2, "ERANGE");
+    lauxh_pushref(L, PARSE_ERR_EEMPTY);
+    lua_setfield(L, -2, "EEMPTY");
 
     return 1;
 }

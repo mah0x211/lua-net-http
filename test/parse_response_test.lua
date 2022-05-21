@@ -59,14 +59,16 @@ function testcase.parse_response()
         'Server: example-server',
         CRLF,
     }, CRLF)
-    assert.equal(parse_response(msg, {}), parse.EVERSION)
+    local pos, err = parse_response(msg, {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EVERSION)
 
     -- test that parse response message without header
     msg = 'HTTP/1.0 200 OK' .. CRLF .. CRLF
     res = {
         header = {},
     }
-    assert.equal(#msg, parse_response(msg, res))
+    assert.equal(parse_response(msg, res), #msg)
     assert.equal(res, {
         status = 200,
         reason = 'OK',
@@ -89,7 +91,9 @@ function testcase.parse_response()
 
     -- test that cannot parse response message lines that not terminated by LF'
     msg = 'HTTP/1.1 200 OK' .. CR .. CR
-    assert.equal(parse_response(msg, {}), parse.EEOL)
+    pos, err = parse_response(msg, {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EEOL)
 
     -- test that limit the length of uri
     msg = table.concat({
@@ -97,7 +101,9 @@ function testcase.parse_response()
         'Server: example-server',
         CRLF,
     }, CRLF)
-    assert.equal(parse_response(msg, {}, 10), parse.ELEN)
+    pos, err = parse_response(msg, {}, 10)
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.ELEN)
 
     -- test that returns EAGAIN to the incomplete message
     msg = table.concat({
@@ -109,9 +115,11 @@ function testcase.parse_response()
         header = {},
     }
     for i = 1, #msg - 1 do
-        assert.equal(parse_response(string.sub(msg, 1, i), {
+        pos, err = parse_response(string.sub(msg, 1, i), {
             header = {},
-        }), parse.EAGAIN)
+        })
+        assert.is_nil(pos)
+        assert.equal(err.type, parse.EAGAIN)
     end
     assert.equal(parse_response(msg, res), #msg)
     assert.equal(res, {

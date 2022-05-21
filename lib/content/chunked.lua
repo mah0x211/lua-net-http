@@ -27,7 +27,6 @@ local is_uint = require('isa').uint
 local parse = require('net.http.parse')
 local parse_header = parse.header
 local parse_chunksize = parse.chunksize
-local strerror = parse.strerror
 --- constants
 local CRLF = '\r\n'
 
@@ -136,7 +135,8 @@ function ChunkedContent:read(w, chunksize, handler)
     local r = self.reader
     local size = 0
     local str = ''
-    while true do
+    local done = false
+    while not done do
         local s, err = r:read(chunksize)
         if not s or #s == 0 or err then
             return nil, err
@@ -164,40 +164,50 @@ function ChunkedContent:read(w, chunksize, handler)
         --                  ; Bad White Space for backward compatibility
         --
         -- read chunk-size
-        local ext = {}
-        local csize, cur = parse_chunksize(str, ext)
-        while csize > 0 do
-            -- remove chunk-size [ chunk-ext ] CRLF
-            str = sub(str, cur + 1)
-
-            --
-            -- chunk-data = 1*OCTET ; a sequence of chunk-size octets
-            --
-            -- read chunk-data (csize + CRLF)
-            while #str < csize + 2 do
-                s, err = r:read(chunksize)
-                if not s then
+        repeat
+            local ext = {}
+            local csize, perr, cur = parse_chunksize(str, ext)
+            if perr then
+                if perr.type ~= EAGAIN then
+                    -- invalid chunk-size format
+                    return nil, perr
+                end
+            elseif csize == 0 then
+                -- last-chunk
+                done = true
+                csize = nil
+                -- add chunk-ext
+                err = handler:read_last_chunk(ext)
+                if err then
                     return nil, err
                 end
-                str = str .. s
-            end
+                str = sub(str, cur + 1)
+            else
+                -- remove chunk-size [ chunk-ext ] CRLF
+                str = sub(str, cur + 1)
 
-            -- check end-of-line (CRLF) of chunk-data
-            local head, tail = find(str, '^\r*\n', csize + 1)
-            if not head then
-                -- invalid end-of-line terminator
-                return nil, strerror(parse.EEOL)
-            end
+                --
+                -- chunk-data = 1*OCTET ; a sequence of chunk-size octets
+                --
+                -- read chunk-data (csize + CRLF)
+                while #str < csize + 2 do
+                    s, err = r:read(chunksize)
+                    if not s then
+                        return nil, err
+                    end
+                    str = str .. s
+                end
 
-            -- check chunk by handler
-            s, err = handler:read_chunk(sub(str, 1, csize), ext)
-            if err then
-                return nil, err
-            elseif s then
-                -- write chunk
-                local nw
-                nw, err = w:writeout(s)
-                if not nw or err then
+                -- check end-of-line (CRLF) of chunk-data
+                local head, tail = find(str, '^\r*\n', csize + 1)
+                if not head then
+                    -- invalid end-of-line terminator
+                    return nil, parse.EEOL:new()
+                end
+
+                -- check chunk by handler
+                s, err = handler:read_chunk(sub(str, 1, csize), ext)
+                if err then
                     return nil, err
                 elseif s then
                     -- write chunk
@@ -208,30 +218,11 @@ function ChunkedContent:read(w, chunksize, handler)
                     end
                     size = size + csize
                 end
-                size = size + csize
+
+                -- parse again
+                str = sub(str, tail + 1)
             end
-
-            -- parse again
-            ext = {}
-            str = sub(str, tail + 1)
-            csize, cur = parse_chunksize(str, ext)
-        end
-
-        -- last-chunk
-        if csize == 0 then
-            -- add chunk-ext
-            err = handler:read_last_chunk(ext)
-            if err then
-                return nil, err
-            end
-            str = sub(str, cur + 1)
-            break
-        end
-
-        if csize ~= EAGAIN then
-            -- invalid chunk-size format
-            return nil, strerror(csize)
-        end
+        until not csize
         -- read again
     end
 
@@ -241,22 +232,23 @@ function ChunkedContent:read(w, chunksize, handler)
     -- parse trailer-part
     while true do
         local trailer = {}
-        local cur = parse_header(str, trailer)
+        local cur, err = parse_header(str, trailer)
 
-        if cur > 0 then
+        if cur then
             r:prepend(sub(str, cur + 1))
 
-            local err = handler:read_trailer(trailer)
+            err = handler:read_trailer(trailer)
             if err then
                 return nil, err
             end
             return size
-        elseif cur ~= EAGAIN then
-            return nil, strerror(cur)
+        elseif err.type ~= EAGAIN then
+            return nil, err
         end
 
         -- read data
-        local s, err = r:read(chunksize)
+        local s
+        s, err = r:read(chunksize)
         if not s or #s == 0 or err then
             return nil, err
         end

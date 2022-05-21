@@ -14,6 +14,7 @@ dependencies = {
     "lua >= 5.1",
     "halo >= 1.1.8",
     "bufio >= 0.4.0",
+    "error >= 0.8.0",
     "isa >= 0.1.0",
     "net >= 0.24.0",
     "metamodule >= 0.2",

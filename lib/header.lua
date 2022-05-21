@@ -29,8 +29,8 @@ local split = require('string.split')
 local isa = require('isa')
 local is_string = isa.string
 local is_table = isa.table
+local new_errno = require('errno').new
 local parse = require('net.http.parse')
-local parse_strerror = parse.strerror
 local parse_header_name = parse.header_name
 local parse_header_value = parse.header_value
 local parse_tchar = parse.tchar
@@ -42,14 +42,16 @@ local parse_parameters = parse.parameters
 --- @return string err
 local function is_valid_key(key)
     if not is_string(key) then
-        return false, 'must be string'
+        return nil, new_errno('EINVAL',
+                              format('string expected, got %s', type(key)))
     end
+    key = trim(key)
 
-    local v, err = parse_header_name(trim(key))
-    if not v then
-        return nil, parse_strerror(err)
+    local ok, err = parse_header_name(key)
+    if not ok then
+        return nil, err
     end
-    return v
+    return key
 end
 
 --- is_valid_val
@@ -58,19 +60,21 @@ end
 --- @return string err
 local function is_valid_val(val)
     if not is_string(val) then
-        return false, 'must be string'
+        return nil, new_errno('EINVAL',
+                              format('string expected, got %q', type(val)))
     end
 
     val = trim(val)
     if #val == 0 then
         return val
     end
+    val = trim(val)
 
-    local v, err = parse_header_value(trim(val))
-    if not v then
-        return nil, parse_strerror(err)
+    local ok, err = parse_header_value(val)
+    if not ok then
+        return nil, err
     end
-    return v
+    return val
 end
 
 --- copy_values
@@ -83,7 +87,8 @@ local function copy_values(vals)
     for i = 1, #vals do
         local v, err = is_valid_val(vals[i])
         if not v then
-            return nil, format('val#%d %s', i, err)
+            return nil, new_errno('EINVAL', format('val#%d invalid value', i),
+                                  nil, err)
         end
         arr[i] = v
     end
@@ -120,17 +125,17 @@ function Header:set(key, val)
     local k, err = is_valid_key(key)
 
     if not k then
-        error(format('invalid key: %s', err), 2)
+        error(format('invalid key: %s', tostring(err)), 2)
     elseif val ~= nil then
         if is_table(val) then
             val, err = copy_values(val)
             if err then
-                error(format('invalid val: %s', err), 2)
+                error(format('invalid val: %s', tostring(err)), 2)
             end
         elseif is_string(val) then
             val, err = is_valid_val(val)
-            if err then
-                error(format('invalid val: %s', err), 2)
+            if not val then
+                error(format('invalid val: %s', tostring(err)), 2)
             end
             val = {
                 val,
@@ -199,10 +204,10 @@ function Header:add(key, val)
     local k, err = is_valid_key(key)
 
     if err then
-        error(format('invalid key: %s', err), 2)
+        error(format('invalid key: %s', tostring(err)), 2)
     elseif is_string(val) then
         val, err = is_valid_val(val)
-        if err then
+        if not val then
             error(format('invalid val: %s', err), 2)
         end
         val = {
@@ -337,8 +342,7 @@ function Header:content_type()
     --
     -- verify media-type
     local media = split(mime[1], '/', 1)
-    if #media ~= 2 or parse_tchar(media[1]) ~= parse.OK or parse_tchar(media[2]) ~=
-        parse.OK then
+    if #media ~= 2 or not parse_tchar(media[1]) or not parse_tchar(media[2]) then
         return nil, 'invalid media-type format'
     elseif #mime == 1 then
         return mime[1]
@@ -371,7 +375,7 @@ function Header:content_type()
     --
     -- verify parameters
     local parameters = {}
-    if parse_parameters(mime[2], parameters) ~= parse.OK then
+    if not parse_parameters(mime[2], parameters) then
         return nil, 'invalid media-type parameters format'
     end
 

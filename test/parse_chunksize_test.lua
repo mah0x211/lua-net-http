@@ -28,30 +28,48 @@ function testcase.parse_chunksize()
         },
     }) do
         local ext = {}
-        local size, cur = parse_chunksize(v.line, ext)
+        local size, err, cur = parse_chunksize(v.line, ext)
         assert.equal(size, v.size)
+        assert.is_nil(err)
         assert.equal(cur, #v.line)
         assert.equal(ext, v.ext)
     end
 
     -- test that limit the maximum length of chunksize-line
-    local size, cur = parse_chunksize('71e20 ; foo; bar = baz\r\n', {}, 4)
-    assert.equal(size, parse.ELEN)
+    local size, err, cur = parse_chunksize('71e20 ; foo; bar = baz\r\n', {}, 4)
+    assert.is_nil(size)
+    assert.equal(err.type, parse.ELEN)
     assert.is_nil(cur)
 
     -- test that return EAGAIN
-    assert.equal(parse_chunksize('', {}), parse.EAGAIN)
-    assert.equal(parse_chunksize('ff', {}), parse.EAGAIN)
-    assert.equal(parse_chunksize('ff\r', {}), parse.EAGAIN)
-    assert.equal(parse_chunksize('ff ', {}), parse.EAGAIN)
-    assert.equal(parse_chunksize('ff ; ', {}), parse.EAGAIN)
-    assert.equal(parse_chunksize('ff ; foo', {}), parse.EAGAIN)
+    size, err = parse_chunksize('', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
+    size, err = parse_chunksize('ff', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
+    size, err = parse_chunksize('ff\r', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
+    size, err = parse_chunksize('ff ', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
+    size, err = parse_chunksize('ff ; ', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
+    size, err = parse_chunksize('ff ; foo', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
 
     -- test that return EEOL
-    assert.equal(parse_chunksize('ff\r\r', {}), parse.EEOL)
+    size, err = parse_chunksize('ff\r\r', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EEOL)
 
     -- tset that return EEMPTY
-    assert.equal(parse_chunksize('ff ; \r\n', {}), parse.EEMPTY)
+    size, err = parse_chunksize('ff ; \r\n', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EEMPTY)
 
     -- test that return EILSEQ
     for _, line in ipairs({
@@ -64,6 +82,8 @@ function testcase.parse_chunksize()
         '1e20 ; foo = "bar\\\baz"', -- invalid quoted-pair
         '1e20 ; foo = "bar" =', -- not ';' or CR after ext-value
     }) do
-        assert.equal(parse_chunksize(line, {}), parse.EILSEQ)
+        size, err = parse_chunksize(line, {})
+        assert.is_nil(size)
+        assert.equal(err.type, parse.EILSEQ)
     end
 end

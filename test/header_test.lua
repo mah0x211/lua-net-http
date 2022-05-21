@@ -41,7 +41,7 @@ function testcase.set()
     local err = assert.throws(function()
         h:set('field name', 1)
     end)
-    assert.match(err, 'invalid key: invalid header field-name')
+    assert.match(err, 'invalid header field-name')
 
     -- test that throws an error if key is not string
     for _, name in ipairs({
@@ -56,12 +56,12 @@ function testcase.set()
         err = assert.throws(function()
             h:set(name, 'val')
         end)
-        assert.match(err, 'invalid key: must be string')
+        assert.match(err, 'invalid key: .+ %(string expected', false)
     end
     err = assert.throws(function()
         h:set(nil, 'val')
     end)
-    assert.match(err, 'invalid key: must be string')
+    assert.match(err, 'invalid key: .+ %(string expected', false)
 end
 
 function testcase.add()

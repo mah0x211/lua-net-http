@@ -4,7 +4,7 @@ local parse_cookie_value = parse.cookie_value
 
 function testcase.parse_cookie_value()
     -- test that return OK
-    assert.equal(parse_cookie_value(string.char(0x21)), parse.OK)
+    assert(parse_cookie_value(string.char(0x21)))
     for _, range in ipairs({
         {
             0x23,
@@ -24,26 +24,45 @@ function testcase.parse_cookie_value()
         },
     }) do
         for i = range[1], range[2] do
-            assert.equal(parse_cookie_value(string.char(i)), parse.OK)
+            assert(parse_cookie_value(string.char(i)))
         end
     end
 
     -- test that return EAGAIN
-    assert.equal(parse_cookie_value(''), parse.EAGAIN)
+    local ok, err = parse_cookie_value('')
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EAGAIN)
 
     -- test that return EILSEQ
     -- CTLs and whitespace
     for i = 0x0, 0x20 do
-        assert.equal(parse_cookie_value(string.char(i)), parse.EILSEQ)
+        ok, err = parse_cookie_value(string.char(i))
+        assert.is_false(ok)
+        assert.equal(err.type, parse.EILSEQ)
     end
+
     -- DQUOTE
-    assert.equal(parse_cookie_value(string.char(0x22)), parse.EILSEQ)
+    ok, err = parse_cookie_value(string.char(0x22))
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EILSEQ)
+
     -- comma
-    assert.equal(parse_cookie_value(string.char(0x2C)), parse.EILSEQ)
+    ok, err = parse_cookie_value(string.char(0x2C))
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EILSEQ)
+
     -- semicolon
-    assert.equal(parse_cookie_value(string.char(0x3B)), parse.EILSEQ)
+    ok, err = parse_cookie_value(string.char(0x3B))
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EILSEQ)
+
     -- backslash
-    assert.equal(parse_cookie_value(string.char(0x5C)), parse.EILSEQ)
-    assert.equal(parse_cookie_value(string.char(0x7F)), parse.EILSEQ)
+    ok, err = parse_cookie_value(string.char(0x5C))
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EILSEQ)
+
+    ok, err = parse_cookie_value(string.char(0x7F))
+    assert.is_false(ok)
+    assert.equal(err.type, parse.EILSEQ)
 end
 

@@ -24,75 +24,48 @@
 -- Created by Masatoshi Teruya on 17/08/01.
 --
 --- assign to local
-local InetServer = require('net.stream.inet').server
-local UnixServer = require('net.stream.unix').server
-local ParseRequest = require('net.http.parse').request
-local new_header = require('net.http').header.new
-local NewReaderFromHeader = require('net.http.body').newReaderFromHeader
-local recvfrom = require('net.http.entity').recvfrom
+local new_inet_server = require('net.stream.inet').server.new
+local new_unix_server = require('net.stream.unix').server.new
+local new_incoming = require('net.http.connection.incoming').new
 
---- class Peer
-local Peer = require('halo').class.Peer
-
-Peer.inherits {
-    'net.stream.Socket',
-}
-
---- recvRequest
--- @return req
--- @return err
--- @return timeout
-function Peer:recvRequest()
-    local header = new_header()
-    local req = {
-        header = header.dict,
-    }
-    local ok, excess, err, timeout = recvfrom(self, ParseRequest, req)
-
-    if ok then
-        req.header = header
-        req.body = NewReaderFromHeader(req.header, self, excess)
-        return req
-    end
-
-    self:close()
-
-    return nil, err, timeout
-end
-
-Peer = Peer.exports
-
---- createConnection
--- please refer to https://github.com/mah0x211/lua-net#sock--sockcreateconnection-sock-tls-
-local function createConnection(_, sock, tls)
-    return Peer.new(sock, tls)
+--- accepted
+--- @param self net.stream.Socket
+--- @param sock net.stream.Socket
+--- @param nonblock boolean
+--- @param ai llsocket.addrinfo
+--- @return net.http.connection.incoming conn
+--- @return string? err
+--- @return llsocket.addrinfo ai
+local function accepted(_, sock, nonblock, ai)
+    return new_incoming(sock), nil, ai
 end
 
 --- new
--- @param opts
--- @return server
--- @return err
+--- @param opts table?
+--- @return net.stream.Server server
+--- @return string? err
 local function new(opts)
     local server, err
 
     if opts.path then
-        server, err = UnixServer.new(opts)
+        server, err = new_unix_server(opts.path, opts.tlscfg)
     else
-        server, err = InetServer.new(opts)
+        server, err = new_inet_server(opts.host, opts.port, opts)
     end
 
     if err then
         return nil, err
     end
 
-    err = server:listen()
-    if err then
+    local ok
+    ok, err = server:listen()
+    if not ok then
         server:close()
         return nil, err
     end
 
-    -- overwrite
-    server.createConnection = createConnection
+    -- overwrite accepted method
+    server.accepted = accepted
 
     return server
 end
