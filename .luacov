@@ -11,6 +11,7 @@ modules = {
     ["net.http.header"] = "lib/header.lua",
     ["net.http.message"] = "lib/message.lua",
     ["net.http.message.request"] = "lib/message/request.lua",
+    ["net.http.message.response"] = "lib/message/response.lua",
     ["net.http.request"] = "lib/request.lua",
     ["net.http.server"] = "lib/server.lua",
     ["net.http.status"] = "lib/status.lua",
