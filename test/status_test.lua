@@ -1,7 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local status = require('net.http.status')
-local STATUS_CODE = {
+local STATUSES = {
     --- status names
     -- 1×× Informational
     CONTINUE = 100,
@@ -70,9 +70,23 @@ local STATUS_CODE = {
     NETWORK_AUTHENTICATION_REQUIRED = 511,
 };
 
+function testcase.name2code()
+    -- test that get status code from status name
+    for name, code in pairs(STATUSES) do
+        assert.equal(status.name2code(name), code)
+    end
+
+    -- test that return nil if unknown status name
+    assert.is_nil(status.name2code('HELLO'))
+
+    -- test that throw an error if status name is not string
+    local err = assert.throws(status.name2code, {})
+    assert.match(err, 'name must be string')
+end
+
 function testcase.status_code()
     -- test that constains the http status code
-    for name, code in pairs(STATUS_CODE) do
+    for name, code in pairs(STATUSES) do
         assert.equal(code, status[name])
     end
 end
@@ -81,12 +95,12 @@ function testcase.toline()
     local toline = status.toline
 
     -- test that returns a status message
-    for _, code in pairs(STATUS_CODE) do
+    for _, code in pairs(STATUSES) do
         assert.match(toline(code), '^' .. code .. ' ', false)
     end
 
     -- test that returns a status message with version number
-    for _, code in pairs(STATUS_CODE) do
+    for _, code in pairs(STATUSES) do
         -- version 1.0
         assert.match(toline(code, 1), '^HTTP/1.0 ' .. code .. ' .+\r\n$', false)
         -- version 1.1
@@ -103,7 +117,7 @@ function testcase.toline()
 
     -- test that throw an erro with invalid arguments
     err = assert.throws(toline)
-    assert.match(err, 'code must be uint')
+    assert.match(err, 'code must be integer')
     for _, code in ipairs({
         'hello',
         true,
@@ -115,7 +129,7 @@ function testcase.toline()
         end),
     }) do
         err = assert.throws(toline, code)
-        assert.match(err, 'code must be uint')
+        assert.match(err, 'code must be integer')
         err = assert.throws(toline, 1, code)
         assert.match(err, 'unsupported version ')
     end
