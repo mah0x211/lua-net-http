@@ -5,6 +5,11 @@ include_files = {
     "lib/*/*.lua",
     "test/*_test.lua",
 }
+exclude_files = {
+    "_*.lua",
+    "lib/_*.lua",
+    "test/_*.lua",
+}
 ignore = {
     'assert',
     -- unused argument

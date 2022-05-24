@@ -119,7 +119,7 @@ end
 
 --- set
 --- @param key string
---- @param val string
+--- @param val? string
 --- @return boolean ok
 function Header:set(key, val)
     local k, err = is_valid_key(key)
