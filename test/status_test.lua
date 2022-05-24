@@ -84,22 +84,30 @@ function testcase.name2code()
     assert.match(err, 'name must be string')
 end
 
-function testcase.status_code()
-    -- test that constains the http status code
+function testcase.code2name()
+    -- test that get status name from status code
     for name, code in pairs(STATUSES) do
-        assert.equal(code, status[name])
+        assert.equal(status.code2name(code), name)
     end
+
+    -- test that return nil if unknown status code
+    assert.is_nil(status.code2name(900))
+
+    -- test that throw an error if status code is not integer
+    local err = assert.throws(status.code2name, 1.1)
+    assert.match(err, 'code must be integer')
 end
 
 function testcase.toline()
     local toline = status.toline
 
-    -- test that returns a status message
+    -- test that generate status-line from status code
+    assert.equal(toline(100), '100 Continue\r\n')
     for _, code in pairs(STATUSES) do
         assert.match(toline(code), '^' .. code .. ' ', false)
     end
 
-    -- test that returns a status message with version number
+    -- test that generate status-line from status code and version
     for _, code in pairs(STATUSES) do
         -- version 1.0
         assert.match(toline(code, 1), '^HTTP/1.0 ' .. code .. ' .+\r\n$', false)
@@ -108,30 +116,27 @@ function testcase.toline()
                      false)
     end
 
-    -- test that returns an error with unsupported code
-    assert.match(toline(900), '900 Unknown Status Code')
+    -- test that generate status-line from unknown status code
+    assert.equal(toline(900), '900 Unknown Status\r\n')
 
-    -- test that returns an error with unsupported version
-    local err = assert.throws(toline, 100, 2)
-    assert.match(err, 'unsupported version ')
+    -- test that generate status-line from unknown status code and version
+    assert.equal(toline(900, 12.25), 'HTTP/12.2 900 Unknown Status\r\n')
 
-    -- test that throw an erro with invalid arguments
-    err = assert.throws(toline)
+    -- test that generate status-line from unknown status code and reason
+    assert.equal(toline(900, 1.1, 'My Status'), 'HTTP/1.1 900 My Status\r\n')
+
+    -- test that throw an error if code is invalid
+    local err = assert.throws(toline, 200.1)
     assert.match(err, 'code must be integer')
-    for _, code in ipairs({
-        'hello',
-        true,
-        false,
-        {},
-        function()
-        end,
-        coroutine.create(function()
-        end),
-    }) do
-        err = assert.throws(toline, code)
-        assert.match(err, 'code must be integer')
-        err = assert.throws(toline, 1, code)
-        assert.match(err, 'unsupported version ')
-    end
+
+    -- test that throw an error if version is invalid
+    err = assert.throws(toline, 100, 0 / 0)
+    assert.match(err, 'version must be finite-number')
+
+    -- test that throw an error if reason is invalid
+    err = assert.throws(toline, 100, nil, true)
+    assert.match(err, 'reason must be the following string: ')
+    err = assert.throws(toline, 100, nil, 'hello world!')
+    assert.match(err, 'reason must be the following string: ')
 end
 
