@@ -35,6 +35,7 @@ local HTTP_VER = {
     [1.1] = 'HTTP/1.1',
 }
 local NAME2CODE = {}
+local CODE2NAME = {}
 for _, v in ipairs({
     --- status names
     -- 1×× Informational
@@ -344,6 +345,7 @@ for _, v in ipairs({
     },
 }) do
     NAME2CODE[v.name] = v.code
+    CODE2NAME[v.code] = v.name
 end
 
 --- name2code
@@ -354,6 +356,16 @@ local function name2code(name)
         error('name must be string', 2)
     end
     return NAME2CODE[name]
+end
+
+--- code2name
+--- @param code integer
+--- @return string name
+local function code2name(code)
+    if not is_int(code) then
+        error('code must be integer', 2)
+    end
+    return CODE2NAME[code]
 end
 
 local STATUS_MSG = {
@@ -452,6 +464,7 @@ end
 
 return {
     name2code = name2code,
+    code2name = code2name,
     toline = toline,
     --- status names
     -- 1×× Informational
