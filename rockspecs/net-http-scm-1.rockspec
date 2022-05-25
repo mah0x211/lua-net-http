@@ -34,6 +34,7 @@ build = {
     modules = {
         ['net.http'] = "http.lua",
         ['net.http.body'] = "lib/body.lua",
+        ['net.http.connection'] = "lib/connection.lua",
         ['net.http.content'] = "lib/content.lua",
         ['net.http.content.chunked'] = "lib/content/chunked.lua",
         ['net.http.date'] = "lib/date.lua",
