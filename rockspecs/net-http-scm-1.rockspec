@@ -44,6 +44,7 @@ build = {
         ["net.http.message"] = "lib/message.lua",
         ["net.http.message.request"] = "lib/message/request.lua",
         ["net.http.message.response"] = "lib/message/response.lua",
+        ["net.http.query"] = "lib/query.lua",
         ['net.http.reader'] = "lib/reader.lua",
         ['net.http.response'] = "lib/response.lua",
         ['net.http.server'] = "lib/server.lua",
