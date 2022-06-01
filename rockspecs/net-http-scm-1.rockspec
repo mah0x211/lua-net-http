@@ -40,6 +40,7 @@ build = {
         ['net.http.date'] = "lib/date.lua",
         ['net.http.entity'] = "lib/entity.lua",
         ['net.http.request'] = "lib/request.lua",
+        ['net.http.fetch'] = "lib/fetch.lua",
         ["net.http.header"] = "lib/header.lua",
         ["net.http.message"] = "lib/message.lua",
         ["net.http.message.request"] = "lib/message/request.lua",

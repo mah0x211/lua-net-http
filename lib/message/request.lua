@@ -96,7 +96,7 @@ function Request:set_uri(uri)
     local parsed_uri, pos, err = parse_url(uri)
     if err then
         return false, new_errno('EINVAL', format(
-                                    'invalid character %q found at %d', err,
+                                    'invalid uri character %q found at %d', err,
                                     pos + 1))
     end
 

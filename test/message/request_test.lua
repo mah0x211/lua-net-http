@@ -101,5 +101,5 @@ function testcase.write_firstline()
     local n, err = m:write_firstline(w)
     assert.equal(n, 0)
     assert.equal(err.type, errno.EINVAL)
-    assert.match(err, 'invalid character .+ found at 1', false)
+    assert.match(err, 'invalid uri character .+ found at 1', false)
 end

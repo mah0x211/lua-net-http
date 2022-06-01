@@ -69,6 +69,7 @@ jobs:
       name: Install Tools
       run: |
         luarocks install luacov
+        luarocks install exec
         luarocks install process
         luarocks install signal
         luarocks install testcase

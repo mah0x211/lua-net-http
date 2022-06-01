@@ -127,7 +127,7 @@ function Connection:read_message(msg, parser)
             local len = header:content_length()
             if header:is_transfer_encoding_chunked() then
                 msg.content = new_chunked_content(reader)
-            elseif len then
+            elseif len and len > 0 then
                 msg.content = new_content(reader, len)
             end
 

@@ -343,7 +343,7 @@ function Header:content_type()
     -- verify media-type
     local media = split(mime[1], '/', 1)
     if #media ~= 2 or not parse_tchar(media[1]) or not parse_tchar(media[2]) then
-        return nil, 'invalid media-type format'
+        return nil, new_errno('EILSEQ', 'invalid media-type format')
     elseif #mime == 1 then
         return mime[1]
     end
@@ -376,7 +376,7 @@ function Header:content_type()
     -- verify parameters
     local parameters = {}
     if not parse_parameters(mime[2], parameters) then
-        return nil, 'invalid media-type parameters format'
+        return nil, new_errno('EILSEQ', 'invalid media-type parameters format')
     end
 
     return mime[1], nil, parameters
