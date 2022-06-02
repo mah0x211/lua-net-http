@@ -1,14 +1,13 @@
-rockspec_format = "3.0"
 package = "net-http"
 version = "scm-1"
 source = {
-    url = "git+https://github.com/mah0x211/lua-net-http.git"
+    url = "git+https://github.com/mah0x211/lua-net-http.git",
 }
 description = {
     summary = "http module for lua",
     homepage = "https://github.com/mah0x211/lua-net-http",
     license = "MIT/X11",
-    maintainer = "Masatoshi Fukunaga"
+    maintainer = "Masatoshi Fukunaga",
 }
 dependencies = {
     "lua >= 5.1",
@@ -19,6 +18,7 @@ dependencies = {
     "isa >= 0.1.0",
     "net >= 0.33.0",
     "metamodule >= 0.2",
+    "lauxhlib >= 0.3.1",
     "rfcvalid >= 0.6.0",
     "string-capitalize >= 0.1.0",
     "string-split >= 0.3.0",
@@ -46,8 +46,9 @@ build = {
         ['net.http.status'] = "lib/status.lua",
         ['net.http.writer'] = "lib/writer.lua",
         ['net.http.parse'] = {
-            incdirs = { "deps/lauxhlib" },
-            sources = { "src/parse.c" }
+            sources = {
+                "src/parse.c",
+            },
         },
-    }
+    },
 }
