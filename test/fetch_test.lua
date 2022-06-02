@@ -4,77 +4,14 @@ local fork = require('testcase.fork')
 local sleep = require('testcase.timer').sleep
 local execvp = require('exec').execvp
 local errno = require('errno')
+local new_tls_config = require('net.tls.config').new
 local new_inet_server = require('net.stream.inet').server.new
 local new_unix_server = require('net.stream.unix').server.new
-local config = require('net.tls.config')
+local new_response = require('net.http.message.response').new
+local new_content = require('net.http.content').new
+local now = require('net.http.date').now
 local fetch = require('net.http.fetch')
 
-local STATUS_LINE = 'HTTP/1.1 200 OK\r\n'
-local REPLY_HEADER = table.concat({
-    'Accept-Ranges: bytes',
-    'Age: 402700',
-    'Cache-Control: max-age=604800',
-    'Content-Type: text/html; charset=UTF-8',
-    'Date: Tue, 31 May 2022 07:01:12 GMT',
-    'Etag: "3147526947+ident"',
-    'Expires: Tue, 07 Jun 2022 07:01:12 GMT',
-    'Last-Modified: Thu, 17 Oct 2019 07:18:26 GMT',
-    'Server: ECS (sab/571C)',
-    'Vary: Accept-Encoding',
-    'X-Cache: HIT',
-    'Content-Length: 1256',
-    '\r\n',
-}, '\r\n')
-local REPLY_BODY = table.concat({
-    '<!doctype html>',
-    '<html>',
-    '<head>',
-    '    <title>Example Domain</title>',
-    '',
-    '    <meta charset="utf-8" />',
-    '    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />',
-    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    '    <style type="text/css">',
-    '    body {',
-    '        background-color: #f0f0f2;',
-    '        margin: 0;',
-    '        padding: 0;',
-    '        font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;',
-    '        ',
-    '    }',
-    '    div {',
-    '        width: 600px;',
-    '        margin: 5em auto;',
-    '        padding: 2em;',
-    '        background-color: #fdfdff;',
-    '        border-radius: 0.5em;',
-    '        box-shadow: 2px 3px 7px 2px rgba(0,0,0,0.02);',
-    '    }',
-    '    a:link, a:visited {',
-    '        color: #38488f;',
-    '        text-decoration: none;',
-    '    }',
-    '    @media (max-width: 700px) {',
-    '        div {',
-    '            margin: 0 auto;',
-    '            width: auto;',
-    '        }',
-    '    }',
-    '    </style>    ',
-    '</head>',
-    '',
-    '<body>',
-    '<div>',
-    '    <h1>Example Domain</h1>',
-    '    <p>This domain is for use in illustrative examples in documents. You may use this',
-    '    domain in literature without prior coordination or asking for permission.</p>',
-    '    <p><a href="https://www.iana.org/domains/example">More information...</a></p>',
-    '</div>',
-    '</body>',
-    '</html>',
-    '',
-}, '\n')
-local REPLY = STATUS_LINE .. REPLY_HEADER .. REPLY_BODY
 local TLS_SERVER_CONFIG
 
 function testcase.before_all()
@@ -103,7 +40,7 @@ function testcase.before_all()
     if res.exit ~= 0 then
         error('failed to generate cert files')
     end
-    TLS_SERVER_CONFIG = config.new()
+    TLS_SERVER_CONFIG = new_tls_config()
     assert(TLS_SERVER_CONFIG:set_keypair_file('cert.pem', 'cert.key'))
 end
 
@@ -123,40 +60,59 @@ function testcase.fetch()
     local port = assert(server:getsockname()):port()
     local host = hostname .. ':' .. port
 
+    -- create server
     local p = assert(fork())
     if p:is_child() then
         while true do
             local peer = assert(server:accept())
-            assert(peer:recv())
-            assert(peer:send(REPLY))
+            local msg = assert(peer:recv())
+            local res = new_response()
+            res.header:set('Content-Type', 'text/plain')
+            assert(res:write(peer, msg))
             sleep(0.05)
             peer:close()
         end
     end
 
-    local data = ''
-    local writer = {
-        write = function(_, line)
-            data = data .. line
-            return #line
-        end,
-    }
-
     -- test that fetch content
+    local f = assert(io.tmpfile())
+    f:write('hello world!')
+    f:seek('set')
     local res, err, timeout = fetch('https://' .. host, {
         method = 'POST',
+        content = new_content(f, 12),
         insecure = true,
     })
     assert.is_nil(err)
     assert.is_nil(timeout)
-    data = ''
-    res.header:write(writer)
-    assert.equal(data, REPLY_HEADER)
-    data = ''
+    assert.contains(res.header.dict, {
+        ['content-length'] = {
+            val = {
+                '100',
+            },
+        },
+        ['content-type'] = {
+            val = {
+                'text/plain',
+            },
+        },
+        ['date'] = {
+            val = {
+                now(),
+            },
+        },
+    })
     local len = res.content:size()
-    local n = assert(res.content:write(writer))
-    assert.equal(n, len)
-    assert.equal(data, REPLY_BODY)
+    local content = assert(res.content:read())
+    assert.equal(#content, len)
+    assert.equal(content, table.concat({
+        'POST / HTTP/1.1',
+        'User-Agent: lua-net-http',
+        'Content-Length: 12',
+        'Host: ' .. host,
+        '',
+        'hello world!',
+    }, '\r\n'))
 
     -- test that cannot connect to uri
     res, err, timeout = fetch('https://localhost:80', {
@@ -212,35 +168,42 @@ function testcase.fetch_via_sockfile()
         while true do
             local peer = assert(server:accept())
             assert(peer:recv())
-            assert(peer:send(REPLY))
+            assert(peer:send(table.concat({
+                'HTTP/1.1 200 OK',
+                'Content-Type: text/plain; charset=UTF-8',
+                'Content-Length: 12',
+                '',
+                'hello world!',
+            }, '\r\n')))
             sleep(0.05)
             peer:close()
         end
     end
 
-    local data = ''
-    local writer = {
-        write = function(_, line)
-            data = data .. line
-            return #line
-        end,
-    }
-
     -- test that fetch content
     local res, err, timeout = fetch('https://127.0.0.1:8080', {
         sockfile = SOCKFILE,
+        content = 'helllo world!',
         insecure = true,
     })
     assert.is_nil(err)
     assert.is_nil(timeout)
-    data = ''
-    res.header:write(writer)
-    assert.equal(data, REPLY_HEADER)
-    data = ''
+    assert.contains(res.header.dict, {
+        ['content-length'] = {
+            val = {
+                '12',
+            },
+        },
+        ['content-type'] = {
+            val = {
+                'text/plain; charset=UTF-8',
+            },
+        },
+    })
     local len = res.content:size()
-    local n = assert(res.content:write(writer))
-    assert.equal(n, len)
-    assert.equal(data, REPLY_BODY)
+    local content = assert(res.content:read())
+    assert.equal(#content, len)
+    assert.equal(content, 'hello world!')
 
     -- test that cannot connect to sockfile
     res, err, timeout = fetch('https://127.0.0.1:8080', {
