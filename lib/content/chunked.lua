@@ -256,6 +256,26 @@ function ChunkedContent:copy(w, chunksize, handler)
     end
 end
 
+--- read
+--- @param chunksize? integer
+--- @param handler? net.http.content.chunked.Handler
+--- @return integer len
+--- @return string? err
+function ChunkedContent:read(chunksize, handler)
+    local str = ''
+    local _, err = self:copy({
+        write = function(_, s)
+            str = str .. s
+            return #s
+        end,
+    }, chunksize, handler)
+    if err then
+        return nil, err
+    end
+
+    return str
+end
+
 --- write
 --- @param w net.http.writer
 --- @param chunksize? integer

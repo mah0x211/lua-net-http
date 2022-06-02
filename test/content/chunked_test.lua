@@ -174,6 +174,41 @@ function testcase.copy()
     assert.match(err, 'chunksize must be uint greater than 0')
 end
 
+function testcase.read()
+    local rctx = {
+        msg = '',
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #self.msg > 0 then
+                local s = string.sub(self.msg, 1, n)
+                self.msg = string.sub(self.msg, n + 1)
+                return s
+            end
+        end,
+    }
+    local r, c
+    local resetctx = function(rmsg, wmsg)
+        rctx.msg = rmsg or ''
+        r = new_reader(rctx)
+        c = new_chunked_content(r)
+    end
+
+    -- test that read chunked-encoded message
+    resetctx(table.concat({
+        '6',
+        'hello ',
+        '6; ext-name=ext-value; ext-name2',
+        'world!',
+        '0',
+        'Trailer-Name: Trailer-Value',
+        '\r\n',
+    }, '\r\n'))
+    local s, err = c:read(2)
+    assert.equal(s, 'hello world!')
+    assert.is_nil(err)
+end
+
 function testcase.write()
     local rctx = {
         msg = 'hello world!',
