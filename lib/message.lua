@@ -86,14 +86,22 @@ function Message:write_firstline(w)
 end
 
 --- write_header
+--- @param self net.http.message
 --- @param w net.http.writer
+--- @param with_content boolean
 --- @return integer n
 --- @return string? err
-function Message:write_header(w)
+local function write_header(self, w, with_content)
     if self.header_sent then
         error('header has already been sent', 2)
     end
     self.header_sent = 0
+
+    local header = self.header
+    if with_content and not header:get('Content-Type') then
+        -- add default Content-Type header
+        header:set('Content-Type', 'application/octet-stream')
+    end
 
     -- write first-line
     local len, err = self:write_firstline(w)
@@ -110,6 +118,14 @@ function Message:write_header(w)
     self.header_sent = n + len
 
     return self.header_sent
+end
+
+--- write_header
+--- @param w net.http.writer
+--- @return integer n
+--- @return string? err
+function Message:write_header(w)
+    return write_header(self, w)
 end
 
 --- write_content
@@ -141,7 +157,7 @@ function Message:write_content(w)
         end
 
         -- write header
-        local len, err = self:write_header(w)
+        local len, err = write_header(self, w, true)
         if not len or err then
             return nil, err
         end
@@ -175,12 +191,13 @@ function Message:write(w, data)
     local n = 0
 
     if not self.header_sent then
-        if size > 0 then
+        local with_content = size > 0
+        if with_content then
             self.header:set('Content-Length', tostring(size))
         end
 
         -- write header
-        local len, err = self:write_header(w)
+        local len, err = write_header(self, w, with_content)
         if not len or err then
             return nil, err
         end
