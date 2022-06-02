@@ -4,7 +4,7 @@ local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_content = require('net.http.content').new
 
-function testcase.read()
+function testcase.copy()
     local rctx = {
         msg = 'hello world!',
         read = function(self, n)
@@ -29,9 +29,9 @@ function testcase.read()
     local c = new_content(r, #rctx.msg)
     w:setbufsize(0)
 
-    -- test that read content
+    -- test that copy content
     assert.equal(c:size(), 12)
-    local n, err = c:read(w)
+    local n, err = c:copy(w)
     assert.equal(n, 12)
     assert.is_nil(c:size())
     assert.is_nil(err)
@@ -39,7 +39,7 @@ function testcase.read()
     assert.equal(wctx.msg, 'hello world!')
 
     -- test that throws an error if content is already consumed
-    err = assert.throws(c.read, c)
+    err = assert.throws(c.copy, c)
     assert.match(err, 'content is already consumed')
 
     -- test that return error if writer returns error
@@ -49,7 +49,7 @@ function testcase.read()
         return #s, 'write-error'
     end
     c = new_content(r, #rctx.msg)
-    n, err = c:read(w, 100)
+    n, err = c:copy(w, 100)
     assert.equal(n, 5)
     assert.equal(err, 'write-error')
     assert.equal(rctx.msg, '')
@@ -62,11 +62,11 @@ function testcase.read()
 
     -- test that throws an error if chunksize is not uint
     c = new_content(r, #rctx.msg)
-    err = assert.throws(c.read, c, w, true)
+    err = assert.throws(c.copy, c, w, true)
     assert.match(err, 'chunksize must be uint greater than 0')
 
     -- test that throws an error if chunksize is not greater than 0
-    err = assert.throws(c.read, c, w, 0)
+    err = assert.throws(c.copy, c, w, 0)
     assert.match(err, 'chunksize must be uint greater than 0')
 end
 

@@ -176,7 +176,7 @@ function testcase.accept()
     }))
     assert(res.content, 'no content')
     local content = ''
-    res.content:read({
+    res.content:copy({
         write = function(_, s)
             content = content .. s
             return #s

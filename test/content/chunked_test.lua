@@ -4,7 +4,7 @@ local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_chunked_content = require('net.http.content.chunked').new
 
-function testcase.read()
+function testcase.copy()
     local rctx = {
         msg = '',
         read = function(self, n)
@@ -34,7 +34,7 @@ function testcase.read()
         w:setbufsize(0)
     end
 
-    -- test that read chunked-encoded message
+    -- test that copy chunked-encoded message
     resetctx(table.concat({
         '6',
         'hello ',
@@ -44,7 +44,7 @@ function testcase.read()
         'Trailer-Name: Trailer-Value',
         '\r\n',
     }, '\r\n'))
-    local n, err = c:read(w, 2)
+    local n, err = c:copy(w, 2)
     assert.equal(n, 12)
     assert.is_nil(err)
     assert.equal(rctx.msg, '')
@@ -73,7 +73,7 @@ function testcase.read()
             self.trailer = trailer
         end,
     }
-    n, err = c:read(w, 2, h)
+    n, err = c:copy(w, 2, h)
     assert.equal(n, 12)
     assert.is_nil(err)
     assert.equal(rctx.msg, '')
@@ -103,7 +103,7 @@ function testcase.read()
 
     -- test that return an error if invalid chunk-size
     resetctx('5x\r\nhello\r\n0\r\n')
-    n, err = c:read(w)
+    n, err = c:copy(w)
     assert.is_nil(n)
     assert.match(err, 'illegal byte sequence')
     assert.equal(rctx.msg, '')
@@ -111,7 +111,7 @@ function testcase.read()
 
     -- test that return an error if invalid terminator of chunk-size
     resetctx('5\rhello\r\n0\r\n')
-    n, err = c:read(w)
+    n, err = c:copy(w)
     assert.is_nil(n)
     assert.match(err, 'invalid end-of-line terminator')
     assert.equal(rctx.msg, '')
@@ -119,7 +119,7 @@ function testcase.read()
 
     -- test that return an error if invalid terminator of chunk-data
     resetctx('5\r\nhello\r0\r\n')
-    n, err = c:read(w)
+    n, err = c:copy(w)
     assert.is_nil(n)
     assert.match(err, 'invalid end-of-line terminator')
     assert.equal(rctx.msg, '')
@@ -127,7 +127,7 @@ function testcase.read()
 
     -- test that return an error if invalid terminator of trailer-part
     resetctx('0\r\nTrailer Name: Trailer-Value\r\n\r\n')
-    n, err = c:read(w)
+    n, err = c:copy(w)
     assert.is_nil(n)
     assert.match(err, 'invalid header field-name')
     assert.equal(rctx.msg, '')
@@ -138,7 +138,7 @@ function testcase.read()
     h.read_trailer = function()
         return 'abort by read_trailer'
     end
-    n, err = c:read(w, 5, h)
+    n, err = c:copy(w, 5, h)
     assert.is_nil(n)
     assert.equal(err, 'abort by read_trailer')
 
@@ -147,7 +147,7 @@ function testcase.read()
     h.read_last_chunk = function()
         return 'abort by read_last_chunk'
     end
-    n, err = c:read(w, 5, h)
+    n, err = c:copy(w, 5, h)
     assert.is_nil(n)
     assert.equal(err, 'abort by read_last_chunk')
 
@@ -156,21 +156,21 @@ function testcase.read()
     h.read_chunk = function()
         return nil, 'abort by read_chunk'
     end
-    n, err = c:read(w, 5, h)
+    n, err = c:copy(w, 5, h)
     assert.is_nil(n)
     assert.equal(err, 'abort by read_chunk')
 
     -- test that throws an error if content is already consumed
-    err = assert.throws(c.read, c, w, true)
+    err = assert.throws(c.copy, c, w, true)
     assert.match(err, 'content is already consumed')
 
     -- test that throws an error if chunksize is not uint
     resetctx('c\r\nhello world!\r\n0\r\n\r\n')
-    err = assert.throws(c.read, c, w, true)
+    err = assert.throws(c.copy, c, w, true)
     assert.match(err, 'chunksize must be uint greater than 0')
 
     -- test that throws an error if chunksize is not greater than 0
-    err = assert.throws(c.read, c, w, 0)
+    err = assert.throws(c.copy, c, w, 0)
     assert.match(err, 'chunksize must be uint greater than 0')
 end
 
