@@ -175,13 +175,6 @@ function testcase.accept()
         insecure = true,
     }))
     assert(res.content, 'no content')
-    local content = ''
-    res.content:copy({
-        write = function(_, s)
-            content = content .. s
-            return #s
-        end,
-    })
-    assert(content, 'hello world!')
+    assert(res.content:read(), 'hello world!')
 end
 
