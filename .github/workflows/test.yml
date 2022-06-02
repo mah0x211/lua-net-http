@@ -66,12 +66,12 @@ jobs:
       run: |
         luarocks make
     -
-      name: Install Tools
+      name: Install Test Tools
       run: |
+        sudo apt install lcov -y
         luarocks install luacov
         luarocks install exec
-        luarocks install process
-        luarocks install signal
+        luarocks install mkstemp
         luarocks install testcase
     -
       name: Run Test

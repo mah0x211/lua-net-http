@@ -1,5 +1,5 @@
 --
--- Copyright (C) 2017-2018 Masatoshi Teruya
+-- Copyright (C) 2017-2022 Masatoshi Fukunaga
 --
 -- Permission is hereby granted, free of charge, to any person obtaining a copy
 -- of this software and associated documentation files (the "Software"), to deal
@@ -24,50 +24,86 @@
 -- Created by Masatoshi Teruya on 17/08/01.
 --
 --- assign to local
+local find = string.find
+local sub = string.sub
+local new_metamodule = require('metamodule').new
+local isa = require('isa')
+local is_string = isa.string
+local is_table = isa.table
 local new_inet_server = require('net.stream.inet').server.new
 local new_unix_server = require('net.stream.unix').server.new
-local new_incoming = require('net.http.connection.incoming').new
+local new_connection = require('net.http.connection').new
+
+-- base for net.http.server.* classes
+local Server = {}
 
 --- accepted
 --- @param self net.stream.Socket
 --- @param sock net.stream.Socket
 --- @param nonblock boolean
 --- @param ai llsocket.addrinfo
---- @return net.http.connection.incoming conn
+--- @return net.http.connection conn
 --- @return string? err
 --- @return llsocket.addrinfo ai
-local function accepted(_, sock, nonblock, ai)
-    return new_incoming(sock), nil, ai
+function Server:accepted(sock, nonblock, ai)
+    return new_connection(sock), nil, ai
 end
 
+--- @class net.http.server.Inet : net.stream.inet.Server
+local InetServer = new_metamodule.Inet(Server, 'net.stream.inet.Server')
+
+--- @class net.http.server.InetTLS
+local InetTSLServer = new_metamodule.InetTLS(Server,
+                                             'net.tls.stream.inet.Server')
+
+--- @class net.http.server.Unix : net.stream.unix.Server, net.http.server
+local UnixServer = new_metamodule.Unix(Server, 'net.stream.unix.Server')
+
+--- @class net.http.server.UnixTLS : net.tls.stream.unix.Server, net.http.server
+local UnixTLSServer = new_metamodule.UnixTLS(Server,
+                                             'net.tls.stream.unix.Server')
+
 --- new
+--- @param addr string
 --- @param opts table?
 --- @return net.stream.Server server
 --- @return string? err
-local function new(opts)
-    local server, err
-
-    if opts.path then
-        server, err = new_unix_server(opts.path, opts.tlscfg)
-    else
-        server, err = new_inet_server(opts.host, opts.port, opts)
+local function new(addr, opts)
+    if not is_string(addr) then
+        error('addr must be string', 2)
+    elseif opts == nil then
+        opts = {}
+    elseif not is_table(opts) then
+        error('opts must be table', 2)
     end
 
+    -- unix server
+    if find(addr, '^[./]') then
+        local s, err = new_unix_server(addr, opts.tlscfg)
+        if err then
+            return nil, err
+        elseif s.tls then
+            return UnixTLSServer(s.sock, s.nonblock, s.tls)
+        end
+        return UnixServer(s.sock, s.nonblock)
+    end
+
+    -- inet server
+    local delim = find(addr, ':')
+    local host = addr
+    local port
+    if delim then
+        host = sub(addr, 1, delim - 1)
+        port = sub(addr, delim + 1)
+    end
+
+    local s, err = new_inet_server(host, port, opts)
     if err then
         return nil, err
+    elseif s.tls then
+        return InetTSLServer(s.sock, s.nonblock, s.tls)
     end
-
-    local ok
-    ok, err = server:listen()
-    if not ok then
-        server:close()
-        return nil, err
-    end
-
-    -- overwrite accepted method
-    server.accepted = accepted
-
-    return server
+    return InetServer(s.sock, s.nonblock)
 end
 
 return {
