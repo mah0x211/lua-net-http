@@ -147,15 +147,17 @@ local function fetch(uri, opts)
 
     -- create new client connection
     local c = new_connection(sock)
+    local content = opts.content
     -- send request
     local _
-    if opts.content then
-        -- set content
-        -- TODO: verify content type equals to net.http.content
-        req:set_content(opts.content)
-        _, err = req:write_content(c)
-    else
+    if content == nil then
         _, err = req:write_header(c)
+    elseif is_string(content) then
+        _, err = req:write(c, content)
+    else
+        -- TODO: verify content type equals to net.http.content
+        req:set_content(content)
+        _, err = req:write_content(c)
     end
     if err then
         return nil, err
