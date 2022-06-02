@@ -32,16 +32,14 @@ jobs:
           - "5.2"
           - "5.3"
           - "5.4"
+          - "luajit-2.0.5"
+          - "luajit-openresty"
     steps:
     -
       name: Checkout
       uses: actions/checkout@v2
       with:
         submodules: 'true'
-    -
-      name: Generate Certificate For Testing
-      run: |
-        sh cert/certgen.sh
     -
       name: Setup Lua ${{ matrix.lua-version }}
       uses: leafo/gh-actions-lua@v8.0.0

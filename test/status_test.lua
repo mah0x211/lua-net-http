@@ -120,7 +120,7 @@ function testcase.toline()
     assert.equal(toline(900), '900 Unknown Status\r\n')
 
     -- test that generate status-line from unknown status code and version
-    assert.equal(toline(900, 12.25), 'HTTP/12.2 900 Unknown Status\r\n')
+    assert.equal(toline(900, 12.20), 'HTTP/12.2 900 Unknown Status\r\n')
 
     -- test that generate status-line from unknown status code and reason
     assert.equal(toline(900, 1.1, 'My Status'), 'HTTP/1.1 900 My Status\r\n')
