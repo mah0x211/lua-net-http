@@ -1,4 +1,3 @@
-local assert = require('assertex')
 local testcase = require('testcase')
 local parse = require('net.http.parse')
 local parse_request = parse.request
@@ -18,9 +17,9 @@ function testcase.parse_request()
     }
     assert.equal(parse_request(msg, req), #msg)
     local kv_host = {
-        ord = 1,
-        key = 'host',
-        vals = {
+        idx = 1,
+        key = 'Host',
+        val = {
             'example.com',
         },
     }
@@ -76,8 +75,9 @@ function testcase.parse_request()
     end
 
     -- test that cannot parse unsupported request method
-    assert.equal(parse_request('FOO /foo/bar/baz/qux HTTP/1.1\r\n', {}),
-                 parse.EMETHOD)
+    local pos, err = parse_request('FOO /foo/bar/baz/qux HTTP/1.1\r\n', {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EMETHOD)
 
     -- test that cannot parse request message of unsupported version
     msg = table.concat({
@@ -85,9 +85,11 @@ function testcase.parse_request()
         'Host: example.com',
         CRLF,
     }, CRLF)
-    assert.equal(parse_request(msg, {
+    pos, err = parse_request(msg, {
         header = {},
-    }), parse.EVERSION)
+    })
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EVERSION)
 
     -- test that parse request message without header
     msg = 'GET /foo/bar/baz/qux HTTP/1.1' .. CRLF .. CRLF
@@ -120,7 +122,9 @@ function testcase.parse_request()
     req = {
         header = {},
     }
-    assert.equal(parse_request(msg, req), parse.EEOL)
+    pos, err = parse_request(msg, req)
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EEOL)
 
     -- test that limit the length of uri
     msg = table.concat({
@@ -131,7 +135,9 @@ function testcase.parse_request()
     req = {
         header = {},
     }
-    assert.equal(parse_request(msg, req, 10), parse.ELEN)
+    pos, err = parse_request(msg, req, 10)
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.ELEN)
 
     -- test that returns EAGAIN to the incomplete message
     msg = table.concat({
@@ -140,9 +146,11 @@ function testcase.parse_request()
         CRLF,
     }, CRLF)
     for i = 1, #msg - 1 do
-        assert.equal(parse_request(string.sub(msg, 1, i), {
+        pos, err = parse_request(string.sub(msg, 1, i), {
             header = {},
-        }), parse.EAGAIN)
+        })
+        assert.is_nil(pos)
+        assert.equal(err.type, parse.EAGAIN)
     end
 
     -- test that parse partial messages
@@ -159,12 +167,14 @@ function testcase.parse_request()
     }) do
         msg = msg .. chunk
         if i < 5 then
-            assert.equal(parse_request(msg, req), parse.EAGAIN)
+            pos, err = parse_request(msg, req)
+            assert.is_nil(pos)
+            assert.equal(err.type, parse.EAGAIN)
         else
             assert.equal(parse_request(msg, req), #msg)
         end
     end
-    kv_host.vals = {
+    kv_host.val = {
         'example1.com',
         'example2.com',
         'example3.com',

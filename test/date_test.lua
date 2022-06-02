@@ -1,13 +1,7 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
+local sleep = require('testcase.timer').sleep
 local date = require('net.http.date')
-local nsleep = require('process').nsleep
-local SEC = 1e+9
-
-local function sleep(s)
-    nsleep(s * SEC)
-end
 
 function testcase.now()
     -- test that now() returns a date string

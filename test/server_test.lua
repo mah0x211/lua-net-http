@@ -1,92 +1,187 @@
 require('luacov')
-local assert = require('assertex')
 local testcase = require('testcase')
-local signal = require('signal')
-local fork = require('process').fork
-local getpid = require('process').getpid
-local server = require('net.http.server')
-local request = require('net.http.request')
-local SOCKFILE = 'server.sock'
-local PIDFILE = 'child.pid'
+local sleep = require('testcase.timer').sleep
+local fork = require('testcase.fork')
+local execvp = require('exec').execvp
+local mkstemp = require('mkstemp')
+local errno = require('errno')
+local new_tls_config = require('net.tls.config').new
+local fetch = require('net.http.fetch')
+local new_response = require('net.http.message.response').new
+local new_server = require('net.http.server').new
 
-local function newproc()
-    local pid = assert(fork())
-    if pid == 0 then
-        local fh = assert(io.open(PIDFILE, 'w+'))
-        fh:write(getpid())
-        fh:close()
-        return true
+local TLS_SERVER_CONFIG
+
+function testcase.before_all()
+    local p = assert(execvp('openssl', {
+        'req',
+        '-new',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-x509',
+        '-days',
+        '1',
+        '-keyout',
+        'cert.key',
+        '-out',
+        'cert.pem',
+        '-subj',
+        '/C=US/CN=www.example.com',
+    }))
+
+    for line in p.stderr:lines() do
+        print(line)
     end
 
-    return false
+    local res = assert(p:waitpid())
+    if res.exit ~= 0 then
+        error('failed to generate cert files')
+    end
+
+    TLS_SERVER_CONFIG = new_tls_config()
+    assert(TLS_SERVER_CONFIG:set_keypair_file('cert.pem', 'cert.key'))
 end
 
-local function killproc()
-    local fh = io.open(PIDFILE)
+local SOCKFILE
+local SOCKFILENAME
 
-    if fh then
-        os.remove(PIDFILE)
-
-        local pid = fh:read('*a')
-        fh:close()
-        if string.find(pid, '%d+') then
-            pid = tonumber(pid)
-            if pid then
-                signal.kill(signal.SIGKILL, pid)
-            end
-        end
-    end
+function testcase.before_each()
+    SOCKFILENAME = '/tmp/test_sock_' .. 'XXXXXX'
+    SOCKFILE = assert(mkstemp(SOCKFILENAME))
+    os.remove(SOCKFILENAME)
 end
 
 function testcase.after_each()
-    os.remove(SOCKFILE)
-    killproc()
+    SOCKFILE:close()
+    SOCKFILE = nil
+    os.remove(SOCKFILENAME)
+    SOCKFILENAME = nil
+    -- killproc()
 end
 
-function testcase.listen()
-    -- test that listen 127.0.0.1:5000
-    local s = assert(server.new({
-        host = '127.0.0.1',
-        port = '5000',
+function testcase.new_inet_server()
+    -- test that create new Inet server
+    local s, err = assert(new_server('127.0.0.1:8080', {
+        reuseaddr = true,
+        reuseport = true,
     }))
-    s:close()
+    assert.match(s, '^net.http.server.Inet: ', false)
+    assert.is_nil(err)
+    local ai = assert(s:getsockname())
+    assert.equal(ai:addr(), '127.0.0.1')
+    assert.equal(ai:port(), 8080)
 
-    -- test that listen ./server.sock
-    s = assert(server.new({
-        path = SOCKFILE,
+    -- test that return err=EADDRINUSE
+    local news
+    news, err = new_server('127.0.0.1:8080')
+    assert.is_nil(news)
+    assert.equal(err.type, errno.EADDRINUSE)
+    assert(s:close())
+
+    -- test that throws an error if addr is not string
+    err = assert.throws(new_server)
+    assert.match(err, 'addr must be string')
+
+    -- test that throws an error if opts is not table
+    err = assert.throws(new_server, '', true)
+    assert.match(err, 'opts must be table')
+end
+
+function testcase.new_inet_tls_server()
+    -- test that create new InetTLS server
+    local s, err = assert(new_server('127.0.0.1:8080', {
+        reuseaddr = true,
+        reuseport = true,
+        tlscfg = TLS_SERVER_CONFIG,
     }))
-    s:close()
+    assert.match(s, '^net.http.server.InetTLS: ', false)
+    assert.is_nil(err)
+    local ai = assert(s:getsockname())
+    assert.equal(ai:addr(), '127.0.0.1')
+    assert.equal(ai:port(), 8080)
+
+    -- test that return err=EADDRINUSE
+    local news
+    news, err = new_server('127.0.0.1:8080', {
+        tlscfg = TLS_SERVER_CONFIG,
+    })
+    assert.is_nil(news)
+    assert.equal(err.type, errno.EADDRINUSE)
+    assert(s:close())
+end
+
+function testcase.new_unix_server()
+    -- test that create new Unix server
+    local s, err = assert(new_server(SOCKFILENAME))
+    assert.match(s, '^net.http.server.Unix: ', false)
+    assert.is_nil(err)
+    local ai = assert(s:getsockname())
+    assert.equal(ai:addr(), SOCKFILENAME)
+    assert(s:close())
+
+    -- test that return err=EADDRINUSE
+    local news
+    news, err = new_server(SOCKFILENAME)
+    assert.is_nil(news)
+    assert.equal(err.type, errno.EADDRINUSE)
+end
+
+function testcase.new_unix_tls_server()
+    -- test that create new UnixTLS  server
+    local s, err = assert(new_server(SOCKFILENAME, {
+        tlscfg = TLS_SERVER_CONFIG,
+    }))
+    assert.match(s, '^net.http.server.UnixTLS: ', false)
+    assert.is_nil(err)
+    local ai = assert(s:getsockname())
+    assert.equal(ai:addr(), SOCKFILENAME)
+    assert(s:close())
+
+    -- test that return err=EADDRINUSE
+    local news
+    news, err = new_server(SOCKFILENAME, {
+        tlscfg = TLS_SERVER_CONFIG,
+    })
+    assert.is_nil(news)
+    assert.equal(err.type, errno.EADDRINUSE)
 end
 
 function testcase.accept()
-    -- client
-    if newproc() then
-        local req = request.new('get', 'http://127.0.0.1:5000/hello')
-        local idx = 0
-        local chunks = {
-            'hello',
-            ' ',
-            'world',
-            '!',
-        }
-        -- set body as chunked data
-        req:setBody({
-            read = function()
-                idx = idx + 1
-                return chunks[idx]
-            end,
-        }, 'client/message')
-        req:send()
-        return
+    -- test that accept connection
+    local p = assert(fork())
+    if p:is_child() then
+        local s = assert(new_server(SOCKFILENAME, {
+            reuseaddr = true,
+            reuseport = true,
+            tlscfg = TLS_SERVER_CONFIG,
+        }))
+        assert(s:listen())
+        while true do
+            local peer = assert(s:accept())
+            assert.match(peer, '^net.http.connection: ', false)
+            assert(peer:read_request())
+            local res = new_response()
+            assert(res:write(peer, 'hello world!'))
+            assert(peer:flush())
+            assert(peer:close())
+            assert(s:close())
+        end
     end
 
-    -- test that communicate with client
-    local s = assert(server.new({
-        host = '127.0.0.1',
-        port = '5000',
+    sleep(0.05)
+    local res = assert(fetch('https://127.0.0.1:8080', {
+        sockfile = SOCKFILENAME,
+        insecure = true,
     }))
-    -- accept client
-    local c = assert(s:accept())
-    c:close()
+    assert(res.content, 'no content')
+    local content = ''
+    res.content:read({
+        write = function(_, s)
+            content = content .. s
+            return #s
+        end,
+    })
+    assert(content, 'hello world!')
 end
 

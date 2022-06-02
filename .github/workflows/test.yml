@@ -14,7 +14,7 @@ jobs:
       uses: leafo/gh-actions-lua@v8.0.0
     -
       name: Setup Luarocks
-      uses: leafo/gh-actions-luarocks@v4.0.0
+      uses: leafo/gh-actions-luarocks@v4
     -
       name: Install Tools
       run: luarocks install luacheck
@@ -32,6 +32,8 @@ jobs:
           - "5.2"
           - "5.3"
           - "5.4"
+          - "luajit-2.0.5"
+          - "luajit-openresty"
     steps:
     -
       name: Checkout
@@ -39,41 +41,53 @@ jobs:
       with:
         submodules: 'true'
     -
-      name: Generate Certificate For Testing
-      run: |
-        sh cert/certgen.sh
-    -
       name: Setup Lua ${{ matrix.lua-version }}
       uses: leafo/gh-actions-lua@v8.0.0
       with:
         luaVersion: ${{ matrix.lua-version }}
     -
       name: Setup Luarocks
-      uses: leafo/gh-actions-luarocks@v4.0.0
+      uses: leafo/gh-actions-luarocks@v4
     -
-      name: Install Tools
+      name: Install Required Packages
       run: |
-        luarocks install luacov-coveralls
-        luarocks install cluacov
-        luarocks install assertex
-        luarocks install process
-        luarocks install signal
-        luarocks install testcase
-        luarocks install llsocket 0.11.1
-        luarocks install libtls 2.7.4
-        luarocks install net 0.25.0
+        sudo apt install libtool
+        wget https://causal.agency/libretls/libretls-3.5.1.tar.gz
+        tar xvzf ./libretls-3.5.1.tar.gz
+        cd ./libretls-3.5.1
+        autoreconf -fi
+        ./configure
+        make all
+        sudo make install
     -
       name: Install
       run: |
         luarocks make
     -
+      name: Install Test Tools
+      run: |
+        sudo apt install lcov -y
+        luarocks install luacov
+        luarocks install exec
+        luarocks install mkstemp
+        luarocks install testcase
+    -
       name: Run Test
       run: |
         testcase --coverage ./test/
     -
-      name: Coveralls
-      continue-on-error: true
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        luacov-coveralls
+      name: Upload lua coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        files: ./luacov.report.out
+        flags: unittests
+    # -
+    #   name: Generate coverage reports
+    #   run: |
+    #     sh ./covgen.sh
+    # -
+    #   name: Upload c coverage to Codecov
+    #   uses: codecov/codecov-action@v2
+    #   with:
+    #     files: ./coverage/lcov.info
+    #     flags: unittests
