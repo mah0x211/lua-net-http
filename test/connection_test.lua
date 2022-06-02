@@ -172,7 +172,7 @@ function testcase.read_request()
         },
     })
     assert(msg.content ~= nil, 'content is nil')
-    assert.equal(msg.content:read(w), 4)
+    assert.equal(msg.content:copy(w), 4)
     assert.equal(wctx.msg, 'q=42')
 
     -- test that read next request message
@@ -210,7 +210,7 @@ function testcase.read_request()
     })
     assert.is_true(msg.content.is_chunked)
     wctx.msg = ''
-    assert.equal(msg.content:read(w), 11)
+    assert.equal(msg.content:copy(w), 11)
     assert.equal(wctx.msg, 'hello=world')
 
     -- test that read empty request
@@ -392,7 +392,7 @@ function testcase.read_response()
         },
     })
     assert(msg.content ~= nil, 'content is nil')
-    assert.equal(msg.content:read(w), 5)
+    assert.equal(msg.content:copy(w), 5)
     assert.equal(wctx.msg, 'hello')
 
     -- test that read next response message
@@ -423,7 +423,7 @@ function testcase.read_response()
     })
     assert.is_true(msg.content.is_chunked)
     wctx.msg = ''
-    assert.equal(msg.content:read(w), 11)
+    assert.equal(msg.content:copy(w), 11)
     assert.equal(wctx.msg, 'hello world')
 
     -- test that read empty response

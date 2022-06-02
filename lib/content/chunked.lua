@@ -110,13 +110,13 @@ function ChunkedContent:init(r)
     return self
 end
 
---- read
+--- copy
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @param handler? net.http.content.chunked.Handler
 --- @return integer len
 --- @return string? err
-function ChunkedContent:read(w, chunksize, handler)
+function ChunkedContent:copy(w, chunksize, handler)
     if self.is_consumed then
         error('content is already consumed', 2)
     elseif chunksize == nil then

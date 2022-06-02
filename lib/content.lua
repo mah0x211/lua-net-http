@@ -54,12 +54,12 @@ function Content:size()
     end
 end
 
---- read
+--- copy
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @return integer len
 --- @return string? err
-function Content:read(w, chunksize)
+function Content:copy(w, chunksize)
     if self.is_consumed then
         error('content is already consumed', 2)
     elseif chunksize == nil then
@@ -102,7 +102,7 @@ end
 --- @return integer len
 --- @return string? err
 function Content:write(w, chunksize)
-    return self:read(w, chunksize)
+    return self:copy(w, chunksize)
 end
 
 return {
