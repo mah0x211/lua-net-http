@@ -1,7 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
 local new_connection = require('net.http.connection').new
-local new_writer = require('net.http.writer').new
 local parse = require('net.http.parse')
 
 function testcase.new()
@@ -78,15 +77,6 @@ function testcase.flush()
 end
 
 function testcase.read_request()
-    local wctx = {
-        msg = '',
-        write = function(self, s)
-            self.msg = self.msg .. s
-            return #s
-        end,
-    }
-    local w = new_writer(wctx)
-    w:setbufsize(0)
     local data = table.concat({
         'POST /foo/bar/baz HTTP/1.1',
         'Host: www.example.com',
@@ -172,8 +162,7 @@ function testcase.read_request()
         },
     })
     assert(msg.content ~= nil, 'content is nil')
-    assert.equal(msg.content:copy(w), 4)
-    assert.equal(wctx.msg, 'q=42')
+    assert.equal(msg.content:read(), 'q=42')
 
     -- test that read next request message
     msg, err = c:read_request()
@@ -209,9 +198,7 @@ function testcase.read_request()
         },
     })
     assert.is_true(msg.content.is_chunked)
-    wctx.msg = ''
-    assert.equal(msg.content:copy(w), 11)
-    assert.equal(wctx.msg, 'hello=world')
+    assert.equal(msg.content:read(), 'hello=world')
 
     -- test that read empty request
     msg, err = c:read_request()
@@ -307,15 +294,6 @@ function testcase.read_request()
 end
 
 function testcase.read_response()
-    local wctx = {
-        msg = '',
-        write = function(self, s)
-            self.msg = self.msg .. s
-            return #s
-        end,
-    }
-    local w = new_writer(wctx)
-    w:setbufsize(0)
     local data = table.concat({
         'HTTP/1.1 200 OK',
         'Content-Type: text/html; charset=UTF-8',
@@ -392,8 +370,7 @@ function testcase.read_response()
         },
     })
     assert(msg.content ~= nil, 'content is nil')
-    assert.equal(msg.content:copy(w), 5)
-    assert.equal(wctx.msg, 'hello')
+    assert.equal(msg.content:read(), 'hello')
 
     -- test that read next response message
     msg, err = c:read_response()
@@ -422,9 +399,7 @@ function testcase.read_response()
         },
     })
     assert.is_true(msg.content.is_chunked)
-    wctx.msg = ''
-    assert.equal(msg.content:copy(w), 11)
-    assert.equal(wctx.msg, 'hello world')
+    assert.equal(msg.content:read(), 'hello world')
 
     -- test that read empty response
     msg, err = c:read_response()

@@ -58,7 +58,7 @@ end
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @return integer len
---- @return string? err
+--- @return error? err
 function Content:copy(w, chunksize)
     if self.is_consumed then
         error('content is already consumed', 2)
@@ -96,11 +96,30 @@ function Content:copy(w, chunksize)
     return size
 end
 
+--- read
+--- @param chunksize? integer
+--- @return string s
+--- @return error? err
+function Content:read(chunksize)
+    local str = ''
+    local _, err = self:copy({
+        write = function(_, s)
+            str = str .. s
+            return #s
+        end,
+    }, chunksize)
+    if err then
+        return nil, err
+    end
+
+    return str
+end
+
 --- write
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @return integer len
---- @return string? err
+--- @return error? err
 function Content:write(w, chunksize)
     return self:copy(w, chunksize)
 end
