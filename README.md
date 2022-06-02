@@ -8,11 +8,89 @@ http module for lua.
 
 **NOTE: this module is under heavy development.**
 
+
 ***
+
 
 ## Installation
 
 ```
-luarocks install net-http
+luarocks install net-http --server=https://luarocks.org/dev
+```
+
+
+## Usage
+
+
+### Server
+
+```lua
+local format = string.format
+local server = require('net.http.server')
+local response = require('net.http.message.response')
+
+-- create server with SO_REUSEADDR option
+local s = server.new('127.0.0.1:8080', {
+    reuseaddr = true,
+})
+s:listen()
+
+local conn = s:accept()
+local req = conn:read_request()
+-- dump request
+print('REQUEST ===')
+print(format('%s %s HTTP/%.1f', req.method, req.uri, req.version))
+for _, k, v in req.header:pairs() do
+    print(format('%s: %s', k, v))
+end
+print('')
+print(req.content:read())
+print('')
+
+-- reply response
+local res = response.new()
+res:write(conn, 'hello world!')
+conn:flush()
+conn:close()
+
+-- $ lua ./server.lua
+-- REQUEST ===
+-- GET / HTTP/1.1
+-- User-Agent: lua-net-http
+-- Content-Length: 11
+-- Content-Type: application/octet-stream
+-- Host: 127.0.0.1:8080
+--
+-- foo/bar/baz
+```
+
+### Client
+
+```lua
+local format = string.format
+local fetch = require('net.http.fetch')
+
+-- request to server
+local res = fetch('http://127.0.0.1:8080', {
+    content = 'foo/bar/baz',
+})
+-- dump response
+print('RESPONSE ===')
+print(format('HTTP/%.1f %d %s', res.version, res.status, res.reason))
+for _, k, v in res.header:pairs() do
+    print(format('%s: %s', k, v))
+end
+print('')
+print(res.content:read())
+print('')
+
+-- $ lua ./client.lua
+-- RESPONSE ===
+-- HTTP/1.1 200 OK
+-- Content-Length: 17
+-- Content-Type: application/octet-stream
+-- Date: Thu, 02 Jun 2022 23:48:17 GMT
+--
+-- reply foo/bar/baz
 ```
 
