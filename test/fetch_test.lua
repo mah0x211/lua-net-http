@@ -67,7 +67,6 @@ function testcase.fetch()
             local peer = assert(server:accept())
             local msg = assert(peer:recv())
             local res = new_response()
-            res.header:set('Content-Type', 'text/plain')
             assert(res:write(peer, msg))
             sleep(0.05)
             peer:close()
@@ -88,12 +87,12 @@ function testcase.fetch()
     assert.contains(res.header.dict, {
         ['content-length'] = {
             val = {
-                '100',
+                '140',
             },
         },
         ['content-type'] = {
             val = {
-                'text/plain',
+                'application/octet-stream',
             },
         },
         ['date'] = {
@@ -109,6 +108,7 @@ function testcase.fetch()
         'POST / HTTP/1.1',
         'User-Agent: lua-net-http',
         'Content-Length: 12',
+        'Content-Type: application/octet-stream',
         'Host: ' .. host,
         '',
         'hello world!',

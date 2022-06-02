@@ -125,6 +125,7 @@ function testcase.write_content()
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
         'Content-Length: 12',
+        'Content-Type: application/octet-stream',
         '',
         'hello world!',
     }, '\r\n'))
@@ -176,6 +177,7 @@ function testcase.write()
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
         'Content-Length: 6',
+        'Content-Type: application/octet-stream',
         '',
         'foobar',
     }, '\r\n'))
