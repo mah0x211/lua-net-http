@@ -47,8 +47,8 @@ local SOCKFILE
 local SOCKFILENAME
 
 function testcase.before_each()
-    SOCKFILENAME = '/tmp/test_sock_' .. 'XXXXXX'
-    SOCKFILE = assert(mkstemp(SOCKFILENAME))
+    local _
+    SOCKFILE, _, SOCKFILENAME = assert(mkstemp('/tmp/test_sock_XXXXXX'))
     os.remove(SOCKFILENAME)
 end
 
