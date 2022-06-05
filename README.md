@@ -44,12 +44,13 @@ for _, k, v in req.header:pairs() do
     print(format('%s: %s', k, v))
 end
 print('')
-print(req.content:read())
+local content = req.content:read()
+print(content)
 print('')
 
 -- reply response
 local res = response.new()
-res:write(conn, 'hello world!')
+res:write(conn, 'reply ' .. content)
 conn:flush()
 conn:close()
 
