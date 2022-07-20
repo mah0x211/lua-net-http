@@ -2,6 +2,28 @@ require('luacov')
 local testcase = require('testcase')
 local header = require('net.http.header')
 
+function testcase.new()
+    -- test that create new header
+    local h = header.new()
+    assert.match(h, '^net.http.header: ', false)
+
+    -- test that create new header with initial header
+    h = header.new({
+        hello = 'world',
+        foo = {
+            'bar',
+            'baz',
+        },
+    })
+    assert.equal(h:get('hello'), {
+        'world',
+    })
+    assert.equal(h:get('foo'), {
+        'bar',
+        'baz',
+    })
+end
+
 function testcase.set()
     local h = header.new()
 
