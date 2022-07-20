@@ -106,9 +106,21 @@ end
 local Header = {}
 
 --- init
+--- @param header? table
 --- @return net.http.header
-function Header:init()
+function Header:init(header)
     self.dict = {}
+
+    -- set initial headers
+    if header ~= nil then
+        if not is_table(header) then
+            error('header must be table', 2)
+        end
+        for k, v in pairs(header) do
+            self:set(k, v)
+        end
+    end
+
     return self
 end
 
