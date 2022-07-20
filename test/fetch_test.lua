@@ -79,6 +79,12 @@ function testcase.fetch()
     f:seek('set')
     local res, err, timeout = fetch('https://' .. host, {
         method = 'POST',
+        header = {
+            foo = {
+                'bar',
+                'baz',
+            },
+        },
         content = new_content(f, 12),
         insecure = true,
     })
@@ -87,7 +93,7 @@ function testcase.fetch()
     assert.contains(res.header.dict, {
         ['content-length'] = {
             val = {
-                '140',
+                '160',
             },
         },
         ['content-type'] = {
@@ -106,6 +112,8 @@ function testcase.fetch()
     assert.equal(#content, len)
     assert.equal(content, table.concat({
         'POST / HTTP/1.1',
+        'Foo: bar',
+        'Foo: baz',
         'User-Agent: lua-net-http',
         'Content-Length: 12',
         'Content-Type: application/octet-stream',
@@ -157,6 +165,18 @@ function testcase.fetch()
     -- test that throws an error if opts is not table
     err = assert.throws(fetch, 'http://' .. host, true)
     assert.match(err, 'opts must be table')
+
+    -- test that throws an error if opts.header is invalid
+    err = assert.throws(fetch, 'https://' .. host, {
+        header = 123,
+    })
+    assert.match(err, 'opts.header must be table or net.http.header')
+
+    -- test that throws an error if opts.content is invalid
+    err = assert.throws(fetch, 'https://' .. host, {
+        content = 123,
+    })
+    assert.match(err, 'opts.content must be string or net.http.content')
 end
 
 function testcase.fetch_via_sockfile()

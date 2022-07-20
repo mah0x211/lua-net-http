@@ -22,6 +22,10 @@ function testcase.new()
         'bar',
         'baz',
     })
+
+    -- test that throws an error if header argument is invald
+    local err = assert.throws(header.new, 'hello')
+    assert.match(err, 'header must be table')
 end
 
 function testcase.set()
