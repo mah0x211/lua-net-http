@@ -29,7 +29,9 @@ local new_inet_client = require('net.stream.inet').client.new
 local new_unix_client = require('net.stream.unix').client.new
 local new_connection = require('net.http.connection').new
 local encode_query = require('net.http.query').encode
+local new_header = require('net.http.header').new
 local new_request = require('net.http.message.request').new
+local instanceof = require('metamodule').instanceof
 --- constants
 local DEFAULT_UA = 'lua-net-http'
 local WELL_KNOWN_PORT = {
@@ -56,8 +58,13 @@ local function fetch(uri, opts)
 
     -- set header
     if opts.header then
-        -- TODO: verify header type equals to net.http.header
-        req.header = opts.header
+        if instanceof(opts.header, 'net.http.header') then
+            req.header = opts.header
+        elseif is_table(opts.header) then
+            req.header = new_header(opts.header)
+        else
+            error('opts.header must be table or net.http.header', 2)
+        end
     end
 
     -- set default User-Agent
@@ -147,17 +154,18 @@ local function fetch(uri, opts)
 
     -- create new client connection
     local c = new_connection(sock)
-    local content = opts.content
+
     -- send request
     local _
-    if content == nil then
+    if opts.content == nil then
         _, err = req:write_header(c)
-    elseif is_string(content) then
-        _, err = req:write(c, content)
-    else
-        -- TODO: verify content type equals to net.http.content
-        req:set_content(content)
+    elseif is_string(opts.content) then
+        _, err = req:write(c, opts.content)
+    elseif instanceof(opts.content, 'net.http.content') then
+        req:set_content(opts.content)
         _, err = req:write_content(c)
+    else
+        error('opts.content must be string or net.http.content', 2)
     end
     if err then
         return nil, err
