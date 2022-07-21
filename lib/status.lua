@@ -372,6 +372,16 @@ local function code2name(code)
     return CODE2NAME[code]
 end
 
+--- code2reason
+--- @param code integer
+--- @return string reason
+local function code2reason(code)
+    if not is_int(code) then
+        error('code must be integer', 2)
+    end
+    return CODE2REASON[code]
+end
+
 --- toline
 --- @param code integer
 --- @param ver? number
@@ -410,6 +420,7 @@ end
 return {
     name2code = name2code,
     code2name = code2name,
+    code2reason = code2reason,
     toline = toline,
 }
 
