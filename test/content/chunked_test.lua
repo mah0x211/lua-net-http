@@ -160,9 +160,10 @@ function testcase.copy()
     assert.is_nil(n)
     assert.equal(err, 'abort by read_chunk')
 
-    -- test that throws an error if content is already consumed
-    err = assert.throws(c.copy, c, w, true)
-    assert.match(err, 'content is already consumed')
+    -- test that return 0 if content is already consumed
+    n, err = c:copy(w, true)
+    assert.equal(n, 0)
+    assert.is_nil(err)
 
     -- test that throws an error if chunksize is not uint
     resetctx('c\r\nhello world!\r\n0\r\n\r\n')
@@ -194,7 +195,7 @@ function testcase.dispose()
         c = new_chunked_content(r)
     end
 
-    -- test that read chunked-encoded message
+    -- test that dispose chunked-encoded message
     resetctx(table.concat({
         '6',
         'hello ',
@@ -206,6 +207,11 @@ function testcase.dispose()
     }, '\r\n'))
     local n, err = c:dispose()
     assert.equal(n, 12)
+    assert.is_nil(err)
+
+    -- test that return 0 if content is already consumed
+    n, err = c:dispose()
+    assert.equal(n, 0)
     assert.is_nil(err)
 end
 

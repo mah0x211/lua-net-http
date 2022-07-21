@@ -38,9 +38,10 @@ function testcase.copy()
     assert.equal(rctx.msg, '')
     assert.equal(wctx.msg, 'hello world!')
 
-    -- test that throws an error if content is already consumed
-    err = assert.throws(c.copy, c)
-    assert.match(err, 'content is already consumed')
+    -- test that return 0 if content is already consumed
+    n, err = c:copy(w)
+    assert.equal(n, 0)
+    assert.is_nil(err)
 
     -- test that return error if writer returns error
     rctx.msg = 'hello'
@@ -56,7 +57,6 @@ function testcase.copy()
     assert.equal(wctx.msg, 'hello')
 
     -- test that throws an error if len is not uint
-
     err = assert.throws(new_content, r, true)
     assert.match(err, 'len must be uint')
 
@@ -86,10 +86,15 @@ function testcase.dispose()
     local r = new_reader(rctx)
     local c = new_content(r, #rctx.msg)
 
-    -- test that read content
+    -- test that dispose content
     assert.equal(c:size(), 12)
     local n, err = c:dispose()
     assert.equal(n, 12)
+    assert.is_nil(err)
+
+    -- test that return 0 if content is already consumed
+    n, err = c:dispose()
+    assert.equal(n, 0)
     assert.is_nil(err)
 end
 
@@ -147,5 +152,10 @@ function testcase.write()
     assert.is_nil(err)
     assert.equal(rctx.msg, '')
     assert.equal(wctx.msg, 'hello world!')
+
+    -- test that return 0 if content is already consumed
+    n, err = c:write(w, 100)
+    assert.equal(n, 0)
+    assert.is_nil(err)
 end
 
