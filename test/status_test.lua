@@ -98,6 +98,21 @@ function testcase.code2name()
     assert.match(err, 'code must be integer')
 end
 
+function testcase.code2reason()
+    -- test that get reason from status code
+    for name, code in pairs(STATUSES) do
+        assert(status.code2reason(code),
+               string.format('invalid status code: %s %d', name, code))
+    end
+
+    -- test that return nil if unknown status code
+    assert.is_nil(status.code2reason(900))
+
+    -- test that throw an error if status code is not integer
+    local err = assert.throws(status.code2reason, 1.1)
+    assert.match(err, 'code must be integer')
+end
+
 function testcase.toline()
     local toline = status.toline
 
