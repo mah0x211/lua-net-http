@@ -70,6 +70,29 @@ function testcase.copy()
     assert.match(err, 'chunksize must be uint greater than 0')
 end
 
+function testcase.dispose()
+    local rctx = {
+        msg = 'hello world!',
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #self.msg > 0 then
+                local s = string.sub(self.msg, 1, n)
+                self.msg = string.sub(self.msg, n + 1)
+                return s
+            end
+        end,
+    }
+    local r = new_reader(rctx)
+    local c = new_content(r, #rctx.msg)
+
+    -- test that read content
+    assert.equal(c:size(), 12)
+    local n, err = c:dispose()
+    assert.equal(n, 12)
+    assert.is_nil(err)
+end
+
 function testcase.read()
     local rctx = {
         msg = 'hello world!',

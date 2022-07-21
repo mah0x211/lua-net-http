@@ -96,6 +96,18 @@ function Content:copy(w, chunksize)
     return size
 end
 
+--- dispose
+--- @param chunksize integer
+--- @return integer len
+--- @return any err
+function Content:dispose(chunksize)
+    return self:copy({
+        write = function(_, s)
+            return #s
+        end,
+    }, chunksize)
+end
+
 --- read
 --- @param chunksize? integer
 --- @return string s
