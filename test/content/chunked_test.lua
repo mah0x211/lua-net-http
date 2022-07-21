@@ -248,6 +248,11 @@ function testcase.read()
     local s, err = c:read(2)
     assert.equal(s, 'hello world!')
     assert.is_nil(err)
+
+    -- test that return nil if content is already consumed
+    s, err = c:read()
+    assert.is_nil(s)
+    assert.is_nil(err)
 end
 
 function testcase.write()

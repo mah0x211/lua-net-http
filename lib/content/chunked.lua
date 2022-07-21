@@ -272,6 +272,8 @@ function ChunkedContent:read(chunksize, handler)
     }, chunksize, handler)
     if err then
         return nil, err
+    elseif #str == 0 then
+        return nil
     end
 
     return str
