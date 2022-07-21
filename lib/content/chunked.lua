@@ -259,7 +259,7 @@ end
 --- read
 --- @param chunksize? integer
 --- @param handler? net.http.content.chunked.Handler
---- @return integer len
+--- @return string s
 --- @return string? err
 function ChunkedContent:read(chunksize, handler)
     local str = ''
