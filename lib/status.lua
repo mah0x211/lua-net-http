@@ -39,6 +39,7 @@ local HTTP_VER = {
 local NAME2CODE = {}
 local CODE2NAME = {}
 local CODE2REASON = {}
+local _M = {}
 for _, v in ipairs({
     --- status names
     -- 1×× Informational
@@ -350,6 +351,7 @@ for _, v in ipairs({
     NAME2CODE[v.name] = v.code
     CODE2NAME[v.code] = v.name
     CODE2REASON[v.code] = v.reason
+    _M[v.name] = v.code
 end
 
 --- name2code
@@ -361,6 +363,7 @@ local function name2code(name)
     end
     return NAME2CODE[name]
 end
+_M.name2code = name2code
 
 --- code2name
 --- @param code integer
@@ -371,6 +374,7 @@ local function code2name(code)
     end
     return CODE2NAME[code]
 end
+_M.code2name = code2name
 
 --- code2reason
 --- @param code integer
@@ -381,6 +385,7 @@ local function code2reason(code)
     end
     return CODE2REASON[code]
 end
+_M.code2reason = code2reason
 
 --- toline
 --- @param code integer
@@ -416,11 +421,7 @@ local function toline(code, ver, reason)
 
     return format('%d %s\r\n', code, reason)
 end
+_M.toline = toline
 
-return {
-    name2code = name2code,
-    code2name = code2name,
-    code2reason = code2reason,
-    toline = toline,
-}
+return _M
 
