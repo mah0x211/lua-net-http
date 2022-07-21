@@ -61,7 +61,8 @@ end
 --- @return error? err
 function Content:copy(w, chunksize)
     if self.is_consumed then
-        error('content is already consumed', 2)
+        -- content is already consumed
+        return 0
     elseif chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
@@ -122,6 +123,8 @@ function Content:read(chunksize)
     }, chunksize)
     if err then
         return nil, err
+    elseif #str == 0 then
+        return nil
     end
 
     return str
