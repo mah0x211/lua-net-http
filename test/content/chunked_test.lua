@@ -358,9 +358,10 @@ function testcase.write()
     assert.is_nil(n)
     assert.equal(err, 'abort by write_chunk')
 
-    -- test that throws an error if content is already consumed
-    err = assert.throws(c.write, c, w, true)
-    assert.match(err, 'content is already consumed')
+    -- test that return 0 if content is already consumed
+    n, err = c:write(w, true)
+    assert.equal(n, 0)
+    assert.is_nil(err)
 
     -- test that throws an error if chunksize is not uint
     resetctx('hello world!')

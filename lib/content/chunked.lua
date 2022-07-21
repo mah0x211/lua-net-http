@@ -287,7 +287,8 @@ end
 --- @return string? err
 function ChunkedContent:write(w, chunksize, handler)
     if self.is_consumed then
-        error('content is already consumed', 2)
+        -- content is already consumed
+        return 0
     elseif chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
