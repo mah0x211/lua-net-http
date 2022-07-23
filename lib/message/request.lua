@@ -86,14 +86,15 @@ end
 
 --- set_uri
 --- @param uri string
+--- @param parse_query? boolean
 --- @return boolean ok
 --- @return string err
-function Request:set_uri(uri)
+function Request:set_uri(uri, parse_query)
     if not is_string(uri) then
         error('uri must be string', 2)
     end
 
-    local parsed_uri, pos, err = parse_url(uri)
+    local parsed_uri, pos, err = parse_url(uri, parse_query)
     if err then
         return false, new_errno('EINVAL', format(
                                     'invalid uri character %q found at %d', err,
