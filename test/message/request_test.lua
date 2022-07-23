@@ -52,6 +52,32 @@ function testcase.set_uri()
         fragment = 'hash',
     })
 
+    -- test that set uri and parse query string
+    assert(m:set_uri(
+               'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
+               true))
+    assert.equal(m.parsed_uri, {
+        scheme = 'https',
+        userinfo = 'user:pswd',
+        user = 'user',
+        password = 'pswd',
+        host = 'www.example.com:80',
+        hostname = 'www.example.com',
+        port = '80',
+        path = '/hello',
+        query = '?q=foo&q=bar&baa=baz',
+        query_params = {
+            q = {
+                'foo',
+                'bar',
+            },
+            baa = {
+                'baz',
+            },
+        },
+        fragment = 'hash',
+    })
+
     -- test that return EINVAL if argument is invalid uri string
     local ok, err = m:set_uri('http:// example.com')
     assert.is_false(ok)
