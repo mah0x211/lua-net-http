@@ -88,6 +88,60 @@ function testcase.set_uri()
     assert.match(err, 'uri must be string')
 end
 
+function testcase.get_parsed_uri()
+    local m = assert(new_message())
+
+    -- test that get parsed uri
+    m.uri =
+        'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash'
+    assert.is_nil(m.parsed_uri)
+    assert.equal(m:get_parsed_uri(), {
+        scheme = 'https',
+        userinfo = 'user:pswd',
+        user = 'user',
+        password = 'pswd',
+        host = 'www.example.com:80',
+        hostname = 'www.example.com',
+        port = '80',
+        path = '/hello',
+        query = '?q=foo&q=bar&baa=baz',
+        fragment = 'hash',
+    })
+    assert.equal(m:get_parsed_uri(), m.parsed_uri)
+
+    -- test that get parsed uri with parse_query option
+    m.parsed_uri = nil
+    assert.equal(m:get_parsed_uri(true), {
+        scheme = 'https',
+        userinfo = 'user:pswd',
+        user = 'user',
+        password = 'pswd',
+        host = 'www.example.com:80',
+        hostname = 'www.example.com',
+        port = '80',
+        path = '/hello',
+        query = '?q=foo&q=bar&baa=baz',
+        query_params = {
+            q = {
+                'foo',
+                'bar',
+            },
+            baa = {
+                'baz',
+            },
+        },
+        fragment = 'hash',
+    })
+    assert.equal(m:get_parsed_uri(), m.parsed_uri)
+
+    -- test that return EINVAL if req.uri is invalid uri string
+    m.uri = 'http:// example.com'
+    m.parsed_uri = nil
+    local parsed_uri, err = m:get_parsed_uri()
+    assert.is_nil(parsed_uri)
+    assert.equal(err.type, errno.EINVAL)
+end
+
 function testcase.write_firstline()
     local wctx = {
         msg = '',
