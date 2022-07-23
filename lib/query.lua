@@ -28,9 +28,9 @@ local sort = table.sort
 local isa = require('isa')
 local is_table = isa.table
 local flatten = require('table.flatten')
-local encodeURI = require('url').encodeURI
--- local decodeURI = require('url').decodeURI
--- local encodeIdna = require('idna').encode
+local encode_uri = require('url').encode_uri
+-- local decode_uri = require('url').decode_uri
+-- local encode_idna = require('idna').encode
 --- constants
 
 --- set_as_array
@@ -53,9 +53,9 @@ local function encode_param(key, val)
     if find(key, '^[a-zA-Z_]') then
         local t = type(val)
         if t == 'string' then
-            return encodeURI(key), encodeURI(val)
+            return encode_uri(key), encode_uri(val)
         elseif t == 'number' or t == 'boolean' then
-            return encodeURI(key), encodeURI(tostring(val))
+            return encode_uri(key), encode_uri(tostring(val))
         end
     end
     -- ignore arguments except string|number|boolean

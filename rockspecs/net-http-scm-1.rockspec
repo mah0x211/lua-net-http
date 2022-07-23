@@ -23,7 +23,7 @@ dependencies = {
     "string-trim >= 0.2.0",
     "table-flatten >= 0.2.0",
     "tointeger >= 0.1.0",
-    "url >= 1.4.0",
+    "url >= 2.0.0",
 }
 build = {
     type = "builtin",
