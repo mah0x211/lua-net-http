@@ -20,7 +20,10 @@
 -- THE SOFTWARE.
 --
 --- assign to local
+local format = string.format
 local sub = string.sub
+local parse_url = require('url').parse
+local new_error_message = require('error').message.new
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_request = require('net.http.message.request').new
@@ -33,6 +36,7 @@ local parse_response = parse.response
 --- constants
 -- need more bytes
 local EAGAIN = parse.EAGAIN
+local EMSG = parse.EMSG
 --- parse error code to http status code
 local DEFAULT_READSIZE = 4096
 
@@ -142,15 +146,31 @@ function Connection:read_message(msg, parser)
 end
 
 --- read_request
---- @return net.http.message.request
---- @return string? err
+--- @return net.http.message.request? req
+--- @return any err
 function Connection:read_request()
-    return self:read_message(new_request(), parse_request)
+    local req, rerr = self:read_message(new_request(), parse_request)
+    if not req then
+        return nil, rerr
+    end
+
+    -- parse-uri
+    local parsed_uri, pos, err = parse_url(req.uri, true)
+    if err then
+        return nil,
+               EMSG:new(
+                   new_error_message(
+                       format('invalid character %q found in uri at %d', err,
+                              pos + 1), 'read_request'))
+    end
+
+    req.parsed_uri = parsed_uri
+    return req
 end
 
 --- read_response
---- @return net.http.message.response
---- @return string? err
+--- @return net.http.message.response res
+--- @return any err
 function Connection:read_response()
     return self:read_message(new_response(), parse_response)
 end

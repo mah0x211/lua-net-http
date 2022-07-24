@@ -127,6 +127,9 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/foo/bar/baz',
+        parsed_uri = {
+            path = '/foo/bar/baz',
+        },
         version = 1.1,
         header = {
             dict = {
@@ -170,6 +173,9 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/hello/world',
+        parsed_uri = {
+            path = '/hello/world',
+        },
         version = 1.1,
         header = {
             dict = {
@@ -220,6 +226,9 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/foo/bar/baz',
+        parsed_uri = {
+            path = '/foo/bar/baz',
+        },
         version = 1.1,
         header = {
             dict = {
@@ -256,6 +265,17 @@ function testcase.read_request()
     })
     assert.is_nil(err)
     assert.is_true(msg.content.is_chunked)
+
+    -- test that return EMSG if request uri is invalid
+    data = table.concat({
+        'GET /foo<bar/baz HTTP/1.1',
+        'Host: www.example.com',
+        '',
+        '',
+    }, '\r\n')
+    msg, err = c:read_request()
+    assert.is_nil(msg)
+    assert.equal(err.type, parse.EMSG)
 
     -- test that return EVERSION if request version is unknown
     data = table.concat({
