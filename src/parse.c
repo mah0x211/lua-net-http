@@ -24,6 +24,7 @@
  *  Created by Masatoshi Teruya on 18/06/04.
  */
 
+#include <string.h>
 // lua
 #include <lua_error.h>
 
@@ -1356,84 +1357,6 @@ static int parse_method(unsigned char *str, size_t len, size_t *cur,
 #undef METHOD_LEN
 }
 
-/**
- * RFC 3986
- *
- * alpha         = lowalpha | upalpha
- * lowalpha      = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" |
- *                 "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" |
- *                 "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
- * upalpha       = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" |
- *                 "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" |
- *                 "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
- * --------------------------------------------------------------------------
- * digit         = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
- * --------------------------------------------------------------------------
- * pct-encoded   = "%" hex hex
- * hex           = digit | "A" | "B" | "C" | "D" | "E" | "F" |
- *                         "a" | "b" | "c" | "d" | "e" | "f"
- * --------------------------------------------------------------------------
- * gen-delims    = ":" | "/" | "?" | "#" | "[" | "]" | "@"
- * --------------------------------------------------------------------------
- * sub-delims    = "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";"
- *                 "="
- * --------------------------------------------------------------------------
- * reserved      = gen-delims | sub-delims
- * --------------------------------------------------------------------------
- * unreserved    = alpha | digit | "-" | "." | "_" | "~"
- * --------------------------------------------------------------------------
- * pchar         = unreserved | pct-encoded | sub-delim | ":" | "@"
- * --------------------------------------------------------------------------
- * URI           = scheme "://"
- *                 [ userinfo[ ":" userinfo ] "@" ]
- *                 host
- *                 [ ":" port ]
- *                 path
- *                 [ "?" query ]
- *                 [ "#" fragment ]
- * --------------------------------------------------------------------------
- * scheme        = alpha *( alpha / digit / "+" / "-" / "." )
- * --------------------------------------------------------------------------
- * userinfo      = *( unreserved / pct-encoded / sub-delims )
- * --------------------------------------------------------------------------
- * host          = IP-literal / IPv4address / reg-name
- * --------------------------------------------------------------------------
- * port          = *digit
- * --------------------------------------------------------------------------
- * path          = empty / *( "/" pchar )
- * empty         = zero characters
- * --------------------------------------------------------------------------
- * query         = *( pchar / "/" / "?" )
- * --------------------------------------------------------------------------
- * fragment      = query
- * --------------------------------------------------------------------------
- */
-static const unsigned char URIC_TBL[256] = {
-    //  ctrl-code: 0-32
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-    //  SP       "  #
-    SP, '!', 0, 0, '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
-    //  digit
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-
-    //            <       >
-    ':', ';', 0, '=', 0, '?', '@',
-
-    //  alpha-upper
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-    'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-
-    //       \       ^       `
-    '[', 0, ']', 0, '_', 0,
-
-    //  alpha-lower
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-
-    //  {  |  }
-    0, 0, 0, '~'};
-
 static int request_lua(lua_State *L)
 {
     size_t len          = 0;
@@ -1475,27 +1398,17 @@ SKIP_NEXT_CRLF:
     str += cur;
     len -= cur;
 
-    // parse-uri
-    uri  = (const char *)str;
-    ulen = 0;
-CHECK_URI:
-    if (ulen >= len) {
+    // parse-uri (find SP delimiter)
+    uri = (const char *)str;
+    if (len > maxmsglen) {
+        if (!(str = memchr(str, SP, maxmsglen))) {
+            return error_result_as_nil(L, PARSE_ELEN, "request");
+        }
+    } else if (!(str = memchr(str, SP, len))) {
         return error_result_as_nil(L, PARSE_EAGAIN, "request");
-    } else if (ulen > maxmsglen) {
-        return error_result_as_nil(L, PARSE_ELEN, "request");
     }
-    switch (URIC_TBL[str[ulen]]) {
-    case 0:
-        return error_result_as_nil(L, PARSE_EMSG, "request");
-
-    case SP:
-        break;
-
-    default:
-        ulen++;
-        goto CHECK_URI;
-    }
-    str += ulen + 1;
+    ulen = str - (unsigned char *)uri;
+    str++;
     len -= ulen + 1;
 
     rv = parse_version(str, len, &cur, &ver);
