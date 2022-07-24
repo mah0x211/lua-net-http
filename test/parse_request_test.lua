@@ -5,7 +5,7 @@ local CR = '\r'
 local LF = '\n'
 local CRLF = CR .. LF
 
-function testcase.parse_request()
+function testcase.parse_http10()
     -- test that parse http 1.0 request message
     local msg = table.concat({
         'GET /foo/bar/baz/qux HTTP/1.0',
@@ -32,15 +32,24 @@ function testcase.parse_request()
             host = kv_host,
         },
     })
+end
 
+function testcase.parse_http11()
     -- test that parse http 1.1 request message
-    msg = table.concat({
+    local msg = table.concat({
         'GET /foo/bar/baz/qux HTTP/1.1',
         'Host: example.com',
         CRLF,
     }, CRLF)
-    req = {
+    local req = {
         header = {},
+    }
+    local kv_host = {
+        idx = 1,
+        key = 'Host',
+        val = {
+            'example.com',
+        },
     }
     assert.equal(parse_request(msg, req), #msg)
     assert.equal(req, {
@@ -52,7 +61,9 @@ function testcase.parse_request()
             host = kv_host,
         },
     })
+end
 
+function testcase.parse_methods()
     -- test that parse supported request methods
     for _, method in ipairs({
         'GET',
@@ -64,8 +75,8 @@ function testcase.parse_request()
         'TRACE',
         'CONNECT',
     }) do
-        msg = method .. ' /foo/bar/baz/qux HTTP/1.1\r\n'
-        req = {}
+        local msg = method .. ' /foo/bar/baz/qux HTTP/1.1\r\n'
+        local req = {}
         assert.equal(parse_request(msg, req), #msg)
         assert.equal(req, {
             method = method,
@@ -78,22 +89,26 @@ function testcase.parse_request()
     local pos, err = parse_request('FOO /foo/bar/baz/qux HTTP/1.1\r\n', {})
     assert.is_nil(pos)
     assert.equal(err.type, parse.EMETHOD)
+end
 
+function testcase.parse_unsupported_version()
     -- test that cannot parse request message of unsupported version
-    msg = table.concat({
+    local msg = table.concat({
         'GET /foo/bar/baz/qux HTTP/1.5',
         'Host: example.com',
         CRLF,
     }, CRLF)
-    pos, err = parse_request(msg, {
+    local pos, err = parse_request(msg, {
         header = {},
     })
     assert.is_nil(pos)
     assert.equal(err.type, parse.EVERSION)
+end
 
+function testcase.parse_without_header()
     -- test that parse request message without header
-    msg = 'GET /foo/bar/baz/qux HTTP/1.1' .. CRLF .. CRLF
-    req = {
+    local msg = 'GET /foo/bar/baz/qux HTTP/1.1' .. CRLF .. CRLF
+    local req = {
         header = {},
     }
     assert.equal(parse_request(msg, req), #msg)
@@ -103,10 +118,12 @@ function testcase.parse_request()
         version = 1.1,
         header = {},
     })
+end
 
+function testcase.parse_terminated_by_lf()
     -- test that parse request message lines that terminate by LF
-    msg = 'GET /foo/bar/baz/qux HTTP/1.1' .. LF .. LF
-    req = {
+    local msg = 'GET /foo/bar/baz/qux HTTP/1.1' .. LF .. LF
+    local req = {
         header = {},
     }
     assert.equal(parse_request(msg, req), #msg)
@@ -122,40 +139,46 @@ function testcase.parse_request()
     req = {
         header = {},
     }
-    pos, err = parse_request(msg, req)
+    local pos, err = parse_request(msg, req)
     assert.is_nil(pos)
     assert.equal(err.type, parse.EEOL)
+end
 
+function testcase.parse_too_long_uri()
     -- test that limit the length of uri
-    msg = table.concat({
+    local msg = table.concat({
         'GET /foo/bar/baz/qux HTTP/1.0',
         'Host: example.com',
         CRLF,
     }, CRLF)
-    req = {
+    local req = {
         header = {},
     }
-    pos, err = parse_request(msg, req, 10)
+    local pos, err = parse_request(msg, req, 10)
     assert.is_nil(pos)
     assert.equal(err.type, parse.ELEN)
+end
 
+function testcase.parse_incomplete_message()
     -- test that returns EAGAIN to the incomplete message
-    msg = table.concat({
+    local msg = table.concat({
         'GET /foo/bar/baz/qux HTTP/1.0',
         'Host: example.com',
         CRLF,
     }, CRLF)
     for i = 1, #msg - 1 do
-        pos, err = parse_request(string.sub(msg, 1, i), {
+        local pos, err = parse_request(string.sub(msg, 1, i), {
             header = {},
         })
         assert.is_nil(pos)
         assert.equal(err.type, parse.EAGAIN)
     end
+end
 
+function testcase.parse_partial_messages()
     -- test that parse partial messages
-    msg = ''
-    req = {
+    local msg = ''
+    local req = {
         header = {},
     }
     for i, chunk in ipairs({
@@ -167,17 +190,21 @@ function testcase.parse_request()
     }) do
         msg = msg .. chunk
         if i < 5 then
-            pos, err = parse_request(msg, req)
+            local pos, err = parse_request(msg, req)
             assert.is_nil(pos)
             assert.equal(err.type, parse.EAGAIN)
         else
             assert.equal(parse_request(msg, req), #msg)
         end
     end
-    kv_host.val = {
-        'example1.com',
-        'example2.com',
-        'example3.com',
+    local kv_host = {
+        idx = 1,
+        key = 'Host',
+        val = {
+            'example1.com',
+            'example2.com',
+            'example3.com',
+        },
     }
     assert.equal(req, {
         method = 'GET',
@@ -188,11 +215,13 @@ function testcase.parse_request()
             host = kv_host,
         },
     })
+end
 
+function testcase.parse_only_request_line()
     -- test that only request-line is parsed if header table does not exists
     local line = 'GET /foo/bar/baz/qux HTTP/1.0\n'
-    msg = line .. 'Host: example.com\n' .. '\n'
-    req = {}
+    local msg = line .. 'Host: example.com\n' .. '\n'
+    local req = {}
     assert.equal(parse_request(msg, req), #line)
     assert.equal(req, {
         method = 'GET',
