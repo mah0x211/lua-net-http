@@ -39,6 +39,7 @@ local HTTP_VER = {
 local NAME2CODE = {}
 local CODE2NAME = {}
 local CODE2REASON = {}
+local CODE2MESSAGE = {}
 local _M = {}
 for _, v in ipairs({
     --- status names
@@ -351,6 +352,7 @@ for _, v in ipairs({
     NAME2CODE[v.name] = v.code
     CODE2NAME[v.code] = v.name
     CODE2REASON[v.code] = v.reason
+    CODE2MESSAGE[v.code] = format('%d %s', v.code, v.reason)
     _M[v.name] = v.code
 end
 
@@ -386,6 +388,17 @@ local function code2reason(code)
     return CODE2REASON[code]
 end
 _M.code2reason = code2reason
+
+--- code2message
+--- @param code integer
+--- @return string reason
+local function code2message(code)
+    if not is_int(code) then
+        error('code must be integer', 2)
+    end
+    return CODE2MESSAGE[code]
+end
+_M.code2message = code2message
 
 --- toline
 --- @param code integer
