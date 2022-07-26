@@ -24,8 +24,9 @@ local type = type
 local tostring = tostring
 local find = string.find
 local concat = table.concat
-local sort = table.sort
 local isa = require('isa')
+local is_int = isa.int
+local is_string = isa.string
 local is_table = isa.table
 local flatten = require('table.flatten')
 local encode_uri = require('url').encode_uri
@@ -61,11 +62,19 @@ local function encode_param(key, val)
     -- ignore arguments except string|number|boolean
 end
 
---- sort_by_name
---- @param a string
---- @param b string
-local function sort_by_name(a, b)
-    return a < b
+--- key2str
+--- @param prefix string
+--- @param key any
+--- @return string
+local function key2str(prefix, key)
+    if is_string(key) then
+        if prefix then
+            return prefix .. '.' .. key
+        end
+        return key
+    elseif is_int(key) then
+        return prefix
+    end
 end
 
 --- encode
@@ -76,11 +85,9 @@ local function encode(query)
         error('query must be table', 2)
     end
 
-    local list = flatten(query, 0, encode_param, set_as_array)
-
     -- set new query-string
+    local list = flatten(query, 0, encode_param, set_as_array, key2str)
     if #list > 1 then
-        sort(list, sort_by_name)
         return '?' .. concat(list, '&')
     end
 

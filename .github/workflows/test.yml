@@ -80,10 +80,6 @@ jobs:
         luarocks remove iovec --force
         luarocks remove lauxhlib --force
     -
-      name: Install
-      run: |
-        luarocks make
-    -
       name: Install Test Tools
       run: |
         sudo apt install lcov -y
@@ -91,6 +87,10 @@ jobs:
         luarocks install exec
         luarocks install mkstemp
         luarocks install testcase
+    -
+      name: Install
+      run: |
+        luarocks make
     -
       name: Run Test
       run: |

@@ -4,15 +4,29 @@ local encode = require('net.http.query').encode
 
 function testcase.encode()
     -- test that encode query table to string
-    assert.equal(encode({
+    local str = assert(encode({
         'hello',
         foo = 'str',
         bar = {
+            'hello',
+            'world',
             baa = true,
             baz = 123.5,
             qux = {},
         },
-    }), '?bar.baa=true&bar.baz=123.5&foo=str')
+    }))
+    local kvpairs = {}
+    for kv in string.gmatch(string.sub(str, 2), '([^&]+)') do
+        kvpairs[#kvpairs + 1] = kv
+    end
+    table.sort(kvpairs)
+    assert.equal(kvpairs, {
+        'bar.baa=true',
+        'bar.baz=123.5',
+        'bar=hello',
+        'bar=world',
+        'foo=str',
+    })
 
     -- test that return empty-string
     assert.equal(encode({

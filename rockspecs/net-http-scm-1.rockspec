@@ -21,7 +21,7 @@ dependencies = {
     "string-capitalize >= 0.1.0",
     "string-split >= 0.3.0",
     "string-trim >= 0.2.0",
-    "table-flatten >= 0.2.0",
+    "table-flatten >= 0.4.0",
     "tointeger >= 0.1.0",
     "url >= 2.0.0",
 }
