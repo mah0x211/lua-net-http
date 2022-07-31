@@ -161,7 +161,7 @@ function testcase.copy()
     assert.equal(err, 'abort by read_chunk')
 
     -- test that return 0 if content is already consumed
-    n, err = c:copy(w, true)
+    n, err = c:copy(w)
     assert.equal(n, 0)
     assert.is_nil(err)
 
@@ -245,14 +245,41 @@ function testcase.read()
         'Trailer-Name: Trailer-Value',
         '\r\n',
     }, '\r\n'))
-    local s, err = c:read(2)
-    assert.equal(s, 'hello world!')
-    assert.is_nil(err)
+    for _, v in ipairs({
+        {
+            n = 4,
+            cmp = 'hell',
+            is_read_chunk = false,
+        },
+        {
+            n = 2,
+            cmp = 'o ',
+            is_read_chunk = false,
+        },
+        {
+            n = 5,
+            cmp = 'world',
+            is_read_chunk = false,
+        },
+        {
+            n = 20,
+            cmp = '!',
+            is_read_chunk = true,
+        },
+    }) do
+        local s, err = c:read(v.n)
+        assert.equal(s, v.cmp)
+        assert.is_nil(err)
+        assert.equal(c.is_read_chunk, v.is_read_chunk)
+    end
+    assert.is_false(c.is_read_trailer)
 
     -- test that return nil if content is already consumed
-    s, err = c:read()
+    local s, err = c:read()
     assert.is_nil(s)
     assert.is_nil(err)
+    assert.equal(#rctx.msg, 0)
+    assert.is_true(c.is_read_trailer)
 end
 
 function testcase.write()
@@ -359,7 +386,7 @@ function testcase.write()
     assert.equal(err, 'abort by write_chunk')
 
     -- test that return 0 if content is already consumed
-    n, err = c:write(w, true)
+    n, err = c:write(w)
     assert.equal(n, 0)
     assert.is_nil(err)
 

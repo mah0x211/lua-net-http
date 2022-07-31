@@ -96,8 +96,11 @@ local EAGAIN = parse.EAGAIN
 
 --- @class net.http.content.chunked : net.http.content
 --- @field reader net.http.reader
+--- @field bufsize integer
 --- @field is_chunked boolean
---- @field is_consumed boolean
+--- @field is_read_chunk boolean
+--- @field is_read_trailer boolean
+--- @field chunk string
 local ChunkedContent = {}
 
 --- init
@@ -105,42 +108,67 @@ local ChunkedContent = {}
 --- @return net.http.content.chunked content
 function ChunkedContent:init(r)
     self.reader = r
+    self.bufsize = 4096
     self.is_chunked = true
-    self.is_consumed = false
+    self.is_read_chunk = false
+    self.is_read_trailer = false
+    self.chunk = ''
     return self
 end
 
---- copy
---- @param w net.http.writer
---- @param chunksize? integer
---- @param handler? net.http.content.chunked.Handler
---- @return integer len
---- @return string? err
-function ChunkedContent:copy(w, chunksize, handler)
-    if self.is_consumed then
-        -- content is already consumed
-        return 0
-    elseif chunksize == nil then
-        chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
-    end
-
-    if handler == nil then
-        -- use default handler
-        handler = DEFAULT_CHUNKHANDLER
-    end
-    self.is_consumed = true
-
+--- read_trailer
+--- @param self net.http.content.chunked
+--- @param handler net.http.content.chunked.Handler
+--- @return any err
+local function read_trailer(self, handler)
     -- read chunked-encoded string
     local r = self.reader
-    local size = 0
+    local bufsize = self.bufsize
     local str = ''
-    local done = false
-    while not done do
-        local s, err = r:read(chunksize)
+
+    --
+    -- trailer-part = *( header-field CRLF ) CRLF
+    --
+    -- parse trailer-part
+    while true do
+        -- read data
+        local s, err = r:read(bufsize)
         if not s or #s == 0 or err then
-            return nil, err
+            return err
+        end
+        str = str .. s
+
+        local trailer = {}
+        local tail
+        tail, err = parse_header(str, trailer)
+        if tail then
+            self.is_read_trailer = true
+            r:prepend(sub(str, tail + 1))
+            err = handler:read_trailer(trailer)
+            return err
+        elseif err.type ~= EAGAIN then
+            return err
+        end
+    end
+end
+
+--- read_chunk
+--- @param self net.http.content.chunked
+--- @param chunksize integer
+--- @param handler net.http.content.chunked.Handler
+--- @return boolean ok
+--- @return any err
+local function read_chunk(self, chunksize, handler)
+    -- read chunked-encoded string
+    local r = self.reader
+    local bufsize = self.bufsize
+    local chunk = self.chunk
+    local str = ''
+
+    while true do
+        local s, err = r:read(bufsize)
+        if err or not s or #s == 0 then
+            return false, err
         end
         str = str .. s
 
@@ -164,28 +192,26 @@ function ChunkedContent:copy(w, chunksize, handler)
         -- BWS              = *( SP / HTAB )
         --                  ; Bad White Space for backward compatibility
         --
-        -- read chunk-size
         repeat
+            -- read chunk-size
             local ext = {}
             local csize, perr, cur = parse_chunksize(str, ext)
-            if perr then
-                if perr.type ~= EAGAIN then
-                    -- invalid chunk-size format
-                    return nil, perr
-                end
-            elseif csize == 0 then
-                -- last-chunk
-                done = true
-                csize = nil
-                -- add chunk-ext
-                err = handler:read_last_chunk(ext)
-                if err then
-                    return nil, err
-                end
-                str = sub(str, cur + 1)
-            else
+            if csize then
                 -- remove chunk-size [ chunk-ext ] CRLF
                 str = sub(str, cur + 1)
+
+                -- last-chunk
+                if csize == 0 then
+                    self.is_read_chunk = true
+                    -- add chunk-ext
+                    err = handler:read_last_chunk(ext)
+                    if err then
+                        return false, err
+                    end
+                    r:prepend(str)
+                    self.chunk = chunk
+                    return true
+                end
 
                 --
                 -- chunk-data = 1*OCTET ; a sequence of chunk-size octets
@@ -203,93 +229,66 @@ function ChunkedContent:copy(w, chunksize, handler)
                 local head, tail = find(str, '^\r*\n', csize + 1)
                 if not head then
                     -- invalid end-of-line terminator
-                    return nil, parse.EEOL:new()
+                    return false, parse.EEOL:new()
                 end
 
                 -- check chunk by handler
                 s, err = handler:read_chunk(sub(str, 1, csize), ext)
+                str = sub(str, tail + 1)
                 if err then
-                    return nil, err
-                elseif s then
-                    -- write chunk
-                    local nw
-                    nw, err = w:write(s)
-                    if not nw or err then
-                        return nil, err
-                    end
-                    size = size + csize
+                    return false, err
                 end
 
-                -- parse again
-                str = sub(str, tail + 1)
+                chunk = chunk .. s
+                if #chunk >= chunksize then
+                    r:prepend(str)
+                    self.chunk = chunk
+                    return true
+                end
+            elseif perr and perr.type ~= EAGAIN then
+                -- invalid chunk-size format
+                return false, perr
             end
         until not csize
-        -- read again
+    end
+end
+
+--- read
+--- @param self net.http.content.chunked
+--- @param chunksize integer
+--- @param handler net.http.content.chunked.Handler
+--- @return string|nil str
+--- @return any err
+local function read(self, chunksize, handler)
+    local chunk = self.chunk
+    local n = #chunk
+    if not self.is_read_chunk and n < chunksize then
+        local ok, err = read_chunk(self, chunksize, handler)
+        if not ok then
+            return nil, err
+        end
+        chunk = self.chunk
+        n = #chunk
     end
 
-    --
-    -- trailer-part = *( header-field CRLF ) CRLF
-    --
-    -- parse trailer-part
-    while true do
-        local trailer = {}
-        local cur, err = parse_header(str, trailer)
-
-        if cur then
-            r:prepend(sub(str, cur + 1))
-
-            err = handler:read_trailer(trailer)
-            if err then
-                return nil, err
-            end
-            return size
-        elseif err.type ~= EAGAIN then
-            return nil, err
-        end
-
-        -- read data
-        local s
-        s, err = r:read(chunksize)
-        if not s or #s == 0 or err then
-            return nil, err
-        end
-        str = str .. s
+    if n >= chunksize then
+        self.chunk = sub(chunk, chunksize + 1)
+        return sub(chunk, 1, chunksize)
+    elseif n > 0 then
+        self.chunk = ''
+        return sub(chunk, 1, chunksize)
+    elseif not self.is_read_trailer then
+        return nil, read_trailer(self, handler)
     end
 end
 
 --- read
 --- @param chunksize? integer
---- @param handler? net.http.content.chunked.Handler
---- @return string s
---- @return string? err
+--- @param handler net.http.content.chunked.Handler|nil
+--- @return string|nil s
+--- @return any err
 function ChunkedContent:read(chunksize, handler)
-    local str = ''
-    local _, err = self:copy({
-        write = function(_, s)
-            str = str .. s
-            return #s
-        end,
-    }, chunksize, handler)
-    if err then
-        return nil, err
-    elseif #str == 0 then
-        return nil
-    end
-
-    return str
-end
-
---- write
---- @param w net.http.writer
---- @param chunksize? integer
---- @param handler? net.http.content.chunked.Handler
---- @return integer len
---- @return string? err
-function ChunkedContent:write(w, chunksize, handler)
-    if self.is_consumed then
-        -- content is already consumed
-        return 0
-    elseif chunksize == nil then
+    if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
         error('chunksize must be uint greater than 0', 2)
@@ -299,39 +298,101 @@ function ChunkedContent:write(w, chunksize, handler)
         -- use default handler
         handler = DEFAULT_CHUNKHANDLER
     end
+
+    return read(self, chunksize, handler)
+end
+
+--- copy
+--- @param w net.http.writer
+--- @param chunksize? integer
+--- @param handler? net.http.content.chunked.Handler
+--- @return integer len
+--- @return string? err
+function ChunkedContent:copy(w, chunksize, handler)
+    if chunksize == nil then
+        chunksize = DEFAULT_CHUNKSIZE
+    elseif not is_uint(chunksize) or chunksize == 0 then
+        error('chunksize must be uint greater than 0', 2)
+    end
+
+    if handler == nil then
+        -- use default handler
+        handler = DEFAULT_CHUNKHANDLER
+    end
+
+    local nbyte = 0
+    local s, err = read(self, chunksize, handler)
+    while s do
+        -- write chunk
+        local n, werr = w:write(s)
+        if not n or werr then
+            return nil, werr
+        end
+
+        nbyte = nbyte + #s
+        s, err = read(self, chunksize, handler)
+    end
+
+    if err then
+        return nil, err
+    end
+
+    return nbyte
+end
+
+--- write
+--- @param w net.http.writer
+--- @param chunksize? integer
+--- @param handler? net.http.content.chunked.Handler
+--- @return integer len
+--- @return string? err
+function ChunkedContent:write(w, chunksize, handler)
+    if chunksize == nil then
+        chunksize = DEFAULT_CHUNKSIZE
+    elseif not is_uint(chunksize) or chunksize == 0 then
+        error('chunksize must be uint greater than 0', 2)
+    end
+
+    if handler == nil then
+        -- use default handler
+        handler = DEFAULT_CHUNKHANDLER
+    end
+
+    if self.is_consumed then
+        -- content is already consumed
+        return 0
+    end
     self.is_consumed = true
 
     -- read and write string
     local r = self.reader
     local size = 0
-    while true do
-        local s, err = r:read(chunksize)
-
-        if not s then
-            if err then
-                return nil, err
-            end
-            break
-        elseif #s == 0 then
-            local n
-            n, err = handler:write_last_chunk(w)
-            if not n or err then
-                return nil, err
+    local s, err = r:read(chunksize)
+    while s do
+        if #s == 0 then
+            local n, werr = handler:write_last_chunk(w)
+            if not n or werr then
+                return nil, werr
             end
             break
         end
 
-        local n
-        n, err = handler:write_chunk(w, s)
-        if not n or err then
-            return nil, err
+        local n, werr = handler:write_chunk(w, s)
+        if not n or werr then
+            return nil, werr
         end
         size = size + #s
+
+        s, err = r:read(chunksize)
     end
 
-    local n, err = handler:write_trailer(w)
-    if not n or err then
+    if err then
         return nil, err
+    end
+
+    local n, werr = handler:write_trailer(w)
+    if not n or werr then
+        return nil, werr
     end
     return size
 end
