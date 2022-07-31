@@ -26,6 +26,7 @@ local DEFAULT_CHUNKSIZE = 1024 * 8
 --- @class net.http.content
 --- @field reader net.http.reader
 --- @field len integer
+--- @field consumed integer
 --- @field is_chunked boolean
 --- @field is_consumed boolean
 local Content = {}
@@ -41,6 +42,7 @@ function Content:init(r, len)
 
     self.reader = r
     self.len = len
+    self.consumed = 0
     self.is_chunked = false
     self.is_consumed = false
     return self
@@ -49,56 +51,76 @@ end
 --- size
 --- @return integer? size
 function Content:size()
+    return self.len
+end
+
+--- read
+---@param self net.http.content
+---@param chunksize integer
+---@return string|nil s
+---@return any err
+local function read(self, chunksize)
     if not self.is_consumed then
-        return self.len
+        local s, err = self.reader:read(chunksize < self.len and chunksize or
+                                            self.len)
+        if err then
+            return nil, err
+        elseif s then
+            self.len = self.len - #s
+            self.is_consumed = self.len <= 0
+            return s
+        end
     end
 end
 
---- copy
---- @param w net.http.writer
---- @param chunksize? integer
---- @return integer len
---- @return error? err
-function Content:copy(w, chunksize)
-    if self.is_consumed then
-        -- content is already consumed
-        return 0
-    elseif chunksize == nil then
+--- read
+--- @param chunksize integer|nil
+--- @return string|nil s
+--- @return any err
+function Content:read(chunksize)
+    if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
         error('chunksize must be uint greater than 0', 2)
     end
-    self.is_consumed = true
 
-    local r = self.reader
-    local len = self.len
-    local size = 0
-    while size < len do
-        local n = len - size
-        if n > chunksize then
-            n = chunksize
-        end
+    return read(self, chunksize)
+end
 
-        local s, err = r:read(n)
-        if not s or #s == 0 or err then
-            return size, err
-        end
-
-        n, err = w:write(s)
-        if n then
-            size = size + n
-        end
-
-        if not n or err then
-            return size, err
-        end
+--- copy
+--- @param w net.http.writer
+--- @param chunksize integer|nil
+--- @return integer len
+--- @return any err
+function Content:copy(w, chunksize)
+    if chunksize == nil then
+        chunksize = DEFAULT_CHUNKSIZE
+    elseif not is_uint(chunksize) or chunksize == 0 then
+        error('chunksize must be uint greater than 0', 2)
     end
 
-    return size
+    local ncopy = 0
+    local s, err = read(self, chunksize)
+    while s do
+        local n, werr = w:write(s)
+        if n then
+            ncopy = ncopy + n
+        end
+
+        if not n or werr then
+            return ncopy, werr
+        end
+        s, err = read(self, chunksize)
+    end
+
+    if err then
+        return nil, err
+    end
+    return ncopy
 end
 
 --- dispose
---- @param chunksize integer
+--- @param chunksize integer|nil
 --- @return integer len
 --- @return any err
 function Content:dispose(chunksize)
@@ -107,27 +129,6 @@ function Content:dispose(chunksize)
             return #s
         end,
     }, chunksize)
-end
-
---- read
---- @param chunksize? integer
---- @return string s
---- @return error? err
-function Content:read(chunksize)
-    local str = ''
-    local _, err = self:copy({
-        write = function(_, s)
-            str = str .. s
-            return #s
-        end,
-    }, chunksize)
-    if err then
-        return nil, err
-    elseif #str == 0 then
-        return nil
-    end
-
-    return str
 end
 
 --- write

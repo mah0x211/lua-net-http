@@ -33,7 +33,7 @@ function testcase.copy()
     assert.equal(c:size(), 12)
     local n, err = c:copy(w)
     assert.equal(n, 12)
-    assert.is_nil(c:size())
+    assert.equal(c:size(), 0)
     assert.is_nil(err)
     assert.equal(rctx.msg, '')
     assert.equal(wctx.msg, 'hello world!')
@@ -116,14 +116,24 @@ function testcase.read()
 
     -- test that read content
     assert.equal(c:size(), 12)
-    local s, err = c:read()
-    assert.equal(s, 'hello world!')
+    local s, err = c:read(5)
+    assert.equal(s, 'hello')
+    assert.is_nil(err)
+
+    -- test that read content
+    assert.equal(c:size(), 7)
+    s, err = c:read()
+    assert.equal(s, ' world!')
     assert.is_nil(err)
 
     -- test that return nil if content is already consumed
     s, err = c:read()
     assert.is_nil(s)
     assert.is_nil(err)
+
+    -- test that throws an error if chunksize is not greater than 0
+    err = assert.throws(c.read, c, 0)
+    assert.match(err, 'chunksize must be uint greater than 0')
 end
 
 function testcase.write()
