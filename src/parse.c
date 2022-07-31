@@ -1497,7 +1497,7 @@ SKIP_NEXT_CRLF:
     switch (*str) {
     // need more bytes
     case 0:
-        return error_result_as_nil(L, PARSE_ERR_EAGAIN, "response");
+        return error_result_as_nil(L, PARSE_EAGAIN, "response");
 
     case CR:
     case LF:
