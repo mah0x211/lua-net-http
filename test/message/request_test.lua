@@ -2,6 +2,8 @@ require('luacov')
 local testcase = require('testcase')
 local errno = require('errno')
 local new_message = require('net.http.message.request').new
+local new_content = require('net.http.content.chunked').new
+local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 
 function testcase.new()
@@ -183,3 +185,202 @@ function testcase.write_firstline()
     assert.equal(err.type, errno.EINVAL)
     assert.match(err, 'invalid uri character .+ found at 1', false)
 end
+
+function testcase.read_form_urlencoded()
+    local data
+    local rctx = {
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #data > 0 then
+                local s = string.sub(data, 1, n)
+                data = string.sub(data, n + 1)
+                return s
+            end
+        end,
+    }
+    local m
+    local restctx = function(ctype, msg)
+        -- convert to chunked message
+        if msg then
+            math.randomseed(os.time())
+            local maxlen = math.floor(#msg / 5)
+            data = ''
+            while #msg > 0 do
+                local n = math.random(1, maxlen)
+                if n > #msg then
+                    n = #msg
+                end
+                data = data .. string.format('%x', n) .. '\r\n'
+                data = data .. string.sub(msg, 1, n) .. '\r\n'
+                msg = string.sub(msg, n + 1)
+            end
+            data = data .. '0\r\n\r\n'
+        else
+            data = ''
+        end
+
+        m = assert(new_message())
+        if ctype then
+            m.header:set('Content-Type', ctype)
+        end
+        m.content = new_content(new_reader(rctx))
+    end
+
+    -- test that read from application/x-www-form-urlencoded content
+    restctx('application/x-www-form-urlencoded', 'foo=bar&foo&foo=baz&qux=quux')
+    assert(m:read_form())
+    local form = m.form
+    assert.match(form, '^net.http.form: ', false)
+    assert.equal(form.data, {
+        foo = {
+            'bar',
+            '',
+            'baz',
+        },
+        qux = {
+            'quux',
+        },
+    })
+
+    -- test that return false with no error
+    restctx()
+    local ok, err = m:read_form()
+    assert.is_false(ok)
+    assert.is_nil(err)
+
+    -- test that return false and boundary error
+    restctx('multipart/form-data')
+    ok, err = m:read_form()
+    assert.is_false(ok)
+    assert.equal(err.type, errno.EINVAL)
+    assert.match(err, 'boundary not defined')
+
+    -- test that return false and boundary error
+    restctx('multipart/form-data')
+    ok, err = m:read_form()
+    assert.is_false(ok)
+    assert.equal(err.type, errno.EINVAL)
+    assert.match(err, 'boundary not defined')
+end
+
+function testcase.read_form_multipart()
+    local data
+    local rctx = {
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #data > 0 then
+                local s = string.sub(data, 1, n)
+                data = string.sub(data, n + 1)
+                return s
+            end
+        end,
+    }
+    local m
+    local restctx = function(ctype, msg)
+        -- convert to chunked message
+        math.randomseed(os.time())
+        local maxlen = math.floor(#msg / 5)
+        data = ''
+        while #msg > 0 do
+            local n = math.random(1, maxlen)
+            if n > #msg then
+                n = #msg
+            end
+            data = data .. string.format('%x', n) .. '\r\n'
+            data = data .. string.sub(msg, 1, n) .. '\r\n'
+            msg = string.sub(msg, n + 1)
+        end
+        data = data .. '0\r\n\r\n'
+
+        m = assert(new_message())
+        m.content = new_content(new_reader(rctx))
+        m.header:set('Content-Type', ctype)
+    end
+
+    -- test that read from multipart/form-data content
+    restctx('multipart/form-data; boundary=test_boundary', table.concat({
+        '--test_boundary',
+        'X-Example: example header1',
+        'X-Example: example header2',
+        'Content-Disposition: form-data; name="foo"; filename="bar.txt"',
+        '',
+        'bar file',
+        '--test_boundary',
+        'Content-Disposition: form-data; name="foo"',
+        '',
+        'hello world',
+        '--test_boundary',
+        'Content-Disposition: form-data; name="foo"; filename="baz.txt"',
+        '',
+        'baz file',
+        '--test_boundary',
+        'Content-Disposition: form-data; name="qux"',
+        '',
+        'qux',
+        '--test_boundary',
+        'Content-Disposition: form-data; name="qux"',
+        '',
+        '',
+        '--test_boundary--',
+        '',
+    }, '\r\n'))
+    assert(m:read_form())
+    local form = m.form
+    assert.match(form, '^net.http.form: ', false)
+    assert.contains(form.data.foo[1], {
+        name = 'foo',
+        header = {
+            ['content-disposition'] = {
+                'form-data; name="foo"; filename="bar.txt"',
+            },
+            ['x-example'] = {
+                'example header1',
+                'example header2',
+            },
+        },
+        filename = 'bar.txt',
+    })
+    assert.equal(form.data.foo[1].file:read('*a'), 'bar file')
+    assert.equal(form.data.foo[2], {
+        name = 'foo',
+        header = {
+            ['content-disposition'] = {
+                'form-data; name="foo"',
+            },
+        },
+        data = 'hello world',
+    })
+    assert.contains(form.data.foo[3], {
+        name = 'foo',
+        header = {
+            ['content-disposition'] = {
+                'form-data; name="foo"; filename="baz.txt"',
+            },
+        },
+        filename = 'baz.txt',
+    })
+    assert.equal(form.data.foo[3].file:read('*a'), 'baz file')
+    assert.equal(form.data.qux, {
+        {
+            name = 'qux',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="qux"',
+                },
+            },
+            data = 'qux',
+        },
+        {
+            name = 'qux',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="qux"',
+                },
+            },
+            data = '',
+        },
+    })
+end
+
