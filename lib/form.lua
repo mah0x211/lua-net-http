@@ -20,6 +20,7 @@
 -- THE SOFTWARE.
 --
 local decode_form = require('form').decode
+local is_valid_boundary = require('form').is_valid_boundary
 
 --- @class net.http.form : form
 local Form = {}
@@ -50,5 +51,6 @@ end
 return {
     new = Form,
     decode = decode,
+    is_valid_boundary = is_valid_boundary,
 }
 
