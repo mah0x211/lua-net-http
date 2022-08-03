@@ -28,6 +28,7 @@ local isa = require('isa')
 local is_string = isa.string
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
+local decode_form = require('net.http.form').decode
 --- constants
 local WELL_KNOWN_PORT = {
     ['80'] = true,
@@ -118,6 +119,35 @@ function Request:get_parsed_uri(parse_query)
         end
     end
     return self.parsed_uri
+end
+
+--- read_form
+--- @param maxsize integer|nil
+--- @param filetmpl string|nil
+--- @return boolean ok
+--- @return any err
+function Request:read_form(maxsize, filetmpl)
+    if not self.form then
+        local mime, err, params = self.header:content_type()
+        if mime then
+            if mime == 'application/x-www-form-urlencoded' then
+                self.form, err = decode_form(self.content)
+            elseif mime == 'multipart/form-data' then
+                if not params or not params.boundary then
+                    return false, new_errno('EINVAL',
+                                            'invalid Content-Type header: boundary not defined')
+                end
+                self.form, err = decode_form(self.content, nil, params.boundary,
+                                             maxsize, filetmpl)
+            end
+        end
+
+        if err or not mime then
+            return false, err
+        end
+    end
+
+    return true
 end
 
 --- write_firstline
