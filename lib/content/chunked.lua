@@ -219,8 +219,8 @@ local function read_chunk(self, chunksize, handler)
                 -- read chunk-data (csize + CRLF)
                 while #str < csize + 2 do
                     s, err = r:read(chunksize)
-                    if not s then
-                        return nil, err
+                    if err or not s or #s == 0 then
+                        return false, err
                     end
                     str = str .. s
                 end
