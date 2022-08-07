@@ -20,15 +20,19 @@
 -- THE SOFTWARE.
 --
 local concat = table.concat
-local format = string.format
 local lower = string.lower
+local pcall = pcall
+local format = string.format
+local tostring = tostring
 local base64encode = require('base64mix').encode
+local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
 local isa = require('isa')
 local is_string = isa.string
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
 local decode_form = require('net.http.form').decode
+local is_valid_boundary = require('net.http.form').is_valid_boundary
 --- constants
 local WELL_KNOWN_PORT = {
     ['80'] = true,
@@ -188,6 +192,117 @@ function Request:write_firstline(w)
         format('%.1f', self.version),
         '\r\n',
     }))
+end
+
+--- write_form
+--- @param self net.http.message.request
+--- @param w net.http.writer
+--- @param form net.http.form
+--- @param boundary string|nil
+--- @param tmpfiles table
+--- @return integer n
+--- @return any err
+local function write_form(self, w, form, boundary, tmpfiles)
+    local n = 0
+    local chunks = {}
+    -- encode form
+    local len, err = form:encode({
+        write = function(_, s)
+            chunks[#chunks + 1] = s
+            return #s
+        end,
+        writefile = function(_, file, len, offset, part)
+            local ok, err = file:seek('set', offset)
+            if not ok then
+                return nil, err
+            end
+            chunks[#chunks + 1] = {
+                file = file,
+                len = len,
+                offset = offset,
+                name = part.name,
+            }
+            if part.is_tmpfile then
+                tmpfiles[#tmpfiles + 1] = file
+            end
+            return len - offset
+        end,
+    }, boundary)
+    if err then
+        return nil, format('failed to encode form: %s', tostring(err))
+    end
+
+    if not self.header_sent then
+        local header = self.header
+
+        -- write header
+        header:set('Content-Length', tostring(len))
+        if boundary then
+            header:set('Content-Type',
+                       'multipart/form-data; boundary=' .. boundary)
+        else
+            header:set('Content-Type', 'application/x-www-form-urlencoded')
+        end
+
+        len, err = self:write_header(w)
+        if err then
+            return nil, format('failed to write header: %s', tostring(err))
+        end
+        n = n + len
+    end
+
+    -- write buffered chunks
+    for _, v in ipairs(chunks) do
+        if is_string(v) then
+            len, err = w:write(v)
+            if err then
+                return nil, format('failed to write content: %s', tostring(err))
+            end
+            n = n + len
+        else
+            -- TODO: add support sendfile api
+            local file = v.file
+            local s
+            s, err = file:read(4096)
+            while len do
+                len, err = w:write(s)
+                if err then
+                    return nil, format('failed to write content of %q: %s',
+                                       v.name, tostring(err))
+                end
+                n = n + len
+                len, err = file:read(4096)
+            end
+            if err then
+                return nil, format('failed to read content of %q: %s', v.name,
+                                   tostring(err))
+            end
+        end
+    end
+
+    return n
+end
+
+--- write_form
+--- @param w net.http.writer
+--- @param form net.http.form
+--- @param boundary string|nil
+--- @return integer n
+--- @return any err
+function Request:write_form(w, form, boundary)
+    if not instanceof(form, 'net.http.form') then
+        error('form must be net.http.form', 2)
+    elseif boundary ~= nil and not is_valid_boundary(boundary) then
+        error('boundary must be valid-boundary string', 2)
+    end
+
+    local tmpfiles = {}
+    local ok, res, err = pcall(write_form, self, w, form, boundary, tmpfiles)
+    for _, file in pairs(tmpfiles) do
+        file:close()
+    end
+    assert(ok, res)
+    return res, err
 end
 
 return {

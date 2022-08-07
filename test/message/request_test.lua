@@ -5,6 +5,8 @@ local new_message = require('net.http.message.request').new
 local new_content = require('net.http.content.chunked').new
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
+local new_form = require('net.http.form').new
+local new_connection = require('net.http.connection').new
 
 function testcase.new()
     -- test that create new instance of net.http.message.request
@@ -382,5 +384,173 @@ function testcase.read_form_multipart()
             data = '',
         },
     })
+end
+
+function testcase.write_form_urlencoded()
+    local data = ''
+    local wctx = {
+        write = function(self, s)
+            if self.err then
+                return nil, self.err
+            end
+            data = data .. s
+            return #s
+        end,
+    }
+    local w = new_writer(wctx)
+    w:setbufsize(0)
+
+    local form = new_form()
+    local file = assert(io.tmpfile())
+    file:write('hello world!')
+    file:seek('set')
+    form:add('foo', 'bar')
+    form:add('foo', '')
+    form:add('foo', 'baz')
+    form:add('hello', {
+        filename = 'hello.txt',
+        file = file,
+    })
+
+    -- test that read from application/x-www-form-urlencoded content
+    local m = assert(new_message())
+    m.method = 'POST'
+    data = ''
+    local n, err = assert(m:write_form(w, form))
+    assert.equal(n, #data)
+    assert.is_nil(err)
+    -- confirm
+    local c = new_connection({
+        read = function(_, nr)
+            if #data == 0 then
+                return nil
+            end
+
+            local s = string.sub(data, 1, nr)
+            data = string.sub(data, nr + 1)
+            return s
+        end,
+        write = function()
+        end,
+    })
+    m = assert(c:read_request())
+    assert(m:read_form())
+    assert(m:read_form())
+    form = m.form
+    assert.match(form, '^net.http.form: ', false)
+    assert.equal(form.data, {
+        foo = {
+            'bar',
+            '',
+            'baz',
+        },
+    })
+end
+
+function testcase.write_form_multipart()
+    local data = ''
+    local wctx = {
+        write = function(self, s)
+            if self.err then
+                return nil, self.err
+            end
+            data = data .. s
+            return #s
+        end,
+        writefile = function(self, file, len, offset, part)
+            file:seek('set', offset)
+            local s, err = file:read(len)
+            if part.is_tmpfile then
+                file:close()
+            end
+
+            if err then
+                return nil, err
+            end
+            return self:write(s)
+        end,
+    }
+    local w = new_writer(wctx)
+    w:setbufsize(0)
+
+    local form = new_form()
+    local file = assert(io.tmpfile())
+    file:write('hello world!')
+    file:seek('set')
+    form:add('foo', 'bar')
+    form:add('foo', '')
+    form:add('foo', 'baz')
+    form:add('hello', {
+        filename = 'hello.txt',
+        file = file,
+    })
+
+    -- test that read from application/x-www-form-urlencoded content
+    local m = assert(new_message())
+    m.method = 'POST'
+    data = ''
+    local n, err = assert(m:write_form(w, form, 'test_boundary'))
+    assert.equal(n, #data)
+    assert.is_nil(err)
+    -- confirm
+    local c = new_connection({
+        read = function(_, nr)
+            if #data == 0 then
+                return nil
+            end
+
+            local s = string.sub(data, 1, nr)
+            data = string.sub(data, nr + 1)
+            return s
+        end,
+        write = function()
+        end,
+    })
+    m = assert(c:read_request())
+    assert(m:read_form())
+    assert.equal(#data, 0)
+    assert.equal(c.reader:size(), 0)
+    form = m.form
+    assert.equal(form.data.foo, {
+        {
+            name = 'foo',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="foo"',
+                },
+            },
+            data = 'bar',
+        },
+        {
+            name = 'foo',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="foo"',
+                },
+            },
+            data = '',
+        },
+        {
+            name = 'foo',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="foo"',
+                },
+            },
+            data = 'baz',
+        },
+    })
+    assert.contains(form.data.hello, {
+        {
+            name = 'hello',
+            header = {
+                ['content-disposition'] = {
+                    'form-data; name="hello"; filename="hello.txt"',
+                },
+            },
+            filename = "hello.txt",
+        },
+    })
+    assert.equal(form.data.hello[1].file:read('*a'), 'hello world!')
 end
 
