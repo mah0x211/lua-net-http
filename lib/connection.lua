@@ -84,8 +84,9 @@ end
 --- read_message
 --- @param msg net.http.message
 --- @param parser function
---- @return table msg
---- @return string? err
+--- @return net.http.message|nil msg
+--- @return any err
+--- @return boolean|nil timeout
 function Connection:read_message(msg, parser)
     local reader = self.reader
     local readsize = self.readsize
@@ -94,9 +95,9 @@ function Connection:read_message(msg, parser)
 
     msg.header = {}
     while true do
-        local s, err = reader:read(readsize)
-        if err or #s == 0 then
-            return nil, err
+        local s, err, timeout = reader:read(readsize)
+        if not s or err then
+            return nil, err, timeout
         end
         str = str .. s
 
@@ -148,10 +149,11 @@ end
 --- read_request
 --- @return net.http.message.request? req
 --- @return any err
+--- @return boolean|nil timeout
 function Connection:read_request()
-    local req, rerr = self:read_message(new_request(), parse_request)
+    local req, rerr, timeout = self:read_message(new_request(), parse_request)
     if not req then
-        return nil, rerr
+        return nil, rerr, timeout
     end
 
     -- parse-uri
@@ -171,6 +173,7 @@ end
 --- read_response
 --- @return net.http.message.response res
 --- @return any err
+--- @return boolean|nil timeout
 function Connection:read_response()
     return self:read_message(new_response(), parse_response)
 end

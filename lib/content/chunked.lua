@@ -120,6 +120,7 @@ end
 --- @param self net.http.content.chunked
 --- @param handler net.http.content.chunked.Handler
 --- @return any err
+--- @return boolean|nil timeout
 local function read_trailer(self, handler)
     -- read chunked-encoded string
     local r = self.reader
@@ -132,9 +133,9 @@ local function read_trailer(self, handler)
     -- parse trailer-part
     while true do
         -- read data
-        local s, err = r:read(bufsize)
-        if not s or #s == 0 or err then
-            return err
+        local s, err, timeout = r:read(bufsize)
+        if not s or err or timeout then
+            return err, timeout
         end
         str = str .. s
 
@@ -158,6 +159,7 @@ end
 --- @param handler net.http.content.chunked.Handler
 --- @return boolean ok
 --- @return any err
+--- @return boolean|nil timeout
 local function read_chunk(self, chunksize, handler)
     -- read chunked-encoded string
     local r = self.reader
@@ -166,9 +168,9 @@ local function read_chunk(self, chunksize, handler)
     local str = ''
 
     while true do
-        local s, err = r:read(bufsize)
-        if err or not s or #s == 0 then
-            return false, err
+        local s, err, timeout = r:read(bufsize)
+        if not s or err or timeout then
+            return false, err, timeout
         end
         str = str .. s
 
@@ -218,9 +220,9 @@ local function read_chunk(self, chunksize, handler)
                 --
                 -- read chunk-data (csize + CRLF)
                 while #str < csize + 2 do
-                    s, err = r:read(chunksize)
-                    if err or not s or #s == 0 then
-                        return false, err
+                    s, err, timeout = r:read(chunksize)
+                    if not s or err or timeout then
+                        return false, err, timeout
                     end
                     str = str .. s
                 end
@@ -344,8 +346,9 @@ end
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @param handler? net.http.content.chunked.Handler
---- @return integer len
---- @return string? err
+--- @return integer|nil len
+--- @return any err
+--- @return boolean|nil timeout
 function ChunkedContent:write(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
@@ -367,30 +370,27 @@ function ChunkedContent:write(w, chunksize, handler)
     -- read and write string
     local r = self.reader
     local size = 0
-    local s, err = r:read(chunksize)
+    local s, err, timeout = r:read(chunksize)
     while s do
-        if #s == 0 then
-            local n, werr = handler:write_last_chunk(w)
-            if not n or werr then
-                return nil, werr
-            end
-            break
-        end
-
         local n, werr = handler:write_chunk(w, s)
         if not n or werr then
             return nil, werr
         end
         size = size + #s
 
-        s, err = r:read(chunksize)
+        s, err, timeout = r:read(chunksize)
     end
 
-    if err then
-        return nil, err
+    if err or timeout then
+        return nil, err, timeout
     end
 
-    local n, werr = handler:write_trailer(w)
+    local n, werr = handler:write_last_chunk(w)
+    if not n or werr then
+        return nil, werr
+    end
+
+    n, werr = handler:write_trailer(w)
     if not n or werr then
         return nil, werr
     end
