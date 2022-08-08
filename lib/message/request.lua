@@ -123,20 +123,6 @@ function Request:set_uri(uri, parse_query)
     return true
 end
 
---- get_parsed_uri
---- @param parse_query boolean
---- @return table parsed_uri
---- @return string err
-function Request:get_parsed_uri(parse_query)
-    if not self.parsed_uri then
-        local ok, err = self:set_uri(self.uri, parse_query)
-        if not ok then
-            return nil, err
-        end
-    end
-    return self.parsed_uri
-end
-
 --- read_form
 --- @param maxsize integer|nil
 --- @param filetmpl string|nil
