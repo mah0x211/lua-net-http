@@ -41,9 +41,8 @@ function testcase.set_uri()
     -- test that set valid uri
     assert(m:set_uri(
                'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash'))
-    assert.equal(m.uri,
-                 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash')
-    assert.equal(m.parsed_uri, {
+    assert.contains(m, {
+        uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
         scheme = 'https',
         userinfo = 'user:pswd',
         user = 'user',
@@ -60,7 +59,8 @@ function testcase.set_uri()
     assert(m:set_uri(
                'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
                true))
-    assert.equal(m.parsed_uri, {
+    assert.contains(m, {
+        uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
         scheme = 'https',
         userinfo = 'user:pswd',
         user = 'user',
@@ -165,7 +165,6 @@ function testcase.write_firstline()
     m.method = 'connect'
     m.uri = 'http://foo:bar@example.com/hello/world'
     m.version = 1.0
-    m.parsed_uri = nil
     wctx.msg = ''
     assert(m:write_firstline(w))
     assert.equal(wctx.msg, table.concat({
@@ -178,9 +177,9 @@ function testcase.write_firstline()
     }))
 
     -- test that write firstline
+    m = assert(new_message())
     m.method = 'connect'
     m.uri = ' http://example.com/hello/world'
-    m.parsed_uri = nil
     wctx.msg = ''
     local n, err = m:write_firstline(w)
     assert.equal(n, 0)

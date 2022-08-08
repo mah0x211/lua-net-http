@@ -20,9 +20,7 @@
 -- THE SOFTWARE.
 --
 --- assign to local
-local format = string.format
 local sub = string.sub
-local parse_url = require('url').parse
 local new_error_message = require('error').message.new
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
@@ -157,16 +155,12 @@ function Connection:read_request()
     end
 
     -- parse-uri
-    local parsed_uri, pos, err = parse_url(req.uri, true)
-    if err then
+    local ok, err = req:set_uri(req.uri, true)
+    if not ok then
         return nil,
-               EMSG:new(
-                   new_error_message(
-                       format('invalid character %q found in uri at %d', err,
-                              pos + 1), 'read_request'))
+               EMSG:new(new_error_message(err.message.message, 'read_request'))
     end
 
-    req.parsed_uri = parsed_uri
     return req
 end
 

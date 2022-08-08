@@ -79,16 +79,15 @@ local function fetch(uri, opts)
     end
 
     -- verify scheme
-    local parsed_uri = req.parsed_uri
-    if not parsed_uri.scheme then
+    if not req.scheme then
         return nil, new_errno('EINVAL', 'url scheme not defined')
     end
-    local port = WELL_KNOWN_PORT[parsed_uri.scheme]
+    local port = WELL_KNOWN_PORT[req.scheme]
     if not port then
         return nil, new_errno('EINVAL', 'unsupported url scheme')
-    elseif parsed_uri.port then
+    elseif req.port then
         -- use custom port
-        port = parsed_uri.port
+        port = req.port
     end
 
     -- set method
@@ -109,16 +108,16 @@ local function fetch(uri, opts)
 
     -- set query
     if opts.query then
-        parsed_uri.query = encode_query(opts.query)
+        req.query = encode_query(opts.query)
     end
 
     -- set default path
-    if not parsed_uri.path then
-        parsed_uri.path = '/'
+    if not req.path then
+        req.path = '/'
     end
 
     local tlscfg
-    if parsed_uri.scheme == 'https' then
+    if req.scheme == 'https' then
         -- create tls config
         tlscfg, err = new_tls_config()
         if not tlscfg then
@@ -134,7 +133,7 @@ local function fetch(uri, opts)
     local sock, timeout
 
     if opts.sockfile == nil then
-        sock, err, timeout = new_inet_client(parsed_uri.hostname, port, {
+        sock, err, timeout = new_inet_client(req.hostname, port, {
             deadline = opts.deadline,
             tlscfg = tlscfg,
             servername = opts.servername,
