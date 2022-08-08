@@ -176,7 +176,8 @@ function testcase.fetch()
     err = assert.throws(fetch, 'https://' .. host, {
         content = 123,
     })
-    assert.match(err, 'opts.content must be string or net.http.content')
+    assert.match(err,
+                 'opts.content must be string, net.http.content or net.http.form')
 end
 
 function testcase.fetch_via_sockfile()
