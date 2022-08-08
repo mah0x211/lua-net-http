@@ -42,9 +42,9 @@ local WELL_KNOWN_PORT = {
 --- fetch
 --- @param uri string
 --- @param opts? table<string, any>
---- @return net.http.message.response res
---- @return error? err
---- @return string? timeout
+--- @return net.http.message.response|nil res
+--- @return any err
+--- @return boolean|nil timeout
 local function fetch(uri, opts)
     if not is_string(uri) then
         error('uri must be string', 2)
@@ -157,30 +157,32 @@ local function fetch(uri, opts)
     -- send request
     local _
     if opts.content == nil then
-        _, err = req:write_header(c)
+        _, err, timeout = req:write_header(c)
     elseif is_string(opts.content) then
-        _, err = req:write(c, opts.content)
+        _, err, timeout = req:write(c, opts.content)
     elseif instanceof(opts.content, 'net.http.content') then
         req:set_content(opts.content)
-        _, err = req:write_content(c)
+        _, err, timeout = req:write_content(c)
+    elseif instanceof(opts.content, 'net.http.form') then
+        _, err, timeout = req:write_form(c, opts.content, opts.boundary)
     else
-        error('opts.content must be string or net.http.content', 2)
+        error('opts.content must be string, net.http.content or net.http.form',
+              2)
     end
-    if err then
-        return nil, err
+    if err or timeout then
+        return nil, err, timeout
     end
-    _, err = c:flush()
-    if err then
-        return nil, err
+    _, err, timeout = c:flush()
+    if err or timeout then
+        return nil, err, timeout
     end
 
     -- read response
     local res
-    res, err = c:read_response()
-    if not res then
-        if err then
-            return nil, err
-        end
+    res, err, timeout = c:read_response()
+    if err or timeout then
+        return nil, err, timeout
+    elseif not res then
         return nil, new_errno('ECONNRESET', 'read response')
     end
 
