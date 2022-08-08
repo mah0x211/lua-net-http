@@ -59,7 +59,17 @@ LIST_VALID_METHOD = concat(LIST_VALID_METHOD, ' | ')
 --- @class net.http.message.request : net.http.message
 --- @field method string
 --- @field uri string
---- @field parsed_uri? table<string, any>
+--- @field userinfo string
+--- @field user string
+--- @field password string
+--- @field scheme string
+--- @field host string
+--- @field hostname string
+--- @field port string
+--- @field path string
+--- @field query string
+--- @field query_params table
+--- @field fragment string
 local Request = {}
 
 --- init
@@ -107,22 +117,10 @@ function Request:set_uri(uri, parse_query)
     end
 
     self.uri = uri
-    self.parsed_uri = parsed_uri
-    return true
-end
-
---- get_parsed_uri
---- @param parse_query boolean
---- @return table parsed_uri
---- @return string err
-function Request:get_parsed_uri(parse_query)
-    if not self.parsed_uri then
-        local ok, err = self:set_uri(self.uri, parse_query)
-        if not ok then
-            return nil, err
-        end
+    for k, v in pairs(parsed_uri) do
+        self[k] = v
     end
-    return self.parsed_uri
+    return true
 end
 
 --- read_form
@@ -159,35 +157,32 @@ end
 --- @return integer n
 --- @return string? err
 function Request:write_firstline(w)
-    if not self.parsed_uri then
+    if not self.host then
         local ok, err = self:set_uri(self.uri)
         if not ok then
             return 0, err
         end
     end
 
-    local parsed_uri = self.parsed_uri
-
     -- set Host header
-    if parsed_uri.host then
-        if not parsed_uri.port or not WELL_KNOWN_PORT[parsed_uri.port] then
-            self.header:set('Host', parsed_uri.host)
+    if self.host then
+        if not self.port or not WELL_KNOWN_PORT[self.port] then
+            self.header:set('Host', self.host)
         else
-            self.header:set('Host', parsed_uri.hostname)
+            self.header:set('Host', self.hostname)
         end
     end
 
     -- set Authorization header
-    if parsed_uri.userinfo then
-        self.header:set('Authorization',
-                        'Basic ' .. base64encode(parsed_uri.userinfo))
+    if self.userinfo then
+        self.header:set('Authorization', 'Basic ' .. base64encode(self.userinfo))
     end
 
     return w:write(concat({
         self.method,
         ' ',
-        parsed_uri.path,
-        parsed_uri.query or '',
+        self.path,
+        self.query or '',
         ' HTTP/',
         format('%.1f', self.version),
         '\r\n',

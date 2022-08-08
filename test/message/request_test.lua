@@ -41,9 +41,8 @@ function testcase.set_uri()
     -- test that set valid uri
     assert(m:set_uri(
                'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash'))
-    assert.equal(m.uri,
-                 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash')
-    assert.equal(m.parsed_uri, {
+    assert.contains(m, {
+        uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
         scheme = 'https',
         userinfo = 'user:pswd',
         user = 'user',
@@ -60,7 +59,8 @@ function testcase.set_uri()
     assert(m:set_uri(
                'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
                true))
-    assert.equal(m.parsed_uri, {
+    assert.contains(m, {
+        uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
         scheme = 'https',
         userinfo = 'user:pswd',
         user = 'user',
@@ -92,60 +92,6 @@ function testcase.set_uri()
     assert.match(err, 'uri must be string')
 end
 
-function testcase.get_parsed_uri()
-    local m = assert(new_message())
-
-    -- test that get parsed uri
-    m.uri =
-        'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash'
-    assert.is_nil(m.parsed_uri)
-    assert.equal(m:get_parsed_uri(), {
-        scheme = 'https',
-        userinfo = 'user:pswd',
-        user = 'user',
-        password = 'pswd',
-        host = 'www.example.com:80',
-        hostname = 'www.example.com',
-        port = '80',
-        path = '/hello',
-        query = '?q=foo&q=bar&baa=baz',
-        fragment = 'hash',
-    })
-    assert.equal(m:get_parsed_uri(), m.parsed_uri)
-
-    -- test that get parsed uri with parse_query option
-    m.parsed_uri = nil
-    assert.equal(m:get_parsed_uri(true), {
-        scheme = 'https',
-        userinfo = 'user:pswd',
-        user = 'user',
-        password = 'pswd',
-        host = 'www.example.com:80',
-        hostname = 'www.example.com',
-        port = '80',
-        path = '/hello',
-        query = '?q=foo&q=bar&baa=baz',
-        query_params = {
-            q = {
-                'foo',
-                'bar',
-            },
-            baa = {
-                'baz',
-            },
-        },
-        fragment = 'hash',
-    })
-    assert.equal(m:get_parsed_uri(), m.parsed_uri)
-
-    -- test that return EINVAL if req.uri is invalid uri string
-    m.uri = 'http:// example.com'
-    m.parsed_uri = nil
-    local parsed_uri, err = m:get_parsed_uri()
-    assert.is_nil(parsed_uri)
-    assert.equal(err.type, errno.EINVAL)
-end
-
 function testcase.write_firstline()
     local wctx = {
         msg = '',
@@ -165,7 +111,6 @@ function testcase.write_firstline()
     m.method = 'connect'
     m.uri = 'http://foo:bar@example.com/hello/world'
     m.version = 1.0
-    m.parsed_uri = nil
     wctx.msg = ''
     assert(m:write_firstline(w))
     assert.equal(wctx.msg, table.concat({
@@ -178,9 +123,9 @@ function testcase.write_firstline()
     }))
 
     -- test that write firstline
+    m = assert(new_message())
     m.method = 'connect'
     m.uri = ' http://example.com/hello/world'
-    m.parsed_uri = nil
     wctx.msg = ''
     local n, err = m:write_firstline(w)
     assert.equal(n, 0)
@@ -445,6 +390,18 @@ function testcase.write_form_urlencoded()
             'baz',
         },
     })
+
+    -- test that throws an error if form argument is invalid
+    m = assert(new_message())
+    err = assert.throws(m.write_form, m, w, {})
+    assert.match(err, 'form must be net.http.form')
+
+    -- test that throws an error if boundary argument is invalid
+    err = assert.throws(m.write_form, m, w, form, true)
+    assert.match(err, 'boundary must be string')
+    -- test that throws an error if boundary argument is invalid
+    err = assert.throws(m.write_form, m, w, form, 'foo bar baz')
+    assert.match(err, 'boundary must be valid-boundary string')
 end
 
 function testcase.write_form_multipart()

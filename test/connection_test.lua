@@ -127,9 +127,7 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/foo/bar/baz',
-        parsed_uri = {
-            path = '/foo/bar/baz',
-        },
+        path = '/foo/bar/baz',
         version = 1.1,
         header = {
             dict = {
@@ -173,9 +171,7 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/hello/world',
-        parsed_uri = {
-            path = '/hello/world',
-        },
+        path = '/hello/world',
         version = 1.1,
         header = {
             dict = {
@@ -226,9 +222,7 @@ function testcase.read_request()
     assert.contains(msg, {
         method = 'POST',
         uri = '/foo/bar/baz',
-        parsed_uri = {
-            path = '/foo/bar/baz',
-        },
+        path = '/foo/bar/baz',
         version = 1.1,
         header = {
             dict = {
