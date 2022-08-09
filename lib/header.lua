@@ -27,6 +27,7 @@ local capitalize = require('string.capitalize')
 local trim = require('string.trim')
 local split = require('string.split')
 local isa = require('isa')
+local is_boolean = isa.boolean
 local is_string = isa.string
 local is_table = isa.table
 local new_errno = require('errno').new
@@ -259,17 +260,21 @@ end
 
 --- get
 --- @param key string
---- @return string[] val
+--- @param all boolean
+--- @return string|string[]|nil val
 --- @return string key
-function Header:get(key)
+function Header:get(key, all)
     if not is_string(key) then
         error('key must be string', 2)
+    elseif all ~= nil and not is_boolean(all) then
+        error('all must be boolean', 2)
     end
 
     local item = self.dict[lower(key)]
     if item then
-        return item.val, item.key
+        return all and item.val or item.val[#item.val], item.key
     end
+
     return nil
 end
 
@@ -337,7 +342,7 @@ function Header:content_type()
     end
 
     -- use last value
-    local mime = split(trim(val[#val]), '%s*;%s*', 1)
+    local mime = split(trim(val), '%s*;%s*', 1)
 
     -- 8.3.1. Media Type
     -- https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#name-media-type
@@ -398,25 +403,20 @@ end
 --- @return integer len
 function Header:content_length()
     local val = self:get('content-length')
-    if not val then
-        return nil
+    if val then
+        return tointeger(val)
     end
-
-    -- use last value
-    return tointeger(val[#val])
 end
 
 --- is_transfer_encoding_chunked
 --- @return boolean ok
 function Header:is_transfer_encoding_chunked()
-    local val = self:get('transfer-encoding')
-    if not val then
-        return false
-    end
-
-    for i = 1, #val do
-        if val[i] == 'chunked' then
-            return true
+    local val = self:get('transfer-encoding', true)
+    if val then
+        for i = 1, #val do
+            if val[i] == 'chunked' then
+                return true
+            end
         end
     end
 

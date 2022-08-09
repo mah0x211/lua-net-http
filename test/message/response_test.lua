@@ -54,9 +54,7 @@ function testcase.write_firstline()
     wctx.msg = ''
     assert(m:write_firstline(w))
     assert.equal(wctx.msg, 'HTTP/1.0 100 Continue\r\n')
-    assert.equal(m.header:get('Date'), {
-        now,
-    })
+    assert.equal(m.header:get('Date'), now)
 
     -- test that write custome status-line
     sleep(1.2)
@@ -67,7 +65,5 @@ function testcase.write_firstline()
     wctx.msg = ''
     assert(m:write_firstline(w))
     assert.equal(wctx.msg, 'HTTP/2.5 50 My Status\r\n')
-    assert.equal(m.header:get('Date'), {
-        now,
-    })
+    assert.equal(m.header:get('Date'), now)
 end

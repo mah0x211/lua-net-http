@@ -15,10 +15,10 @@ function testcase.new()
             'baz',
         },
     })
-    assert.equal(h:get('hello'), {
+    assert.equal(h:get('hello', true), {
         'world',
     })
-    assert.equal(h:get('foo'), {
+    assert.equal(h:get('foo', true), {
         'bar',
         'baz',
     })
@@ -34,7 +34,7 @@ function testcase.set()
     -- test that throwssets non-nil field-value
     assert(h:set('field-name', 'hello'))
     assert.equal(h:size(), 1)
-    assert.equal(h:get('field-name'), {
+    assert.equal(h:get('field-name', true), {
         'hello',
     })
 
@@ -44,7 +44,7 @@ function testcase.set()
         'value2',
     }))
     assert.equal(h:size(), 1)
-    assert.equal(h:get('field-name'), {
+    assert.equal(h:get('field-name', true), {
         'value1',
         'value2',
     })
@@ -54,7 +54,7 @@ function testcase.set()
         'new-value',
     }))
     assert.equal(h:size(), 1)
-    assert.equal(h:get('field-name'), {
+    assert.equal(h:get('field-name', true), {
         'new-value',
     })
 
@@ -96,7 +96,7 @@ function testcase.add()
     -- test that can append field-values to existing value
     assert(h:set('field-name', 'hello'))
     assert(h:add('field-name', 'world'))
-    assert.equal(h:get('field-name'), {
+    assert.equal(h:get('field-name', true), {
         'hello',
         'world',
     })
@@ -105,7 +105,7 @@ function testcase.add()
         'bar',
     }))
     assert.equal(h:size(), 1)
-    assert.equal(h:get('field-name'), {
+    assert.equal(h:get('field-name', true), {
         'hello',
         'world',
         'foo',
@@ -115,6 +115,19 @@ end
 
 function testcase.get()
     local h = header.new()
+    assert(h:set('field-name', {
+        'hello',
+        'world',
+    }))
+
+    -- test that return last value
+    assert.equal(h:get('field-name'), 'world')
+
+    -- test that return values if all argument is true
+    assert.equal(h:get('field-name', true), {
+        'hello',
+        'world',
+    })
 
     -- test that cannot get field-value with non-string field-name
     for _, name in ipairs({
