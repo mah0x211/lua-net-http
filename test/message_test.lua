@@ -35,16 +35,6 @@ function testcase.set_version()
     assert.match(err, 'version must be finite-number')
 end
 
-function testcase.set_content()
-    local m = assert(new_message())
-
-    -- test that set a content and reset content_sent field
-    m.content_sent = 10
-    m:set_content('foo')
-    assert.equal(m.content, 'foo')
-    assert.is_nil(m.content_sent)
-end
-
 function testcase.write_header()
     local rctx = {
         msg = 'hello world!',

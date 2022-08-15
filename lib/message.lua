@@ -70,13 +70,6 @@ function Message:set_version(version)
     return true
 end
 
---- set_content
---- @param content net.http.content
-function Message:set_content(content)
-    self.content = content
-    self.content_sent = nil
-end
-
 --- write_firstline
 --- @param w net.http.writer
 --- @return integer n
