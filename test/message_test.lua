@@ -120,8 +120,7 @@ function testcase.write_content()
     -- test that write content
     local m = assert(new_message())
     m.header:set('foo', 'bar')
-    m.content = c
-    assert(m:write_content(w))
+    assert(m:write_content(w, c))
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
         'Content-Length: 12',
@@ -130,15 +129,9 @@ function testcase.write_content()
         'hello world!',
     }, '\r\n'))
 
-    -- test that throws an error if write content twice
-    local err = assert.throws(m.write_content, m, w)
-    assert.match(err, 'content has already been sent')
-
     -- test that throws an error if content does not exists
-    m.content = nil
-    err = assert.throws(m.write_content, m, w)
-    assert.match(err, 'content does not exist')
-
+    local err = assert.throws(m.write_content, m, w)
+    assert.match(err, 'content must be net.http.content')
 end
 
 function testcase.write()

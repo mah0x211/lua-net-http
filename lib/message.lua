@@ -22,6 +22,7 @@
 local tostring = tostring
 local format = string.format
 local new_errno = require('errno').new
+local instanceof = require('metamodule').instanceof
 local new_header = require('net.http.header').new
 local isa = require('isa')
 local is_string = isa.string
@@ -42,7 +43,6 @@ end
 --- @field version number
 --- @field content? net.http.content
 --- @field header_sent? integer
---- @field content_sent? integer
 local Message = {}
 
 --- init
@@ -132,26 +132,22 @@ end
 --- @param w net.http.writer
 --- @return integer n
 --- @return string? err
-function Message:write_content(w)
-    if not self.content then
-        error('content does not exist', 2)
-    elseif self.content_sent then
-        error('content has already been sent', 2)
+function Message:write_content(w, content)
+    if not instanceof(content, 'net.http.content') then
+        error('content must be net.http.content', 2)
     end
-    self.content_sent = 0
 
     local n = 0
-
     if not self.header_sent then
         local header = self.header
 
-        if self.content.is_chunked then
+        if content.is_chunked then
             if not header:is_transfer_encoding_chunked() then
                 header:set('Content-Length')
                 header:set('Transfer-Encoding', 'chunked')
             end
         elseif not header:content_length() then
-            local size = self.content:size()
+            local size = content:size()
             header:set('Content-Length', tostring(size))
             header:set('Transfer-Encoding')
         end
@@ -165,13 +161,11 @@ function Message:write_content(w)
     end
 
     -- write content
-    local len, err = self.content:write(w)
+    local len, err = content:write(w)
     if not len or err then
         return nil, err
     end
-    self.content_sent = n + len
-
-    return self.content_sent
+    return n + len
 end
 
 --- write data

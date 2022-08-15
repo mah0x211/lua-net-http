@@ -161,8 +161,7 @@ local function fetch(uri, opts)
     elseif is_string(opts.content) then
         _, err, timeout = req:write(c, opts.content)
     elseif instanceof(opts.content, 'net.http.content') then
-        req:set_content(opts.content)
-        _, err, timeout = req:write_content(c)
+        _, err, timeout = req:write_content(c, opts.content)
     elseif instanceof(opts.content, 'net.http.form') then
         _, err, timeout = req:write_form(c, opts.content, opts.boundary)
     else
