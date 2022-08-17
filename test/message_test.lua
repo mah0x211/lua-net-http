@@ -124,6 +124,67 @@ function testcase.write_content()
     assert.match(err, 'content must be net.http.content')
 end
 
+function testcase.write_file()
+    local f = assert(io.tmpfile())
+    f:write('hello world!')
+    f:seek('set')
+    local wctx = {
+        msg = '',
+        write = function(self, s)
+            if self.err then
+                return nil, self.err
+            end
+            self.msg = self.msg .. s
+            return #s
+        end,
+    }
+    local w = new_writer(wctx)
+    w:setbufsize(0)
+
+    -- test that write message
+    local m = assert(new_message())
+    m.header:set('foo', 'bar')
+    assert(m:write_file(w, f))
+    assert.equal(wctx.msg, table.concat({
+        'Foo: bar',
+        'Content-Length: 12',
+        'Content-Type: application/octet-stream',
+        '',
+        'hello world!',
+    }, '\r\n'))
+    assert.equal(f:seek('cur'), 0)
+
+    -- test that write file content from current offset
+    wctx.msg = ''
+    m = assert(new_message())
+    f:seek('set', 3)
+    assert(m:write_file(w, f))
+    assert.equal(wctx.msg, table.concat({
+        'Content-Length: 9',
+        'Content-Type: application/octet-stream',
+        '',
+        'lo world!',
+    }, '\r\n'))
+    assert.equal(f:seek('cur'), 3)
+
+    -- test that write empty message
+    wctx.msg = ''
+    m = assert(new_message())
+    f:seek('end')
+    assert(m:write_file(w, f))
+    assert.equal(wctx.msg, table.concat({
+        'Content-Length: 0',
+        'Content-Type: application/octet-stream',
+        '',
+        '',
+    }, '\r\n'))
+    assert.equal(f:seek('cur'), 12)
+
+    -- test that throws an error if file is not file*
+    local err = assert.throws(m.write_file, m, w, true)
+    assert.match(err, 'file must be file*')
+end
+
 function testcase.write()
     local rctx = {
         msg = 'hello world!',
