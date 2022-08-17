@@ -26,6 +26,7 @@ local instanceof = require('metamodule').instanceof
 local new_header = require('net.http.header').new
 local isa = require('isa')
 local is_string = isa.string
+local is_file = isa.file
 local is_finite = isa.finite
 --- constants
 local LIST_VALID_VERSION = '0.9 | 1.0 | 1.1'
@@ -123,6 +124,7 @@ end
 
 --- write_content
 --- @param w net.http.writer
+--- @param content net.http.content
 --- @return integer n
 --- @return string? err
 function Message:write_content(w, content)
@@ -159,6 +161,52 @@ function Message:write_content(w, content)
         return nil, err
     end
     return n + len
+end
+
+--- write_file
+--- @param w net.http.writer
+--- @param file file*
+--- @return integer|nil n
+--- @return any err
+--- @return boolean|nil timeout
+function Message:write_file(w, file)
+    if not is_file(file) then
+        error('file must be file*', 2)
+    end
+
+    local n = 0
+    local offset = file:seek('cur')
+    local size = file:seek('end') - offset
+
+    file:seek('set', offset)
+    if not self.header_sent then
+        self.header:set('Content-Length', tostring(size))
+        -- write header
+        local len, err = write_header(self, w, true)
+        if not len or err then
+            return nil, err
+        end
+        n = n + len
+    end
+
+    -- write content
+    local bufsize = 4096
+    local s = file:read(bufsize)
+    while s do
+        local len, err, timeout = w:write(s)
+        if err or timeout then
+            assert(file:seek('set', offset))
+            return nil, err, timeout
+        end
+        n = n + len
+
+        if #s < bufsize then
+            break
+        end
+        s = file:read(4096)
+    end
+    assert(file:seek('set', offset))
+    return n
 end
 
 --- write data
