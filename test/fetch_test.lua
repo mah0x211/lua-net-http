@@ -74,9 +74,131 @@ function testcase.fetch()
     end
 
     -- test that fetch content
-    local f = assert(io.tmpfile())
-    f:write('hello world!')
-    f:seek('set')
+    local res, err, timeout = fetch('https://' .. host, {
+        method = 'GET',
+        header = {
+            foo = {
+                'bar',
+                'baz',
+            },
+        },
+        insecure = true,
+    })
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.contains(res.header.dict, {
+        ['content-length'] = {
+            val = {
+                '87',
+            },
+        },
+        ['content-type'] = {
+            val = {
+                'application/octet-stream',
+            },
+        },
+        ['date'] = {
+            val = {
+                now(),
+            },
+        },
+    })
+    local len = res.content:size()
+    local content = assert(res.content:read())
+    assert.equal(#content, len)
+    assert.equal(content, table.concat({
+        'GET / HTTP/1.1',
+        'Foo: bar',
+        'Foo: baz',
+        'User-Agent: lua-net-http',
+        'Host: ' .. host,
+        '',
+        '',
+    }, '\r\n'))
+
+    -- test that cannot connect to uri
+    res, err, timeout = fetch('https://localhost:80', {
+        insecure = true,
+    })
+    assert.is_nil(res)
+    assert.equal(err.type, errno.ECONNREFUSED)
+    assert.is_nil(timeout)
+
+    -- test that return error if uri is invalid
+    res, err, timeout = fetch('https:// ' .. host)
+    assert.is_nil(res)
+    assert.is_nil(timeout)
+    assert.match(err, 'invalid uri character')
+
+    -- test that return error if method is invalid
+    res, err, timeout = fetch('https://' .. host, {
+        method = 'HELLO',
+    })
+    assert.is_nil(res)
+    assert.is_nil(timeout)
+    assert.match(err, 'method must be')
+
+    -- test that return error if version is invalid
+    res, err, timeout = fetch('https://' .. host, {
+        version = 5,
+    })
+    assert.is_nil(res)
+    assert.is_nil(timeout)
+    assert.match(err, 'version must be')
+
+    -- test that return error if cannot establish a secure connection
+    res, err, timeout = fetch('https://' .. host)
+    assert.is_nil(res)
+    assert.is_nil(timeout)
+    assert.match(err, 'verification failed')
+
+    -- test that throws an error if uri is not string
+    err = assert.throws(fetch, true)
+    assert.match(err, 'uri must be string')
+
+    -- test that throws an error if opts is not table
+    err = assert.throws(fetch, 'http://' .. host, true)
+    assert.match(err, 'opts must be table')
+
+    -- test that throws an error if opts.header is invalid
+    err = assert.throws(fetch, 'https://' .. host, {
+        header = 123,
+    })
+    assert.match(err, 'opts.header must be table or net.http.header')
+
+    -- test that throws an error if opts.content is invalid
+    err = assert.throws(fetch, 'https://' .. host, {
+        content = 123,
+    })
+    assert.match(err,
+                 'opts.content must be string, net.http.content or net.http.form')
+end
+
+function testcase.fetch_with_string_content()
+    local hostname = '127.0.0.1'
+    local server = assert(new_inet_server(hostname, 0, {
+        reuseaddr = true,
+        reuseport = true,
+        tlscfg = TLS_SERVER_CONFIG,
+    }))
+    assert(server:listen())
+    local port = assert(server:getsockname()):port()
+    local host = hostname .. ':' .. port
+
+    -- create server
+    local p = assert(fork())
+    if p:is_child() then
+        while true do
+            local peer = assert(server:accept())
+            local msg = assert(peer:recv())
+            local res = new_response()
+            assert(res:write(peer, msg))
+            sleep(0.05)
+            peer:close()
+        end
+    end
+
+    -- test that fetch content
     local res, err, timeout = fetch('https://' .. host, {
         method = 'POST',
         header = {
@@ -85,7 +207,7 @@ function testcase.fetch()
                 'baz',
             },
         },
-        content = new_content(f, 12),
+        content = 'hello world!',
         insecure = true,
     })
     assert.is_nil(err)
@@ -178,6 +300,154 @@ function testcase.fetch()
     })
     assert.match(err,
                  'opts.content must be string, net.http.content or net.http.form')
+end
+
+function testcase.fetch_with_file_content()
+    local hostname = '127.0.0.1'
+    local server = assert(new_inet_server(hostname, 0, {
+        reuseaddr = true,
+        reuseport = true,
+        tlscfg = TLS_SERVER_CONFIG,
+    }))
+    assert(server:listen())
+    local port = assert(server:getsockname()):port()
+    local host = hostname .. ':' .. port
+
+    -- create server
+    local p = assert(fork())
+    if p:is_child() then
+        while true do
+            local peer = assert(server:accept())
+            local msg = assert(peer:recv())
+            local res = new_response()
+            assert(res:write(peer, msg))
+            sleep(0.05)
+            peer:close()
+        end
+    end
+
+    -- test that fetch with content
+    local f = assert(io.tmpfile())
+    f:write('hello world!')
+    f:seek('set')
+    local res, err, timeout = fetch('https://' .. host, {
+        method = 'POST',
+        header = {
+            foo = {
+                'bar',
+                'baz',
+            },
+        },
+        content = f,
+        insecure = true,
+    })
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.contains(res.header.dict, {
+        ['content-length'] = {
+            val = {
+                '160',
+            },
+        },
+        ['content-type'] = {
+            val = {
+                'application/octet-stream',
+            },
+        },
+        ['date'] = {
+            val = {
+                now(),
+            },
+        },
+    })
+    local len = res.content:size()
+    local content = assert(res.content:read())
+    assert.equal(#content, len)
+    assert.equal(content, table.concat({
+        'POST / HTTP/1.1',
+        'Foo: bar',
+        'Foo: baz',
+        'User-Agent: lua-net-http',
+        'Content-Length: 12',
+        'Content-Type: application/octet-stream',
+        'Host: ' .. host,
+        '',
+        'hello world!',
+    }, '\r\n'))
+end
+
+function testcase.fetch_with_content()
+    local hostname = '127.0.0.1'
+    local server = assert(new_inet_server(hostname, 0, {
+        reuseaddr = true,
+        reuseport = true,
+        tlscfg = TLS_SERVER_CONFIG,
+    }))
+    assert(server:listen())
+    local port = assert(server:getsockname()):port()
+    local host = hostname .. ':' .. port
+
+    -- create server
+    local p = assert(fork())
+    if p:is_child() then
+        while true do
+            local peer = assert(server:accept())
+            local msg = assert(peer:recv())
+            local res = new_response()
+            assert(res:write(peer, msg))
+            sleep(0.05)
+            peer:close()
+        end
+    end
+
+    -- test that fetch with content
+    local f = assert(io.tmpfile())
+    f:write('hello world!')
+    f:seek('set')
+    local res, err, timeout = fetch('https://' .. host, {
+        method = 'POST',
+        header = {
+            foo = {
+                'bar',
+                'baz',
+            },
+        },
+        content = new_content(f, 12),
+        insecure = true,
+    })
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.contains(res.header.dict, {
+        ['content-length'] = {
+            val = {
+                '160',
+            },
+        },
+        ['content-type'] = {
+            val = {
+                'application/octet-stream',
+            },
+        },
+        ['date'] = {
+            val = {
+                now(),
+            },
+        },
+    })
+    local len = res.content:size()
+    local content = assert(res.content:read())
+    assert.equal(#content, len)
+    assert.equal(content, table.concat({
+        'POST / HTTP/1.1',
+        'Foo: bar',
+        'Foo: baz',
+        'User-Agent: lua-net-http',
+        'Content-Length: 12',
+        'Content-Type: application/octet-stream',
+        'Host: ' .. host,
+        '',
+        'hello world!',
+    }, '\r\n'))
 end
 
 function testcase.fetch_via_sockfile()
