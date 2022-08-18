@@ -23,6 +23,7 @@
 local isa = require('isa')
 local is_string = isa.string
 local is_table = isa.table
+local is_file = isa.file
 local new_errno = require('errno').new
 local new_tls_config = require('net.tls.config').new
 local new_inet_client = require('net.stream.inet').client.new
@@ -160,6 +161,8 @@ local function fetch(uri, opts)
         _, err, timeout = req:write_header(c)
     elseif is_string(opts.content) then
         _, err, timeout = req:write(c, opts.content)
+    elseif is_file(opts.content) then
+        _, err, timeout = req:write_file(c, opts.content)
     elseif instanceof(opts.content, 'net.http.content') then
         _, err, timeout = req:write_content(c, opts.content)
     elseif instanceof(opts.content, 'net.http.form') then
