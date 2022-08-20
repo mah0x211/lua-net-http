@@ -282,6 +282,49 @@ function testcase.read()
     assert.is_true(c.is_read_trailer)
 end
 
+function testcase.readall()
+    local rctx = {
+        msg = '',
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #self.msg > 0 then
+                local s = string.sub(self.msg, 1, n)
+                self.msg = string.sub(self.msg, n + 1)
+                return s
+            end
+        end,
+    }
+    local r, c
+    local resetctx = function(rmsg, wmsg)
+        rctx.msg = rmsg or ''
+        r = new_reader(rctx)
+        c = new_chunked_content(r)
+    end
+
+    -- test that read chunked-encoded message
+    resetctx(table.concat({
+        '6',
+        'hello ',
+        '6; ext-name=ext-value; ext-name2',
+        'world!',
+        '0',
+        'Trailer-Name: Trailer-Value',
+        '\r\n',
+    }, '\r\n'))
+    local s, err = c:readall()
+    assert.equal(s, 'hello world!')
+    assert.is_nil(err)
+    assert.is_true(c.is_read_chunk)
+    assert.is_true(c.is_read_trailer)
+
+    -- test that return nil if content is already consumed
+    s, err = c:read()
+    assert.is_nil(s)
+    assert.is_nil(err)
+    assert.equal(#rctx.msg, 0)
+end
+
 function testcase.write()
     local rctx = {
         msg = 'hello world!',

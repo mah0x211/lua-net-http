@@ -87,6 +87,13 @@ function Content:read(chunksize)
     return read(self, chunksize)
 end
 
+--- readall
+--- @return string|nil s
+--- @return any err
+function Content:readall()
+    return read(self, self.len)
+end
+
 --- copy
 --- @param w net.http.writer
 --- @param chunksize integer|nil
