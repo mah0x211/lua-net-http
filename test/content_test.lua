@@ -43,13 +43,20 @@ function testcase.copy()
     assert.equal(n, 0)
     assert.is_nil(err)
 
-    -- test that return error if writer returns error
+    -- test that return error if reader returns error
     rctx.msg = 'hello'
+    rctx.err = 'read-error'
+    c = new_content(r, #rctx.msg)
+    n, err = c:copy(w, 100)
+    assert.is_nil(n)
+    assert.equal(err, 'read-error')
+
+    -- test that return error if writer returns error
+    rctx.err = nil
     wctx.write = function(self, s)
         self.msg = s
         return #s, 'write-error'
     end
-    c = new_content(r, #rctx.msg)
     n, err = c:copy(w, 100)
     assert.equal(n, 5)
     assert.equal(err, 'write-error')
@@ -164,9 +171,13 @@ function testcase.readall()
     assert.is_nil(s)
     assert.is_nil(err)
 
-    -- test that throws an error if chunksize is not greater than 0
-    err = assert.throws(c.read, c, 0)
-    assert.match(err, 'chunksize must be uint greater than 0')
+    -- test that return error if reader returns an error
+    rctx.msg = 'hello'
+    rctx.err = 'test-error'
+    c = new_content(r, #rctx.msg)
+    s, err = c:readall()
+    assert.is_nil(s)
+    assert.equal(err, 'test-error')
 end
 
 function testcase.write()

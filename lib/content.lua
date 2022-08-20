@@ -91,7 +91,16 @@ end
 --- @return string|nil s
 --- @return any err
 function Content:readall()
-    return read(self, self.len)
+    if not self.is_consumed then
+        local s, err = self.reader:readfull(self.len)
+        if err then
+            return nil, err
+        elseif s then
+            self.len = self.len - #s
+            self.is_consumed = self.len <= 0
+            return s
+        end
+    end
 end
 
 --- copy
