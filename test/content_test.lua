@@ -136,6 +136,39 @@ function testcase.read()
     assert.match(err, 'chunksize must be uint greater than 0')
 end
 
+function testcase.readall()
+    local rctx = {
+        msg = 'hello world!',
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #self.msg > 0 then
+                local s = string.sub(self.msg, 1, n)
+                self.msg = string.sub(self.msg, n + 1)
+                return s
+            end
+        end,
+    }
+    local r = new_reader(rctx)
+    local c = new_content(r, #rctx.msg)
+
+    -- test that read all content
+    assert.equal(c:size(), 12)
+    local s, err = c:readall()
+    assert.equal(s, 'hello world!')
+    assert.is_nil(err)
+    assert.equal(c:size(), 0)
+
+    -- test that return nil if content is already consumed
+    s, err = c:readall()
+    assert.is_nil(s)
+    assert.is_nil(err)
+
+    -- test that throws an error if chunksize is not greater than 0
+    err = assert.throws(c.read, c, 0)
+    assert.match(err, 'chunksize must be uint greater than 0')
+end
+
 function testcase.write()
     local rctx = {
         msg = 'hello world!',
