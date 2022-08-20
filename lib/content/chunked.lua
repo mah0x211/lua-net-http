@@ -242,7 +242,8 @@ local function read_chunk(self, chunksize, handler)
                 end
                 chunk = chunk .. s
 
-                if #chunk >= chunksize then
+                -- stops reading when the specified chunk size is reached
+                if chunksize and #chunk >= chunksize then
                     r:prepend(str)
                     self.chunk = chunk
                     return true
@@ -303,6 +304,49 @@ function ChunkedContent:read(chunksize, handler)
     end
 
     return read(self, chunksize, handler)
+end
+
+--- readall
+--- @param self net.http.content.chunked
+--- @param handler net.http.content.chunked.Handler
+--- @return string|nil str
+--- @return any err
+local function readall(self, handler)
+    local chunk
+    if not self.is_read_chunk then
+        local ok, err = read_chunk(self, nil, handler)
+        if not ok then
+            return nil, err
+        end
+        chunk = self.chunk
+        self.chunk = ''
+    end
+
+    if not self.is_read_trailer then
+        local err, timeout = read_trailer(self, handler)
+        if err or timeout then
+            return nil, err
+        end
+    end
+
+    return chunk
+end
+
+--- readall
+--- @param handler? net.http.content.chunked.Handler
+--- @return string|nil s
+--- @return any err
+function ChunkedContent:readall(handler)
+    if handler == nil then
+        -- use default handler
+        handler = DEFAULT_CHUNKHANDLER
+    end
+
+    local s, err = readall(self, handler)
+    if not s then
+        return nil, err
+    end
+    return s
 end
 
 --- copy
