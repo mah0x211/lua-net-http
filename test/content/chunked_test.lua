@@ -319,7 +319,7 @@ function testcase.readall()
     assert.is_true(c.is_read_trailer)
 
     -- test that return nil if content is already consumed
-    s, err = c:read()
+    s, err = c:readall()
     assert.is_nil(s)
     assert.is_nil(err)
     assert.equal(#rctx.msg, 0)
