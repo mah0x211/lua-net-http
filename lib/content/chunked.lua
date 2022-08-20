@@ -220,7 +220,7 @@ local function read_chunk(self, chunksize, handler)
                 --
                 -- read chunk-data (csize + CRLF)
                 while #str < csize + 2 do
-                    s, err, timeout = r:read(chunksize)
+                    s, err, timeout = r:read(bufsize)
                     if not s or err or timeout then
                         return false, err, timeout
                     end
@@ -240,8 +240,8 @@ local function read_chunk(self, chunksize, handler)
                 if err then
                     return false, err
                 end
-
                 chunk = chunk .. s
+
                 if #chunk >= chunksize then
                     r:prepend(str)
                     self.chunk = chunk
@@ -273,12 +273,13 @@ local function read(self, chunksize, handler)
         n = #chunk
     end
 
-    if n >= chunksize then
-        self.chunk = sub(chunk, chunksize + 1)
-        return sub(chunk, 1, chunksize)
-    elseif n > 0 then
+    if n > 0 then
+        if n >= chunksize then
+            self.chunk = sub(chunk, chunksize + 1)
+            return sub(chunk, 1, chunksize)
+        end
         self.chunk = ''
-        return sub(chunk, 1, chunksize)
+        return chunk
     elseif not self.is_read_trailer then
         return nil, read_trailer(self, handler)
     end
