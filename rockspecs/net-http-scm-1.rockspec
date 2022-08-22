@@ -14,6 +14,7 @@ dependencies = {
     "base64mix >= 1.0.0",
     "bufio >= 0.6.0",
     "errno >= 0.3.0",
+    "error >= 0.8.0",
     "form >= 0.3.0",
     "isa >= 0.1.0",
     "net >= 0.33.0",

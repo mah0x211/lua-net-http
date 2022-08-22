@@ -29,6 +29,7 @@ local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
 local isa = require('isa')
 local is_string = isa.string
+local toerror = require('error').toerror
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
 local decode_form = require('net.http.form').decode
@@ -126,30 +127,32 @@ end
 --- read_form
 --- @param maxsize integer|nil
 --- @param filetmpl string|nil
---- @return boolean ok
+--- @return form|nil form
 --- @return any err
 function Request:read_form(maxsize, filetmpl)
-    if not self.form then
-        local mime, err, params = self.header:content_type()
-        if mime then
-            if mime == 'application/x-www-form-urlencoded' then
-                self.form, err = decode_form(self.content)
-            elseif mime == 'multipart/form-data' then
-                if not params or not params.boundary then
-                    return false, new_errno('EINVAL',
-                                            'invalid Content-Type header: boundary not defined')
-                end
-                self.form, err = decode_form(self.content, nil, params.boundary,
-                                             maxsize, filetmpl)
-            end
-        end
+    local form = self.form
+    if form then
+        return form
+    end
 
-        if err or not mime then
-            return false, err
+    local mime, err, params = self.header:content_type()
+    if mime then
+        if mime == 'application/x-www-form-urlencoded' then
+            self.form, err = decode_form(self.content)
+        elseif mime == 'multipart/form-data' then
+            if not params or not params.boundary then
+                return nil, new_errno('EINVAL',
+                                      'invalid Content-Type header: boundary not defined')
+            end
+            self.form, err = decode_form(self.content, nil, params.boundary,
+                                         maxsize, filetmpl)
         end
     end
 
-    return true
+    if err then
+        return nil, toerror(err)
+    end
+    return self.form
 end
 
 --- write_firstline

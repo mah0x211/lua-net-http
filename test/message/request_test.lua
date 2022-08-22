@@ -147,7 +147,7 @@ function testcase.read_form_urlencoded()
         end,
     }
     local m
-    local restctx = function(ctype, msg)
+    local resetctx = function(ctype, msg)
         -- convert to chunked message
         if msg then
             math.randomseed(os.time())
@@ -175,10 +175,10 @@ function testcase.read_form_urlencoded()
     end
 
     -- test that read from application/x-www-form-urlencoded content
-    restctx('application/x-www-form-urlencoded', 'foo=bar&foo&foo=baz&qux=quux')
-    assert(m:read_form())
-    local form = m.form
+    resetctx('application/x-www-form-urlencoded', 'foo=bar&foo&foo=baz&qux=quux')
+    local form, err = assert(m:read_form())
     assert.match(form, '^net.http.form: ', false)
+    assert.is_nil(err)
     assert.equal(form.data, {
         foo = {
             'bar',
@@ -191,22 +191,22 @@ function testcase.read_form_urlencoded()
     })
 
     -- test that return false with no error
-    restctx()
-    local ok, err = m:read_form()
-    assert.is_false(ok)
+    resetctx()
+    form, err = m:read_form()
+    assert.is_nil(form)
     assert.is_nil(err)
 
     -- test that return false and boundary error
-    restctx('multipart/form-data')
-    ok, err = m:read_form()
-    assert.is_false(ok)
+    resetctx('multipart/form-data')
+    form, err = m:read_form()
+    assert.is_nil(form)
     assert.equal(err.type, errno.EINVAL)
     assert.match(err, 'boundary not defined')
 
     -- test that return false and boundary error
-    restctx('multipart/form-data')
-    ok, err = m:read_form()
-    assert.is_false(ok)
+    resetctx('multipart/form-data')
+    form, err = m:read_form()
+    assert.is_nil(form)
     assert.equal(err.type, errno.EINVAL)
     assert.match(err, 'boundary not defined')
 end
@@ -225,7 +225,7 @@ function testcase.read_form_multipart()
         end,
     }
     local m
-    local restctx = function(ctype, msg)
+    local resetctx = function(ctype, msg)
         -- convert to chunked message
         math.randomseed(os.time())
         local maxlen = math.floor(#msg / 5)
@@ -247,7 +247,7 @@ function testcase.read_form_multipart()
     end
 
     -- test that read from multipart/form-data content
-    restctx('multipart/form-data; boundary=test_boundary', table.concat({
+    resetctx('multipart/form-data; boundary=test_boundary', table.concat({
         '--test_boundary',
         'X-Example: example header1',
         'X-Example: example header2',
@@ -273,9 +273,9 @@ function testcase.read_form_multipart()
         '--test_boundary--',
         '',
     }, '\r\n'))
-    assert(m:read_form())
-    local form = m.form
+    local form, err = m:read_form()
     assert.match(form, '^net.http.form: ', false)
+    assert.is_nil(err)
     assert.contains(form.data.foo[1], {
         name = 'foo',
         header = {
@@ -329,6 +329,29 @@ function testcase.read_form_multipart()
             data = '',
         },
     })
+
+    -- test that return error
+    resetctx('multipart/form-data; boundary=test_boundary', table.concat({
+        '--test_boundary',
+        'X-Example: example header1',
+        'X-Example: example header2',
+        'Content-Disposition: form-data; name="foo"; filename="bar.txt"',
+        '',
+        'bar file',
+        '--test_boundary',
+        'Content-Dispostion: form-data; name="foo"',
+        '',
+        'hello world',
+        '--test_boundary',
+        'Content-Disposition: form-data; name="foo"; filename="baz.txt"',
+        '',
+        'baz file',
+        '--test_boundary--',
+        '',
+    }, '\r\n'))
+    form, err = m:read_form()
+    assert.is_nil(form)
+    assert.match(err, 'form-multipart decode error')
 end
 
 function testcase.write_form_urlencoded()
