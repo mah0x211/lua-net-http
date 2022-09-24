@@ -1,6 +1,5 @@
 require('luacov')
 local testcase = require('testcase')
-local errno = require('errno')
 local new_reader = require('net.http.reader').new
 local new_form = require('net.http.form').new
 local decode_form = require('net.http.form').decode
@@ -46,7 +45,7 @@ function testcase.decode_urlencoded()
     data = 'foo=bar&foo&foo=b%az&qux=quux'
     form, err = decode_form(reader)
     assert.is_nil(form)
-    assert.equal(err.type, errno.EILSEQ)
+    assert.match(err.type, '^form.urlencoded.decode', false)
 end
 
 function testcase.decode_multipart()
