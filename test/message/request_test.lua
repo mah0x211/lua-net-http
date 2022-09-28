@@ -40,9 +40,9 @@ function testcase.set_uri()
 
     -- test that set valid uri
     assert(m:set_uri(
-               'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash'))
+               'https://user:pswd@www.example.com:80/foo/../bar/./../hello?q=foo&q=bar&baa=baz#hash'))
     assert.contains(m, {
-        uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
+        uri = 'https://user:pswd@www.example.com:80/foo/../bar/./../hello?q=foo&q=bar&baa=baz#hash',
         scheme = 'https',
         userinfo = 'user:pswd',
         user = 'user',
@@ -51,6 +51,7 @@ function testcase.set_uri()
         hostname = 'www.example.com',
         port = '80',
         path = '/hello',
+        rawpath = '/foo/../bar/./../hello',
         query = '?q=foo&q=bar&baa=baz',
         fragment = 'hash',
     })
@@ -69,6 +70,7 @@ function testcase.set_uri()
         hostname = 'www.example.com',
         port = '80',
         path = '/hello',
+        rawpath = '/hello',
         query = '?q=foo&q=bar&baa=baz',
         query_params = {
             q = {
