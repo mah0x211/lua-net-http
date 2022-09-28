@@ -20,6 +20,7 @@ dependencies = {
     "net >= 0.34.0",
     "metamodule >= 0.4",
     "lauxhlib >= 0.5.0",
+    "realpath >= 0.3.0",
     "string-capitalize >= 0.2.0",
     "string-split >= 0.3.0",
     "string-trim >= 0.2.0",

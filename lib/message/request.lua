@@ -21,6 +21,7 @@
 --
 local concat = table.concat
 local lower = string.lower
+local gsub = string.gsub
 local pcall = pcall
 local format = string.format
 local tostring = tostring
@@ -29,6 +30,7 @@ local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
 local isa = require('isa')
 local is_string = isa.string
+local realpath = require('realpath')
 local toerror = require('error').toerror
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
@@ -68,6 +70,7 @@ LIST_VALID_METHOD = concat(LIST_VALID_METHOD, ' | ')
 --- @field hostname string
 --- @field port string
 --- @field path string
+--- @field rawpath string
 --- @field query string
 --- @field query_params table
 --- @field fragment string
@@ -121,6 +124,23 @@ function Request:set_uri(uri, parse_query)
     for k, v in pairs(parsed_uri) do
         self[k] = v
     end
+    self.rawpath = self.path or '/'
+
+    -- path normalization
+    local path
+    path, err = realpath(self.rawpath, nil, false)
+    if err then
+        return false, err
+    end
+
+    path = gsub(path, '^[^/]', function(c)
+        if c == '.' then
+            return '/'
+        end
+        return '/' .. c
+    end)
+    self.path = path
+
     return true
 end
 
