@@ -239,6 +239,7 @@ function testcase.write()
     assert(m:write(w))
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
+        'Content-Length: 0',
         '',
         '',
     }, '\r\n'))

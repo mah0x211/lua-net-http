@@ -226,13 +226,9 @@ function Message:write(w, data)
     local n = 0
 
     if not self.header_sent then
-        local with_content = size > 0
-        if with_content then
-            self.header:set('Content-Length', tostring(size))
-        end
-
+        self.header:set('Content-Length', tostring(size))
         -- write header
-        local len, err = write_header(self, w, with_content)
+        local len, err = write_header(self, w, size > 0)
         if not len or err then
             return nil, err
         end
