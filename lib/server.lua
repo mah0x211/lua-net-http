@@ -43,7 +43,7 @@ local Server = {}
 --- @param nonblock boolean
 --- @param ai llsocket.addrinfo
 --- @return net.http.connection conn
---- @return string? err
+--- @return any err
 --- @return llsocket.addrinfo ai
 function Server:accepted(sock, nonblock, ai)
     return new_connection(sock), nil, ai
@@ -66,8 +66,8 @@ local UnixTLSServer = new_metamodule.UnixTLS(Server,
 --- new
 --- @param addr string
 --- @param opts table?
---- @return net.stream.Server server
---- @return string? err
+--- @return net.stream.Server? server
+--- @return any err
 local function new(addr, opts)
     if not is_string(addr) then
         error('addr must be string', 2)

@@ -47,8 +47,8 @@ end
 --- encode_param
 --- @param key string
 --- @param val any
---- @return string key
---- @return string val
+--- @return string? key
+--- @return string? val
 local function encode_param(key, val)
     -- ignore parameters that begin with a numeric index
     if find(key, '^[a-zA-Z_]') then
@@ -65,7 +65,7 @@ end
 --- key2str
 --- @param prefix string
 --- @param key any
---- @return string
+--- @return string?
 local function key2str(prefix, key)
     if is_string(key) then
         if prefix then

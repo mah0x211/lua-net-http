@@ -39,8 +39,8 @@ local parse_parameters = parse.parameters
 
 --- is_valid_key
 --- @param key string
---- @return string key
---- @return string err
+--- @return string? key
+--- @return any err
 local function is_valid_key(key)
     if not is_string(key) then
         return nil, new_errno('EINVAL',
@@ -57,8 +57,8 @@ end
 
 --- is_valid_val
 --- @param val string
---- @return string val
---- @return string err
+--- @return string? val
+--- @return any err
 local function is_valid_val(val)
     if not is_string(val) then
         return nil, new_errno('EINVAL',
@@ -80,8 +80,8 @@ end
 
 --- copy_values
 --- @param vals string[]
---- @return string[] copied
---- @return string err
+--- @return string[]? copied
+--- @return any err
 local function copy_values(vals)
     local arr = {}
 
@@ -261,8 +261,8 @@ end
 --- get
 --- @param key string
 --- @param all boolean
---- @return string|string[]|nil val
---- @return string key
+--- @return string|string[]? val
+--- @return string? key
 function Header:get(key, all)
     if not is_string(key) then
         error('key must be string', 2)
@@ -310,7 +310,7 @@ end
 --- write headers to writer
 --- @param w net.http.writer
 --- @return integer len
---- @return string? err
+--- @return any err
 function Header:write(w)
     local total = 0
 
@@ -332,9 +332,9 @@ function Header:write(w)
 end
 
 --- get_content_type
---- @return string mime
---- @return string err
---- @return table<string, string> params
+--- @return string? mime
+--- @return any err
+--- @return table<string, string>? params
 function Header:content_type()
     local val = self:get('content-type')
     if not val then

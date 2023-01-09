@@ -29,11 +29,11 @@ Form = require('metamodule').new(Form, 'form')
 
 --- decode
 --- @param reader table|userdata
---- @param chunksize integer|nil
---- @param boundary string|nil
---- @param maxsize integer|nil
---- @param filetmpl string|nil
---- @return net.http.form|nil form
+--- @param chunksize? integer
+--- @param boundary? string
+--- @param maxsize? integer
+--- @param filetmpl? string
+--- @return net.http.form? form
 --- @return any err
 local function decode(reader, chunksize, boundary, maxsize, filetmpl)
     local form, err =

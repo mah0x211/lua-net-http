@@ -56,7 +56,7 @@ end
 --- set_version
 --- @param version number
 --- @return boolean ok
---- @return string err
+--- @return any err
 function Message:set_version(version)
     if not is_finite(version) then
         error('version must be finite-number', 2)
@@ -74,7 +74,7 @@ end
 --- write_firstline
 --- @param w net.http.writer
 --- @return integer n
---- @return string? err
+--- @return any err
 function Message:write_firstline(w)
     return 0
 end
@@ -82,9 +82,9 @@ end
 --- write_header
 --- @param self net.http.message
 --- @param w net.http.writer
---- @param with_content boolean
---- @return integer n
---- @return string? err
+--- @param with_content? boolean
+--- @return integer? n
+--- @return any err
 local function write_header(self, w, with_content)
     if self.header_sent then
         error('header has already been sent', 2)
@@ -116,8 +116,8 @@ end
 
 --- write_header
 --- @param w net.http.writer
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
 function Message:write_header(w)
     return write_header(self, w)
 end
@@ -125,8 +125,8 @@ end
 --- write_content
 --- @param w net.http.writer
 --- @param content net.http.content
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
 function Message:write_content(w, content)
     if not instanceof(content, 'net.http.content') then
         error('content must be net.http.content', 2)
@@ -166,9 +166,9 @@ end
 --- write_file
 --- @param w net.http.writer
 --- @param file file*
---- @return integer|nil n
+--- @return integer? n
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 function Message:write_file(w, file)
     if not is_file(file) then
         error('file must be file*', 2)
@@ -211,9 +211,9 @@ end
 
 --- write data
 --- @param w net.http.writer
---- @param data string
---- @return integer n
---- @return string? err
+--- @param data? string
+--- @return integer? n
+--- @return any err
 function Message:write(w, data)
     local size = 0
     if data ~= nil then
