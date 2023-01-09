@@ -43,9 +43,9 @@ local WELL_KNOWN_PORT = {
 --- fetch
 --- @param uri string
 --- @param opts? table<string, any>
---- @return net.http.message.response|nil res
+--- @return net.http.message.response? res
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 local function fetch(uri, opts)
     if not is_string(uri) then
         error('uri must be string', 2)

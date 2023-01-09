@@ -48,7 +48,7 @@ local Connection = {}
 --- init
 --- @param sock net.stream.Socket
 --- @return net.http.connection conn
---- @return string? err
+--- @return any err
 function Connection:init(sock)
     self.sock = sock
     self.readsize = DEFAULT_READSIZE
@@ -59,7 +59,7 @@ end
 
 --- close
 --- @return boolean ok
---- @return string? err
+--- @return any err
 function Connection:close()
     return self.sock:close()
 end
@@ -67,14 +67,14 @@ end
 --- write
 --- @param data string
 --- @return boolean ok
---- @return string? err
+--- @return any err
 function Connection:write(data)
     return self.writer:write(data)
 end
 
 --- flush
 --- @return integer? len
---- @return string? err
+--- @return any err
 function Connection:flush()
     return self.writer:flush()
 end
@@ -82,9 +82,9 @@ end
 --- read_message
 --- @param msg net.http.message
 --- @param parser function
---- @return net.http.message|nil msg
+--- @return net.http.message? msg
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 function Connection:read_message(msg, parser)
     local reader = self.reader
     local readsize = self.readsize
@@ -147,7 +147,7 @@ end
 --- read_request
 --- @return net.http.message.request? req
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 function Connection:read_request()
     local req, rerr, timeout = self:read_message(new_request(), parse_request)
     if not req then
@@ -165,9 +165,9 @@ function Connection:read_request()
 end
 
 --- read_response
---- @return net.http.message.response res
+--- @return net.http.message.response? res
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 function Connection:read_response()
     return self:read_message(new_response(), parse_response)
 end

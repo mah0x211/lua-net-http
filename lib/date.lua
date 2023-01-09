@@ -30,13 +30,14 @@ local FORMAT = '!%a, %d %b %Y %H:%M:%S GMT'
 local CURRENT_DATE = date(FORMAT)
 
 --- update
+--- @return string|osdate?
 local function update()
     CURRENT_DATE = date(FORMAT)
     return CURRENT_DATE
 end
 
 --- now
--- @return date
+--- @return string|osdate?
 local function now()
     return CURRENT_DATE
 end

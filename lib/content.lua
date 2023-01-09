@@ -57,7 +57,7 @@ end
 --- read
 ---@param self net.http.content
 ---@param chunksize integer
----@return string|nil s
+---@return string? s
 ---@return any err
 local function read(self, chunksize)
     if not self.is_consumed then
@@ -75,7 +75,7 @@ end
 
 --- read
 --- @param chunksize integer|nil
---- @return string|nil s
+--- @return string? s
 --- @return any err
 function Content:read(chunksize)
     if chunksize == nil then
@@ -88,7 +88,7 @@ function Content:read(chunksize)
 end
 
 --- readall
---- @return string|nil s
+--- @return string? s
 --- @return any err
 function Content:readall()
     if not self.is_consumed then
@@ -105,8 +105,8 @@ end
 
 --- copy
 --- @param w net.http.writer
---- @param chunksize integer|nil
---- @return integer len
+--- @param chunksize integer?
+--- @return integer? len
 --- @return any err
 function Content:copy(w, chunksize)
     if chunksize == nil then
@@ -136,8 +136,8 @@ function Content:copy(w, chunksize)
 end
 
 --- dispose
---- @param chunksize integer|nil
---- @return integer len
+--- @param chunksize integer?
+--- @return integer? len
 --- @return any err
 function Content:dispose(chunksize)
     return self:copy({
@@ -150,8 +150,8 @@ end
 --- write
 --- @param w net.http.writer
 --- @param chunksize? integer
---- @return integer len
---- @return error? err
+--- @return integer? len
+--- @return any err
 function Content:write(w, chunksize)
     return self:copy(w, chunksize)
 end
