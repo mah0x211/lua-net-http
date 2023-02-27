@@ -44,7 +44,7 @@ function Content:init(r, len)
     self.len = len
     self.consumed = 0
     self.is_chunked = false
-    self.is_consumed = false
+    self.is_consumed = len == 0
     return self
 end
 
