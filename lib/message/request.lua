@@ -107,7 +107,7 @@ end
 --- @param uri string
 --- @param parse_query? boolean
 --- @return boolean ok
---- @return string err
+--- @return any err
 function Request:set_uri(uri, parse_query)
     if not is_string(uri) then
         error('uri must be string', 2)
@@ -145,14 +145,16 @@ function Request:set_uri(uri, parse_query)
 end
 
 --- read_form
---- @param maxsize integer|nil
---- @param filetmpl string|nil
---- @return form|nil form
+--- @param maxsize? integer
+--- @param filetmpl? string
+--- @return net.http.form? form
 --- @return any err
 function Request:read_form(maxsize, filetmpl)
     local form = self.form
     if form then
         return form
+    elseif not self.content  then
+        return
     end
 
     local mime, err, params = self.header:content_type()
