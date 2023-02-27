@@ -15,7 +15,7 @@ http module for lua.
 ## Installation
 
 ```
-luarocks install net-http --server=https://luarocks.org/dev
+luarocks install net-http
 ```
 
 
