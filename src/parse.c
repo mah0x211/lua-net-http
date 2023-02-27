@@ -65,14 +65,14 @@ static void init_error_types(lua_State *L)
 {
     int nameidx = lua_gettop(L) + 1;
 
-    le_loadlib(L, 1);
+    lua_error_loadlib(L, 1);
 
 #define create_error_type(name, message)                                       \
  do {                                                                          \
   lua_pushstring(L, "net.http.parse." #name);                                  \
   lua_pushinteger(L, PARSE_##name);                                            \
   lua_pushstring(L, (message));                                                \
-  le_new_type(L, nameidx);                                                     \
+  lua_error_new_type(L, nameidx);                                              \
   PARSE_ERR_##name = lauxh_ref(L);                                             \
  } while (0)
 
@@ -156,9 +156,9 @@ static int error_result_ex(lua_State *L, int err, const char *op, int as_bool)
     if (op) {
         lua_pushnil(L);
         lua_pushstring(L, op);
-        le_new_message(L, typeidx + 1);
+        lua_error_new_message(L, typeidx + 1);
     }
-    le_new_typed_error(L, typeidx);
+    lua_error_new_typed_error(L, typeidx);
     return 2;
 }
 #define error_result_as_false(L, err, op) error_result_ex(L, err, op, 1)
