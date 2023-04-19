@@ -2,7 +2,8 @@ require('luacov')
 local testcase = require('testcase')
 local errno = require('errno')
 local new_message = require('net.http.message.request').new
-local new_content = require('net.http.content.chunked').new
+local new_content = require('net.http.content').new
+local new_chunked_content = require('net.http.content.chunked').new
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_form = require('net.http.form').new
@@ -135,6 +136,51 @@ function testcase.write_firstline()
     assert.match(err, 'invalid uri character .+ found at 1', false)
 end
 
+function testcase.read_form()
+    local data = 'foo=bar&foo&foo=baz&qux=quux'
+    local rctx = {
+        read = function(self, n)
+            if self.err then
+                return nil, self.err
+            elseif #data > 0 then
+                local s = string.sub(data, 1, n)
+                data = string.sub(data, n + 1)
+                return s
+            end
+        end,
+    }
+
+    -- test that read from application/x-www-form-urlencoded content
+    local m = assert(new_message())
+    m.header:set('Content-Type', 'application/x-www-form-urlencoded')
+    m.header:set('Content-Length', tostring(#data))
+    m.content = new_content(new_reader(rctx), #data)
+    local form, err = assert(m:read_form())
+    assert.match(form, '^net.http.form: ', false)
+    assert.is_nil(err)
+    assert.equal(form.data, {
+        foo = {
+            'bar',
+            '',
+            'baz',
+        },
+        qux = {
+            'quux',
+        },
+    })
+
+    -- test that return empty form
+    m = assert(new_message())
+    m.method = 'POST'
+    form, err = m:read_form()
+    assert.is_table(form)
+    assert.is_nil(err)
+    assert.equal(tostring(form), tostring(m.form))
+    for _ in form:pairs() do
+        assert(false, 'form must be empty')
+    end
+end
+
 function testcase.read_form_urlencoded()
     local data
     local rctx = {
@@ -173,7 +219,7 @@ function testcase.read_form_urlencoded()
         if ctype then
             m.header:set('Content-Type', ctype)
         end
-        m.content = new_content(new_reader(rctx))
+        m.content = new_chunked_content(new_reader(rctx))
     end
 
     -- test that read from application/x-www-form-urlencoded content
@@ -244,7 +290,7 @@ function testcase.read_form_multipart()
         data = data .. '0\r\n\r\n'
 
         m = assert(new_message())
-        m.content = new_content(new_reader(rctx))
+        m.content = new_chunked_content(new_reader(rctx))
         m.header:set('Content-Type', ctype)
     end
 

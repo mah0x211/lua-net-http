@@ -34,6 +34,7 @@ local realpath = require('realpath')
 local toerror = require('error').toerror
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
+local new_form = require('net.http.form').new
 local decode_form = require('net.http.form').decode
 local is_valid_boundary = require('net.http.form').is_valid_boundary
 --- constants
@@ -153,8 +154,12 @@ function Request:read_form(maxsize, filetmpl)
     local form = self.form
     if form then
         return form
-    elseif not self.content  then
-        return
+    elseif not self.content then
+        if self.method == 'POST' then
+            self.form = new_form()
+            return self.form
+        end
+        return nil
     end
 
     local mime, err, params = self.header:content_type()
