@@ -22,6 +22,7 @@
 local lower = string.lower
 local format = string.format
 local remove = table.remove
+local errorf = require('error').format
 local fatalf = require('error').fatalf
 local tointeger = require('tointeger')
 local capitalize = require('string.capitalize')
@@ -310,23 +311,28 @@ end
 
 --- write headers to writer
 --- @param w net.http.writer
---- @return integer len
+--- @return integer? len
 --- @return any err
+--- @return boolean? timeout
 function Header:write(w)
     local total = 0
 
     for _, k, v in self:pairs() do
         local s = format('%s: %s\r\n', k, v)
-        local ok, err = w:write(s)
-        if not ok or err then
-            return total, err
+        local n, err, timeout = w:write(s)
+        if err then
+            return nil, errorf('failed to write()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        total = total + #s
+        total = total + n
     end
 
-    local ok, err = w:write('\r\n')
-    if not ok then
-        return total, err
+    local n, err, timeout = w:write('\r\n')
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
 
     return total + 2

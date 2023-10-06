@@ -1,7 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
 local sleep = require('testcase.timer').sleep
-local errno = require('errno')
 local date = require('net.http.date')
 local new_message = require('net.http.message.response').new
 local new_writer = require('net.http.writer').new
@@ -24,7 +23,7 @@ function testcase.set_status()
     -- test that return EINVAL if argument is invalid status
     local ok, err = m:set_status(999)
     assert.is_false(ok)
-    assert.equal(err.type, errno.EINVAL)
+    assert.match(err, 'unsupported status code 999')
 
     -- test that throws an error if argument is not integer
     err = assert.throws(m.set_status, m)

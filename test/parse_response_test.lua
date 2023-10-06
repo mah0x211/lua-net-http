@@ -1,4 +1,5 @@
 local testcase = require('testcase')
+local assert = require('assert')
 local parse = require('net.http.parse')
 local parse_response = parse.response
 local CR = '\r'

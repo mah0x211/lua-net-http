@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_content = require('net.http.content').new
@@ -49,7 +50,7 @@ function testcase.copy()
     c = new_content(r, #rctx.msg)
     n, err = c:copy(w, 100)
     assert.is_nil(n)
-    assert.equal(err, 'read-error')
+    assert.match(err, 'read-error')
 
     -- test that return error if writer returns error
     rctx.err = nil
@@ -58,8 +59,8 @@ function testcase.copy()
         return #s, 'write-error'
     end
     n, err = c:copy(w, 100)
-    assert.equal(n, 5)
-    assert.equal(err, 'write-error')
+    assert.is_nil(n)
+    assert.match(err, 'write-error')
     assert.equal(rctx.msg, '')
     assert.equal(wctx.msg, 'hello')
 
@@ -177,7 +178,7 @@ function testcase.readall()
     c = new_content(r, #rctx.msg)
     s, err = c:readall()
     assert.is_nil(s)
-    assert.equal(err, 'test-error')
+    assert.match(err, 'test-error')
 end
 
 function testcase.write()

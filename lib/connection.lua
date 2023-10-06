@@ -21,7 +21,7 @@
 --
 --- assign to local
 local sub = string.sub
-local new_error_message = require('error').message.new
+local errorf = require('error').format
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_request = require('net.http.message.request').new
@@ -39,9 +39,9 @@ local EMSG = parse.EMSG
 local DEFAULT_READSIZE = 4096
 
 --- @class net.http.connection
---- @field sock net.stream.Socket
---- @field reader net.http.reader
---- @field writer net.http.writer
+--- @field protected sock net.stream.Socket
+--- @field protected reader net.http.reader
+--- @field protected writer net.http.writer
 --- @field content net.http.content
 local Connection = {}
 
@@ -64,19 +64,29 @@ function Connection:close()
     return self.sock:close()
 end
 
---- write
+--- write a data string to the connection
 --- @param data string
---- @return boolean ok
+--- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 function Connection:write(data)
-    return self.writer:write(data)
+    local n, err, timeout = self.writer:write(data)
+    if err then
+        return nil, errorf('failed to write()', err)
+    end
+    return n, nil, timeout
 end
 
---- flush
---- @return integer? len
+--- flush a buffered data to the connection.
+--- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 function Connection:flush()
-    return self.writer:flush()
+    local n, err, timeout = self.writer:flush()
+    if err then
+        return nil, errorf('failed to flush()', err)
+    end
+    return n, nil, timeout
 end
 
 --- read_message
@@ -94,8 +104,10 @@ function Connection:read_message(msg, parser)
     msg.header = {}
     while true do
         local s, err, timeout = reader:read(readsize)
-        if not s or err then
-            return nil, err, timeout
+        if err then
+            return nil, errorf('failed to read_message()', err)
+        elseif not s then
+            return nil, nil, timeout
         end
         str = str .. s
 
@@ -149,18 +161,23 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_request()
-    local req, rerr, timeout = self:read_message(new_request(), parse_request)
+    local req, err, timeout = self:read_message(new_request(), parse_request)
     if not req then
-        return nil, rerr, timeout
+        if err then
+            return nil, errorf('failed to read_request()', err)
+        end
+        return nil, nil, timeout
     end
 
     -- parse-uri
-    local ok, err = req:set_uri(req.uri, true)
-    if not ok then
-        return nil,
-               EMSG:new(new_error_message(err.message.message, 'read_request'))
+    local _
+    _, err = req:set_uri(req.uri, true)
+    if err then
+        -- invalid uri format
+        return nil, EMSG:new('failed to read_request()', err)
     end
 
+    --- @type net.http.message.request
     return req
 end
 

@@ -25,6 +25,7 @@ local gsub = string.gsub
 local pcall = pcall
 local format = string.format
 local tostring = tostring
+local errorf = require('error').format
 local fatalf = require('error').fatalf
 local base64encode = require('base64mix').encode
 local instanceof = require('metamodule').instanceof
@@ -32,7 +33,6 @@ local parse_url = require('url').parse
 local isa = require('isa')
 local is_string = isa.string
 local realpath = require('realpath')
-local toerror = require('error').toerror
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
 local new_form = require('net.http.form').new
@@ -119,7 +119,7 @@ function Request:set_uri(uri, parse_query)
     if err then
         return false, new_errno('EINVAL', format(
                                     'invalid uri character %q found at %d', err,
-                                    pos + 1))
+                                    pos + 1), 'set_uri')
     end
 
     self.uri = uri
@@ -132,7 +132,7 @@ function Request:set_uri(uri, parse_query)
     local path
     path, err = realpath(self.rawpath, nil, false)
     if err then
-        return false, err
+        return false, errorf('failed to set_uri()', err)
     end
 
     path = gsub(path, '^[^/]', function(c)
@@ -178,20 +178,21 @@ function Request:read_form(maxsize, filetmpl)
     end
 
     if err then
-        return nil, toerror(err)
+        return nil, errorf('failed to read_form()', err)
     end
     return self.form
 end
 
 --- write_firstline
 --- @param w net.http.writer
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
 function Request:write_firstline(w)
     if not self.host then
         local ok, err = self:set_uri(self.uri)
         if not ok then
-            return 0, err
+            return nil, errorf('failed to write_firstline()', err)
         end
     end
 
@@ -209,7 +210,7 @@ function Request:write_firstline(w)
         self.header:set('Authorization', 'Basic ' .. base64encode(self.userinfo))
     end
 
-    return w:write(concat({
+    local n, err, timeout = w:write(concat({
         self.method,
         ' ',
         self.path,
@@ -218,21 +219,27 @@ function Request:write_firstline(w)
         format('%.1f', self.version),
         '\r\n',
     }))
+    if err then
+        return nil, errorf('failed to write_firstline()', err)
+    elseif not n then
+        return nil, nil, timeout
+    end
+    return n
 end
 
 --- write_form
 --- @param self net.http.message.request
 --- @param w net.http.writer
 --- @param form net.http.form
---- @param boundary string|nil
+--- @param boundary string?
 --- @param tmpfiles table
---- @return integer n
+--- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 local function write_form(self, w, form, boundary, tmpfiles)
-    local n = 0
     local chunks = {}
     -- encode form
-    local len, err = form:encode({
+    local len, encerr = form:encode({
         write = function(_, s)
             chunks[#chunks + 1] = s
             return #s
@@ -254,10 +261,11 @@ local function write_form(self, w, form, boundary, tmpfiles)
             return len - offset
         end,
     }, boundary)
-    if err then
-        return nil, format('failed to encode form: %s', tostring(err))
+    if encerr then
+        return nil, errorf('failed to write_form()', encerr)
     end
 
+    local nsent = 0
     if not self.header_sent then
         local header = self.header
 
@@ -270,49 +278,54 @@ local function write_form(self, w, form, boundary, tmpfiles)
             header:set('Content-Type', 'application/x-www-form-urlencoded')
         end
 
-        len, err = self:write_header(w)
+        local n, err, timeout = self:write_header(w)
         if err then
-            return nil, format('failed to write header: %s', tostring(err))
+            return nil, errorf('failed to write_form()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        n = n + len
+        nsent = nsent + n
     end
 
     -- write buffered chunks
     for _, v in ipairs(chunks) do
         if is_string(v) then
-            len, err = w:write(v)
+            local n, err, timeout = w:write(v)
             if err then
-                return nil, format('failed to write content: %s', tostring(err))
+                return nil, errorf('failed to write_form()', err)
+            elseif not n then
+                return nil, nil, timeout
             end
-            n = n + len
+            nsent = nsent + n
         else
             -- TODO: add support sendfile api
             local file = v.file
-            local s
-            s, err = file:read(4096)
-            while len do
-                len, err = w:write(s)
+            local s, err = file:read(4096)
+            while s do
+                local n, timeout
+                n, err, timeout = w:write(s)
                 if err then
-                    return nil, format('failed to write content of %q: %s',
-                                       v.name, tostring(err))
+                    return nil, errorf('failed to write_form()', err)
+                elseif not n then
+                    return nil, nil, timeout
                 end
-                n = n + len
-                len, err = file:read(4096)
+                nsent = nsent + n
+                s, err = file:read(4096)
             end
+
             if err then
-                return nil, format('failed to read content of %q: %s', v.name,
-                                   tostring(err))
+                return nil, errorf('failed to write_form()', err)
             end
         end
     end
 
-    return n
+    return nsent
 end
 
 --- write_form
 --- @param w net.http.writer
 --- @param form net.http.form
---- @param boundary string|nil
+--- @param boundary string?
 --- @return integer n
 --- @return any err
 function Request:write_form(w, form, boundary)

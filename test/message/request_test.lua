@@ -1,6 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local errno = require('errno')
+local error = require('error')
 local new_message = require('net.http.message.request').new
 local new_content = require('net.http.content').new
 local new_chunked_content = require('net.http.content.chunked').new
@@ -28,7 +29,7 @@ function testcase.set_method()
     -- test that return EINVAL if argument is invalid string
     local ok, err = m:set_method('HELLO')
     assert.is_false(ok)
-    assert.equal(err.type, errno.EINVAL)
+    assert(error.is(err, errno.EINVAL))
 
     -- test that throws an error if argument is not string
     err = assert.throws(m.set_method, m)
@@ -88,7 +89,7 @@ function testcase.set_uri()
     -- test that return EINVAL if argument is invalid uri string
     local ok, err = m:set_uri('http:// example.com')
     assert.is_false(ok)
-    assert.equal(err.type, errno.EINVAL)
+    assert(error.is(err, errno.EINVAL))
 
     -- test that throws an error if argument is not string
     err = assert.throws(m.set_uri, m)
@@ -131,8 +132,8 @@ function testcase.write_firstline()
     m.uri = ' http://example.com/hello/world'
     wctx.msg = ''
     local n, err = m:write_firstline(w)
-    assert.equal(n, 0)
-    assert.equal(err.type, errno.EINVAL)
+    assert.is_nil(n)
+    assert(error.is(err, errno.EINVAL))
     assert.match(err, 'invalid uri character .+ found at 1', false)
 end
 
@@ -248,14 +249,14 @@ function testcase.read_form_urlencoded()
     resetctx('multipart/form-data')
     form, err = m:read_form()
     assert.is_nil(form)
-    assert.equal(err.type, errno.EINVAL)
+    assert(error.is(err, errno.EINVAL))
     assert.match(err, 'boundary not defined')
 
     -- test that return false and boundary error
     resetctx('multipart/form-data')
     form, err = m:read_form()
     assert.is_nil(form)
-    assert.equal(err.type, errno.EINVAL)
+    assert(error.is(err, errno.EINVAL))
     assert.match(err, 'boundary not defined')
 end
 

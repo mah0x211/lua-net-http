@@ -19,8 +19,69 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 --
---- @class net.http.writer : bufio.writer
+local new_writer = require('bufio.writer').new
+
+--- @class net.http.writer
+--- @field private writer bufio.writer
 local Writer = {}
+
+--- init
+--- @param sock net.Socket
+--- @return net.http.writer writer
+function Writer:init(sock)
+    self.writer = new_writer(sock)
+    return self
+end
+
+--- setbufsize sets the buffer size.
+--- @param size integer
+function Writer:setbufsize(size)
+    self.writer:setbufsize(size)
+end
+
+--- flush a buffered data to the connection.
+--- if the error or timeout occurs, then returns nil, err, timeout,
+--- otherwise, returns the number of bytes flushed.
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
+function Writer:flush()
+    local n, err, timeout = self.writer:flush()
+    if err or timeout then
+        return nil, err, timeout
+    end
+    return n
+end
+
+--- write a data string to the connection.
+--- if the error or timeout occurs, then returns nil, err, timeout,
+--- otherwise, returns the number of bytes written.
+--- @param data string
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
+function Writer:write(data)
+    local n, err, timeout = self.writer:write(data)
+    if err or timeout then
+        return nil, err, timeout
+    end
+    return n
+end
+
+--- writeout writes a data string to the connection.
+--- if the error or timeout occurs, then returns nil, err, timeout,
+--- otherwise, returns the number of bytes written.
+--- @param data string
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
+function Writer:writeout(data)
+    local n, err, timeout = self.writer:writeout(data)
+    if err or timeout then
+        return nil, err, timeout
+    end
+    return n
+end
 
 return {
     new = require('metamodule').new(Writer, 'bufio.writer'),

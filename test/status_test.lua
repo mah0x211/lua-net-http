@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local status = require('net.http.status')
 local STATUSES = {
     --- status names

@@ -19,8 +19,7 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 --
-local format = string.format
-local new_errno = require('errno').new
+local errorf = require('error').format
 local date_now = require('net.http.date').now
 local new_header = require('net.http.header').new
 local status = require('net.http.status')
@@ -44,11 +43,11 @@ end
 --- set_status
 --- @param code integer
 --- @return boolean ok
---- @return string err
+--- @return any err
 function Response:set_status(code)
     if not code2name(code) then
-        return false,
-               new_errno('EINVAL', format('unsupported status code %d', code))
+        return false, errorf(
+                   'failed to set_status(): unsupported status code %d', code)
     end
 
     self.status = code
@@ -57,15 +56,22 @@ end
 
 --- write_firstline
 --- @param w net.http.writer
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
 function Response:write_firstline(w)
     local line = toline(self.status, self.version, self.reason)
 
     -- set date header
     self.header:set('Date', date_now())
 
-    return w:write(line)
+    local n, err, timeout = w:write(line)
+    if err then
+        return nil, errorf('failed to write_firstline()', err)
+    elseif not n then
+        return nil, nil, timeout
+    end
+    return n
 end
 
 return {

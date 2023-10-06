@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local errno = require('errno')
 local new_message = require('net.http.message').new
 local new_reader = require('net.http.reader').new

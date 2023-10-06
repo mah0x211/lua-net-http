@@ -140,7 +140,7 @@ function testcase.copy()
     end
     n, err = c:copy(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by read_trailer')
+    assert.match(err, 'abort by read_trailer')
 
     -- test that aborted by handler.read_last_chunk
     resetctx('c\r\nhello world!\r\n0\r\nTrailer-Name: Trailer-Value\r\n\r\n')
@@ -149,7 +149,7 @@ function testcase.copy()
     end
     n, err = c:copy(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by read_last_chunk')
+    assert.match(err, 'abort by read_last_chunk')
 
     -- test that aborted by handler.read_chunk
     resetctx('c\r\nhello world!\r\n0\r\nTrailer-Name: Trailer-Value\r\n\r\n')
@@ -158,7 +158,7 @@ function testcase.copy()
     end
     n, err = c:copy(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by read_chunk')
+    assert.match(err, 'abort by read_chunk')
 
     -- test that return 0 if content is already consumed
     n, err = c:copy(w)
@@ -408,7 +408,7 @@ function testcase.write()
     end
     n, err = c:write(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by write_trailer')
+    assert.match(err, 'abort by write_trailer')
 
     -- test that aborted by handler.write_last_chunk
     resetctx('hello world!')
@@ -417,7 +417,7 @@ function testcase.write()
     end
     n, err = c:write(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by write_last_chunk')
+    assert.match(err, 'abort by write_last_chunk')
 
     -- test that aborted by handler.write_chunk
     resetctx('hello world!')
@@ -426,7 +426,7 @@ function testcase.write()
     end
     n, err = c:write(w, 5, h)
     assert.is_nil(n)
-    assert.equal(err, 'abort by write_chunk')
+    assert.match(err, 'abort by write_chunk')
 
     -- test that return 0 if content is already consumed
     n, err = c:write(w)

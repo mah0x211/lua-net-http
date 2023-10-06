@@ -1,5 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
+local new_writer = require('net.http.writer').new
 local header = require('net.http.header')
 
 function testcase.new()
@@ -258,32 +260,32 @@ function testcase.write()
     assert.equal(h:size(), 2)
 
     -- test that send headers
-    local arr = {}
-    local len, err = h:write({
+    local recvd = ''
+    local wctx = {
         write = function(_, data)
-            arr[#arr + 1] = data
-            return true
+            recvd = recvd .. data
+            return #data
         end,
-    })
-    assert.equal(len, #table.concat(arr))
+    }
+    local w = new_writer(wctx)
+    w:setbufsize(0)
+    local len, err = h:write(w)
+    assert.equal(len, #recvd)
     assert.is_nil(err)
-    assert.equal(arr, {
+    assert.equal(recvd, table.concat({
         'Field-Foo: foo\r\n',
         'Field-Foo: bar\r\n',
         'Field-Foo: baz\r\n',
         'Field-Qux: quux\r\n',
         '\r\n',
-    })
+    }))
 
     -- test that return error
-    arr = {}
-    len, err = h:write({
-        write = function()
-            return false, 'write-error'
-        end,
-    })
-    assert.equal(len, 0)
-    assert.equal(err, 'write-error')
-    assert.equal(arr, {})
+    wctx.write = function()
+        return 0, 'write-error'
+    end
+    len, err = h:write(w)
+    assert.is_nil(len)
+    assert.match(err, 'write-error')
 end
 

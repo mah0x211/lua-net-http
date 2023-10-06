@@ -20,6 +20,7 @@
 -- THE SOFTWARE.
 --
 local fatalf = require('error').fatalf
+local errorf = require('error').format
 local is_uint = require('isa').uint
 --- constants
 local DEFAULT_CHUNKSIZE = 1024 * 8
@@ -56,28 +57,32 @@ function Content:size()
 end
 
 --- read
----@param self net.http.content
----@param chunksize integer
----@return string? s
----@return any err
+--- @param self net.http.content
+--- @param chunksize integer
+--- @return string? s
+--- @return any err
+--- @return boolean? timeout
 local function read(self, chunksize)
     if not self.is_consumed then
-        local s, err = self.reader:read(chunksize < self.len and chunksize or
-                                            self.len)
+        local s, err, timeout = self.reader:read(
+                                    chunksize < self.len and chunksize or
+                                        self.len)
         if err then
-            return nil, err
-        elseif s then
-            self.len = self.len - #s
-            self.is_consumed = self.len <= 0
-            return s
+            return nil, errorf('failed to read()', err)
+        elseif not s then
+            return nil, nil, timeout
         end
+        self.len = self.len - #s
+        self.is_consumed = self.len <= 0
+        return s
     end
 end
 
 --- read
---- @param chunksize integer|nil
+--- @param chunksize integer?
 --- @return string? s
 --- @return any err
+--- @return boolean? timeout
 function Content:read(chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
@@ -95,7 +100,7 @@ function Content:readall()
     if not self.is_consumed then
         local s, err = self.reader:readfull(self.len)
         if err then
-            return nil, err
+            return nil, errorf('failed to readall()', err)
         elseif s then
             self.len = self.len - #s
             self.is_consumed = self.len <= 0
@@ -109,6 +114,7 @@ end
 --- @param chunksize integer?
 --- @return integer? len
 --- @return any err
+--- @return boolean? timeout
 function Content:copy(w, chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
@@ -117,21 +123,23 @@ function Content:copy(w, chunksize)
     end
 
     local ncopy = 0
-    local s, err = read(self, chunksize)
+    local s, err, timeout = read(self, chunksize)
     while s do
-        local n, werr = w:write(s)
-        if n then
-            ncopy = ncopy + n
+        local n
+        n, err, timeout = w:write(s)
+        if err then
+            return nil, errorf('failed to copy()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-
-        if not n or werr then
-            return ncopy, werr
-        end
-        s, err = read(self, chunksize)
+        ncopy = ncopy + n
+        s, err, timeout = read(self, chunksize)
     end
 
     if err then
-        return nil, err
+        return nil, errorf('failed to copy()', err)
+    elseif timeout then
+        return nil, nil, timeout
     end
     return ncopy
 end
@@ -140,6 +148,7 @@ end
 --- @param chunksize integer?
 --- @return integer? len
 --- @return any err
+--- @return boolean? timeout
 function Content:dispose(chunksize)
     return self:copy({
         write = function(_, s)
@@ -153,6 +162,7 @@ end
 --- @param chunksize? integer
 --- @return integer? len
 --- @return any err
+--- @return boolean? timeout
 function Content:write(w, chunksize)
     return self:copy(w, chunksize)
 end

@@ -19,8 +19,66 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 --
---- @class net.http.reader : bufio.reader
+local new_reader = require('bufio.reader').new
+
+--- @class net.http.reader
 local Reader = {}
+
+--- init
+--- @param sock net.Socket
+--- @return net.http.reader reader
+function Reader:init(sock)
+    self.reader = new_reader(sock)
+    return self
+end
+
+--- setbufsize sets the buffer size.
+--- @param size integer
+function Reader:setbufsize(size)
+    self.reader:setbufsize(size)
+end
+
+--- size returns the number of bytes of the unread portion of the buffer.
+--- @return integer size
+function Reader:size()
+    return self.reader:size()
+end
+
+--- prepend prepends the data to the reader buffer.
+--- @param data string
+function Reader:prepend(data)
+    self.reader:prepend(data)
+end
+
+--- read a data string from the connection.
+--- if the error or timeout occurs, then returns nil, err, timeout
+--- otherwise, returns data
+--- @param size integer
+--- @return string? data
+--- @return any err
+--- @return boolean? timeout
+function Reader:read(size)
+    local data, err, timeout = self.reader:read(size)
+    if err or timeout then
+        return nil, err, timeout
+    end
+    return data
+end
+
+--- readfull reads data from the connection until the buffer is full.
+--- if either the error or timeout occurs, then returns nil, err, timeout
+--- otherwise, returns data
+--- @param size integer
+--- @return string? data
+--- @return any err
+--- @return boolean? timeout
+function Reader:readfull(size)
+    local data, err, timeout = self.reader:readfull(size)
+    if err or timeout then
+        return nil, err, timeout
+    end
+    return data
+end
 
 return {
     new = require('metamodule').new(Reader, 'bufio.reader'),

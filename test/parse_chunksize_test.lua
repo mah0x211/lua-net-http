@@ -1,4 +1,5 @@
 local testcase = require('testcase')
+local assert = require('assert')
 local parse = require('net.http.parse')
 local parse_chunksize = parse.chunksize
 
