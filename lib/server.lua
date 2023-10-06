@@ -26,6 +26,7 @@
 --- assign to local
 local find = string.find
 local sub = string.sub
+local fatalf = require('error').fatalf
 local new_metamodule = require('metamodule').new
 local isa = require('isa')
 local is_string = isa.string
@@ -70,11 +71,11 @@ local UnixTLSServer = new_metamodule.UnixTLS(Server,
 --- @return any err
 local function new(addr, opts)
     if not is_string(addr) then
-        error('addr must be string', 2)
+        fatalf(2, 'addr must be string')
     elseif opts == nil then
         opts = {}
     elseif not is_table(opts) then
-        error('opts must be table', 2)
+        fatalf(2, 'opts must be table')
     end
 
     -- unix server

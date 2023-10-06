@@ -24,6 +24,7 @@ local isa = require('isa')
 local is_string = isa.string
 local is_table = isa.table
 local is_file = isa.file
+local fatalf = require('error').fatalf
 local new_errno = require('errno').new
 local new_tls_config = require('net.tls.config').new
 local new_inet_client = require('net.stream.inet').client.new
@@ -48,11 +49,11 @@ local WELL_KNOWN_PORT = {
 --- @return boolean? timeout
 local function fetch(uri, opts)
     if not is_string(uri) then
-        error('uri must be string', 2)
+        fatalf(2, 'uri must be string')
     elseif opts == nil then
         opts = {}
     elseif not is_table(opts) then
-        error('opts must be table', 2)
+        fatalf(2, 'opts must be table')
     end
 
     local req = new_request()
@@ -64,7 +65,7 @@ local function fetch(uri, opts)
         elseif is_table(opts.header) then
             req.header = new_header(opts.header)
         else
-            error('opts.header must be table or net.http.header', 2)
+            fatalf(2, 'opts.header must be table or net.http.header')
         end
     end
 
@@ -140,7 +141,7 @@ local function fetch(uri, opts)
             servername = opts.servername,
         })
     elseif not is_string(opts.sockfile) then
-        error('opts.sockfile must be string', 2)
+        fatalf(2, 'opts.sockfile must be string')
     else
         sock, err, timeout = new_unix_client(opts.sockfile, {
             deadline = opts.deadline,
@@ -168,8 +169,8 @@ local function fetch(uri, opts)
     elseif instanceof(opts.content, 'net.http.form') then
         _, err, timeout = req:write_form(c, opts.content, opts.boundary)
     else
-        error('opts.content must be string, net.http.content or net.http.form',
-              2)
+        fatalf(2,
+               'opts.content must be string, net.http.content or net.http.form')
     end
     if err or timeout then
         return nil, err, timeout

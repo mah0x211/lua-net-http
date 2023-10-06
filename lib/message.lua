@@ -21,6 +21,7 @@
 --
 local tostring = tostring
 local format = string.format
+local fatalf = require('error').fatalf
 local new_errno = require('errno').new
 local instanceof = require('metamodule').instanceof
 local new_header = require('net.http.header').new
@@ -59,7 +60,7 @@ end
 --- @return any err
 function Message:set_version(version)
     if not is_finite(version) then
-        error('version must be finite-number', 2)
+        fatalf(2, 'version must be finite-number')
     elseif not VALID_VERSION[version] then
         return false,
                new_errno('EINVAL',
@@ -87,7 +88,7 @@ end
 --- @return any err
 local function write_header(self, w, with_content)
     if self.header_sent then
-        error('header has already been sent', 2)
+        fatalf(2, 'header has already been sent')
     end
     self.header_sent = 0
 
@@ -129,7 +130,7 @@ end
 --- @return any err
 function Message:write_content(w, content)
     if not instanceof(content, 'net.http.content') then
-        error('content must be net.http.content', 2)
+        fatalf(2, 'content must be net.http.content')
     end
 
     local n = 0
@@ -171,7 +172,7 @@ end
 --- @return boolean? timeout
 function Message:write_file(w, file)
     if not is_file(file) then
-        error('file must be file*', 2)
+        fatalf(2, 'file must be file*')
     end
 
     local n = 0
@@ -218,7 +219,7 @@ function Message:write(w, data)
     local size = 0
     if data ~= nil then
         if not is_string(data) then
-            error('data must be string', 2)
+            fatalf(2, 'data must be string')
         end
         size = #data
     end

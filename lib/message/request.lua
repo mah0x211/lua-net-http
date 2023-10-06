@@ -25,6 +25,7 @@ local gsub = string.gsub
 local pcall = pcall
 local format = string.format
 local tostring = tostring
+local fatalf = require('error').fatalf
 local base64encode = require('base64mix').encode
 local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
@@ -93,7 +94,7 @@ end
 function Request:set_method(method)
     local v = VALID_METHOD[method]
     if not is_string(method) then
-        error('method must be string', 2)
+        fatalf(2, 'method must be string')
     elseif not v then
         return false, new_errno('EINVAL', format(
                                     'method must be the following string: %s',
@@ -111,7 +112,7 @@ end
 --- @return any err
 function Request:set_uri(uri, parse_query)
     if not is_string(uri) then
-        error('uri must be string', 2)
+        fatalf(2, 'uri must be string')
     end
 
     local parsed_uri, pos, err = parse_url(uri, parse_query)
@@ -316,9 +317,9 @@ end
 --- @return any err
 function Request:write_form(w, form, boundary)
     if not instanceof(form, 'net.http.form') then
-        error('form must be net.http.form', 2)
+        fatalf(2, 'form must be net.http.form')
     elseif boundary ~= nil and not is_valid_boundary(boundary) then
-        error('boundary must be valid-boundary string', 2)
+        fatalf(2, 'boundary must be valid-boundary string')
     end
 
     local tmpfiles = {}

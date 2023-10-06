@@ -23,6 +23,7 @@ local concat = table.concat
 local format = string.format
 local find = string.find
 local sub = string.sub
+local fatalf = require('error').fatalf
 local is_uint = require('isa').uint
 local parse = require('net.http.parse')
 local parse_header = parse.header
@@ -295,7 +296,7 @@ function ChunkedContent:read(chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then
@@ -359,7 +360,7 @@ function ChunkedContent:copy(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then
@@ -398,7 +399,7 @@ function ChunkedContent:write(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then

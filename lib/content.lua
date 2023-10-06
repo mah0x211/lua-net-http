@@ -19,6 +19,7 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 --
+local fatalf = require('error').fatalf
 local is_uint = require('isa').uint
 --- constants
 local DEFAULT_CHUNKSIZE = 1024 * 8
@@ -37,7 +38,7 @@ local Content = {}
 --- @return net.http.content content
 function Content:init(r, len)
     if not is_uint(len) then
-        error('len must be uint', 2)
+        fatalf(2, 'len must be uint')
     end
 
     self.reader = r
@@ -81,7 +82,7 @@ function Content:read(chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     return read(self, chunksize)
@@ -112,7 +113,7 @@ function Content:copy(w, chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     local ncopy = 0

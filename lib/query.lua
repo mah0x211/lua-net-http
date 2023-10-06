@@ -24,6 +24,7 @@ local type = type
 local tostring = tostring
 local find = string.find
 local concat = table.concat
+local fatalf = require('error').fatalf
 local isa = require('isa')
 local is_int = isa.int
 local is_string = isa.string
@@ -82,7 +83,7 @@ end
 --- @return string query
 local function encode(query)
     if not is_table(query) then
-        error('query must be table', 2)
+        fatalf(2, 'query must be table')
     end
 
     -- set new query-string
