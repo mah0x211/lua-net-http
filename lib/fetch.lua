@@ -175,31 +175,36 @@ local function fetch(uri, opts)
     elseif instanceof(opts.content, 'net.http.form') then
         n, err, timeout = req:write_form(c, opts.content, opts.boundary)
     else
+        c:close()
         fatalf(2,
                'opts.content must be string, net.http.content or net.http.form')
     end
 
     if err then
+        c:close()
         return nil, errorf('failed to fetch()', err)
     elseif not n then
+        c:close()
         return nil, nil, timeout
     end
 
     n, err, timeout = c:flush()
-    if not n then
-        if err then
-            return nil, errorf('failed to fetch()', err)
-        end
-        return nil, err, timeout
+    if err then
+        c:close()
+        return nil, errorf('failed to fetch()', err)
+    elseif not n then
+        c:close()
+        return nil, nil, timeout
     end
 
     -- read response
     local res
     res, err, timeout = c:read_response()
-    if not res then
-        if err then
-            return nil, errorf('failed to fetch()', err)
-        end
+    if err then
+        c:close()
+        return nil, errorf('failed to fetch()', err)
+    elseif not res then
+        c:close()
         return nil, nil, timeout
     end
 
