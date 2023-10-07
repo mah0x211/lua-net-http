@@ -26,6 +26,7 @@
 --- assign to local
 local find = string.find
 local format = string.format
+local fatalf = require('error').fatalf
 local isa = require('isa')
 local is_int = isa.int
 local is_finite = isa.finite
@@ -361,7 +362,7 @@ end
 --- @return integer code
 local function name2code(name)
     if not is_string(name) then
-        error('name must be string', 2)
+        fatalf(2, 'name must be string')
     end
     return NAME2CODE[name]
 end
@@ -372,7 +373,7 @@ _M.name2code = name2code
 --- @return string name
 local function code2name(code)
     if not is_int(code) then
-        error('code must be integer', 2)
+        fatalf(2, 'code must be integer')
     end
     return CODE2NAME[code]
 end
@@ -383,7 +384,7 @@ _M.code2name = code2name
 --- @return string reason
 local function code2reason(code)
     if not is_int(code) then
-        error('code must be integer', 2)
+        fatalf(2, 'code must be integer')
     end
     return CODE2REASON[code]
 end
@@ -394,7 +395,7 @@ _M.code2reason = code2reason
 --- @return string reason
 local function code2message(code)
     if not is_int(code) then
-        error('code must be integer', 2)
+        fatalf(2, 'code must be integer')
     end
     return CODE2MESSAGE[code]
 end
@@ -407,13 +408,13 @@ _M.code2message = code2message
 --- @return string msg
 local function toline(code, ver, reason)
     if not is_int(code) then
-        error('code must be integer', 2)
+        fatalf(2, 'code must be integer')
     elseif ver ~= nil then
         local httpver = HTTP_VER[ver]
         if httpver then
             ver = httpver
         elseif not is_finite(ver) then
-            error('version must be finite-number', 2)
+            fatalf(2, 'version must be finite-number')
         else
             ver = format('HTTP/%.1f', ver)
         end
@@ -425,7 +426,7 @@ local function toline(code, ver, reason)
             reason = 'Unknown Status'
         end
     elseif not is_string(reason) or find(reason, '[^a-zA-Z0-9\'_ \t-]') then
-        error('reason must be the following string: [a-zA-Z0-9\'_ \t-]', 2)
+        fatalf(2, 'reason must be the following string: [a-zA-Z0-9\'_ \t-]')
     end
 
     if ver then

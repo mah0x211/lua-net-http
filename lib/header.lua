@@ -22,6 +22,8 @@
 local lower = string.lower
 local format = string.format
 local remove = table.remove
+local errorf = require('error').format
+local fatalf = require('error').fatalf
 local tointeger = require('tointeger')
 local capitalize = require('string.capitalize')
 local trim = require('string.trim')
@@ -115,7 +117,7 @@ function Header:init(header)
     -- set initial headers
     if header ~= nil then
         if not is_table(header) then
-            error('header must be table', 2)
+            fatalf(2, 'header must be table')
         end
         for k, v in pairs(header) do
             self:set(k, v)
@@ -138,23 +140,23 @@ function Header:set(key, val)
     local k, err = is_valid_key(key)
 
     if not k then
-        error(format('invalid key: %s', tostring(err)), 2)
+        fatalf(2, 'invalid key: %s', err)
     elseif val ~= nil then
         if is_table(val) then
             val, err = copy_values(val)
             if err then
-                error(format('invalid val: %s', tostring(err)), 2)
+                fatalf(2, 'invalid val: %s', err)
             end
         elseif is_string(val) then
             val, err = is_valid_val(val)
             if not val then
-                error(format('invalid val: %s', tostring(err)), 2)
+                fatalf(2, 'invalid val: %s', err)
             end
             val = {
                 val,
             }
         else
-            error('val must be string or string[]', 2)
+            fatalf(2, 'val must be string or string[]')
         end
     end
 
@@ -217,11 +219,11 @@ function Header:add(key, val)
     local k, err = is_valid_key(key)
 
     if err then
-        error(format('invalid key: %s', tostring(err)), 2)
+        fatalf(2, 'invalid key: %s', err)
     elseif is_string(val) then
         val, err = is_valid_val(val)
         if not val then
-            error(format('invalid val: %s', err), 2)
+            fatalf(2, 'invalid val: %s', err)
         end
         val = {
             val,
@@ -229,10 +231,10 @@ function Header:add(key, val)
     elseif is_table(val) then
         val, err = copy_values(val)
         if err then
-            error(format('invalid val: %s', err), 2)
+            fatalf(2, 'invalid val: %s', err)
         end
     else
-        error('val must be string or string[]', 2)
+        fatalf(2, 'val must be string or string[]')
     end
 
     local dict = self.dict
@@ -265,9 +267,9 @@ end
 --- @return string? key
 function Header:get(key, all)
     if not is_string(key) then
-        error('key must be string', 2)
+        fatalf(2, 'key must be string')
     elseif all ~= nil and not is_boolean(all) then
-        error('all must be boolean', 2)
+        fatalf(2, 'all must be boolean')
     end
 
     local item = self.dict[lower(key)]
@@ -309,23 +311,28 @@ end
 
 --- write headers to writer
 --- @param w net.http.writer
---- @return integer len
+--- @return integer? len
 --- @return any err
+--- @return boolean? timeout
 function Header:write(w)
     local total = 0
 
     for _, k, v in self:pairs() do
         local s = format('%s: %s\r\n', k, v)
-        local ok, err = w:write(s)
-        if not ok or err then
-            return total, err
+        local n, err, timeout = w:write(s)
+        if err then
+            return nil, errorf('failed to write()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        total = total + #s
+        total = total + n
     end
 
-    local ok, err = w:write('\r\n')
-    if not ok then
-        return total, err
+    local n, err, timeout = w:write('\r\n')
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
 
     return total + 2

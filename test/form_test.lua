@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local new_reader = require('net.http.reader').new
 local new_form = require('net.http.form').new
 local decode_form = require('net.http.form').decode

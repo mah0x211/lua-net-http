@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local encode = require('net.http.query').encode
 
 function testcase.encode()

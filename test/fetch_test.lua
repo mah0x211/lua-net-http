@@ -1,8 +1,10 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local fork = require('testcase.fork')
 local sleep = require('testcase.timer').sleep
 local execvp = require('exec').execvp
+local error = require('error')
 local errno = require('errno')
 local new_tls_config = require('net.tls.config').new
 local new_inet_server = require('net.stream.inet').server.new
@@ -121,7 +123,7 @@ function testcase.fetch()
         insecure = true,
     })
     assert.is_nil(res)
-    assert.equal(err.type, errno.ECONNREFUSED)
+    assert(error.is(err, errno.ECONNREFUSED))
     assert.is_nil(timeout)
 
     -- test that return error if uri is invalid
@@ -249,7 +251,7 @@ function testcase.fetch_with_string_content()
         insecure = true,
     })
     assert.is_nil(res)
-    assert.equal(err.type, errno.ECONNREFUSED)
+    assert(error.is(err, errno.ECONNREFUSED))
     assert.is_nil(timeout)
 
     -- test that return error if uri is invalid
@@ -502,7 +504,7 @@ function testcase.fetch_via_sockfile()
         insecure = true,
     })
     assert.is_nil(res)
-    assert.equal(err.type, errno.ENOENT)
+    assert(error.is(err, errno.ENOENT))
     assert.is_nil(timeout)
 
     -- test that throws an error if sockfile is not string

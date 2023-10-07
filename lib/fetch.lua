@@ -24,6 +24,8 @@ local isa = require('isa')
 local is_string = isa.string
 local is_table = isa.table
 local is_file = isa.file
+local fatalf = require('error').fatalf
+local errorf = require('error').format
 local new_errno = require('errno').new
 local new_tls_config = require('net.tls.config').new
 local new_inet_client = require('net.stream.inet').client.new
@@ -48,11 +50,11 @@ local WELL_KNOWN_PORT = {
 --- @return boolean? timeout
 local function fetch(uri, opts)
     if not is_string(uri) then
-        error('uri must be string', 2)
+        fatalf(2, 'uri must be string')
     elseif opts == nil then
         opts = {}
     elseif not is_table(opts) then
-        error('opts must be table', 2)
+        fatalf(2, 'opts must be table')
     end
 
     local req = new_request()
@@ -64,7 +66,7 @@ local function fetch(uri, opts)
         elseif is_table(opts.header) then
             req.header = new_header(opts.header)
         else
-            error('opts.header must be table or net.http.header', 2)
+            fatalf(2, 'opts.header must be table or net.http.header')
         end
     end
 
@@ -76,16 +78,18 @@ local function fetch(uri, opts)
     -- set uri
     local ok, err = req:set_uri(uri)
     if not ok then
-        return nil, err
+        return nil, errorf('failed to fetch()', err)
     end
 
     -- verify scheme
     if not req.scheme then
-        return nil, new_errno('EINVAL', 'url scheme not defined')
+        return nil, errorf('failed to fetch()',
+                           new_errno('EINVAL', 'url scheme not defined'))
     end
     local port = WELL_KNOWN_PORT[req.scheme]
     if not port then
-        return nil, new_errno('EINVAL', 'unsupported url scheme')
+        return nil, errorf('failed to fetch()',
+                           new_errno('EINVAL', 'unsupported url scheme'))
     elseif req.port then
         -- use custom port
         port = req.port
@@ -95,7 +99,7 @@ local function fetch(uri, opts)
     if opts.method then
         ok, err = req:set_method(opts.method)
         if not ok then
-            return nil, err
+            return nil, errorf('failed to fetch()', err)
         end
     end
 
@@ -103,7 +107,7 @@ local function fetch(uri, opts)
     if opts.version then
         ok, err = req:set_version(opts.version)
         if not ok then
-            return nil, err
+            return nil, errorf('failed to fetch()', err)
         end
     end
 
@@ -122,7 +126,7 @@ local function fetch(uri, opts)
         -- create tls config
         tlscfg, err = new_tls_config()
         if not tlscfg then
-            return nil, err
+            return nil, errorf('failed to fetch()', err)
         elseif opts.insecure == true then
             tlscfg:insecure_noverifycert()
             tlscfg:insecure_noverifyname()
@@ -140,7 +144,7 @@ local function fetch(uri, opts)
             servername = opts.servername,
         })
     elseif not is_string(opts.sockfile) then
-        error('opts.sockfile must be string', 2)
+        fatalf(2, 'opts.sockfile must be string')
     else
         sock, err, timeout = new_unix_client(opts.sockfile, {
             deadline = opts.deadline,
@@ -149,43 +153,54 @@ local function fetch(uri, opts)
         })
     end
     if not sock then
-        return nil, err, timeout
+        if err then
+            return nil, errorf('failed to fetch()', err)
+        end
+        return nil, nil, timeout
     end
 
     -- create new client connection
     local c = new_connection(sock)
 
     -- send request
-    local _
+    local n
     if opts.content == nil then
-        _, err, timeout = req:write_header(c)
+        n, err, timeout = req:write_header(c)
     elseif is_string(opts.content) then
-        _, err, timeout = req:write(c, opts.content)
+        n, err, timeout = req:write(c, opts.content)
     elseif is_file(opts.content) then
-        _, err, timeout = req:write_file(c, opts.content)
+        n, err, timeout = req:write_file(c, opts.content)
     elseif instanceof(opts.content, 'net.http.content') then
-        _, err, timeout = req:write_content(c, opts.content)
+        n, err, timeout = req:write_content(c, opts.content)
     elseif instanceof(opts.content, 'net.http.form') then
-        _, err, timeout = req:write_form(c, opts.content, opts.boundary)
+        n, err, timeout = req:write_form(c, opts.content, opts.boundary)
     else
-        error('opts.content must be string, net.http.content or net.http.form',
-              2)
+        fatalf(2,
+               'opts.content must be string, net.http.content or net.http.form')
     end
-    if err or timeout then
-        return nil, err, timeout
+
+    if err then
+        return nil, errorf('failed to fetch()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    _, err, timeout = c:flush()
-    if err or timeout then
+
+    n, err, timeout = c:flush()
+    if not n then
+        if err then
+            return nil, errorf('failed to fetch()', err)
+        end
         return nil, err, timeout
     end
 
     -- read response
     local res
     res, err, timeout = c:read_response()
-    if err or timeout then
-        return nil, err, timeout
-    elseif not res then
-        return nil, new_errno('ECONNRESET', 'read response')
+    if not res then
+        if err then
+            return nil, errorf('failed to fetch()', err)
+        end
+        return nil, nil, timeout
     end
 
     return res

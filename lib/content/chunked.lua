@@ -23,6 +23,8 @@ local concat = table.concat
 local format = string.format
 local find = string.find
 local sub = string.sub
+local errorf = require('error').format
+local fatalf = require('error').fatalf
 local is_uint = require('isa').uint
 local parse = require('net.http.parse')
 local parse_header = parse.header
@@ -57,34 +59,55 @@ end
 --- write_chunk
 --- @param w net.http.writer
 --- @param s string
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
 function Handler:write_chunk(w, s)
     -- chunk = chunk-size [ chunk-ext ] CRLF
     --         chunk-data CRLF
-    return w:write(concat({
+    local n, err, timeout = w:write(concat({
         format('%x', #s),
         s,
         '',
     }, CRLF))
+    if err then
+        return nil, errorf('failed to write_chunk()', err)
+    elseif not n then
+        return nil, nil, timeout
+    end
+    return n
 end
 
 --- write_last_chunk
 --- @param w net.http.writer
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
 function Handler:write_last_chunk(w)
     -- last-chunk = 1*("0") [ chunk-ext ] CRLF
-    return w:write('0\r\n')
+    local n, err, timeout = w:write('0\r\n')
+    if err then
+        return nil, errorf('failed to write_last_chunk()', err)
+    elseif not n then
+        return nil, nil, timeout
+    end
+    return n
 end
 
 --- write_trailer
 --- @param w net.http.writer
---- @return integer n
---- @return string? err
+--- @return integer? n
+--- @return any err
+--- @return boolean? timeout
 function Handler:write_trailer(w)
     -- trailer-part = *( header-field CRLF ) CRLF
-    return w:write('\r\n')
+    local n, err, timeout = w:write('\r\n')
+    if err then
+        return nil, errorf('failed to write_trailer()', err)
+    elseif not n then
+        return nil, nil, timeout
+    end
+    return n
 end
 
 Handler = require('metamodule').new.Handler(Handler)
@@ -120,7 +143,7 @@ end
 --- @param self net.http.content.chunked
 --- @param handler net.http.content.chunked.Handler
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 local function read_trailer(self, handler)
     -- read chunked-encoded string
     local r = self.reader
@@ -134,8 +157,10 @@ local function read_trailer(self, handler)
     while true do
         -- read data
         local s, err, timeout = r:read(bufsize)
-        if not s or err or timeout then
-            return err, timeout
+        if err then
+            return errorf('failed to read_trailer()', err)
+        elseif not s then
+            return nil, timeout
         end
         str = str .. s
 
@@ -146,7 +171,7 @@ local function read_trailer(self, handler)
             self.is_read_trailer = true
             r:prepend(sub(str, tail + 1))
             err = handler:read_trailer(trailer)
-            return err
+            return err and errorf('failed to read_trailer()', err) or nil
         elseif err.type ~= EAGAIN then
             return err
         end
@@ -159,7 +184,7 @@ end
 --- @param handler net.http.content.chunked.Handler
 --- @return boolean ok
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 local function read_chunk(self, chunksize, handler)
     -- read chunked-encoded string
     local r = self.reader
@@ -169,8 +194,10 @@ local function read_chunk(self, chunksize, handler)
 
     while true do
         local s, err, timeout = r:read(bufsize)
-        if not s or err or timeout then
-            return false, err, timeout
+        if err then
+            return false, errorf('failed to read_chunk()', err)
+        elseif not s then
+            return false, nil, timeout
         end
         str = str .. s
 
@@ -221,8 +248,10 @@ local function read_chunk(self, chunksize, handler)
                 -- read chunk-data (csize + CRLF)
                 while #str < csize + 2 do
                     s, err, timeout = r:read(bufsize)
-                    if not s or err or timeout then
-                        return false, err, timeout
+                    if err then
+                        return false, errorf('failed to read_chunk()', err)
+                    elseif not s then
+                        return false, nil, timeout
                     end
                     str = str .. s
                 end
@@ -236,11 +265,11 @@ local function read_chunk(self, chunksize, handler)
 
                 -- check chunk by handler
                 s, err = handler:read_chunk(sub(str, 1, csize), ext)
-                str = sub(str, tail + 1)
                 if err then
-                    return false, err
+                    return false, errorf('failed to read_chunk()', err)
                 end
                 chunk = chunk .. s
+                str = sub(str, tail + 1)
 
                 -- stops reading when the specified chunk size is reached
                 if chunksize and #chunk >= chunksize then
@@ -260,15 +289,16 @@ end
 --- @param self net.http.content.chunked
 --- @param chunksize integer
 --- @param handler net.http.content.chunked.Handler
---- @return string|nil str
+--- @return string? str
 --- @return any err
+--- @return boolean? timeout
 local function read(self, chunksize, handler)
     local chunk = self.chunk
     local n = #chunk
     if not self.is_read_chunk and n < chunksize then
-        local ok, err = read_chunk(self, chunksize, handler)
+        local ok, err, timeout = read_chunk(self, chunksize, handler)
         if not ok then
-            return nil, err
+            return nil, err, timeout
         end
         chunk = self.chunk
         n = #chunk
@@ -288,14 +318,14 @@ end
 
 --- read
 --- @param chunksize? integer
---- @param handler net.http.content.chunked.Handler|nil
---- @return string|nil s
+--- @param handler net.http.content.chunked.Handler?
+--- @return string? s
 --- @return any err
 function ChunkedContent:read(chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then
@@ -309,14 +339,17 @@ end
 --- readall
 --- @param self net.http.content.chunked
 --- @param handler net.http.content.chunked.Handler
---- @return string|nil str
+--- @return string? str
 --- @return any err
+--- @return boolean? timeout
 local function readall(self, handler)
     local chunk
     if not self.is_read_chunk then
-        local ok, err = read_chunk(self, nil, handler)
-        if not ok then
-            return nil, err
+        local ok, err, timeout = read_chunk(self, nil, handler)
+        if err then
+            return nil, errorf('failed to readall()', err)
+        elseif not ok then
+            return nil, nil, timeout
         end
         chunk = self.chunk
         self.chunk = ''
@@ -324,8 +357,10 @@ local function readall(self, handler)
 
     if not self.is_read_trailer then
         local err, timeout = read_trailer(self, handler)
-        if err or timeout then
-            return nil, err
+        if err then
+            return nil, errorf('failed to readall()', err)
+        elseif timeout then
+            return nil, nil, true
         end
     end
 
@@ -334,17 +369,20 @@ end
 
 --- readall
 --- @param handler? net.http.content.chunked.Handler
---- @return string|nil s
+--- @return string? s
 --- @return any err
+--- @return boolean? timeout
 function ChunkedContent:readall(handler)
     if handler == nil then
         -- use default handler
         handler = DEFAULT_CHUNKHANDLER
     end
 
-    local s, err = readall(self, handler)
-    if not s then
-        return nil, err
+    local s, err, timeout = readall(self, handler)
+    if err then
+        return nil, errorf('failed to readall()', err)
+    elseif not s then
+        return nil, nil, timeout
     end
     return s
 end
@@ -353,13 +391,14 @@ end
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @param handler? net.http.content.chunked.Handler
---- @return integer len
---- @return string? err
+--- @return integer? len
+--- @return any err
+--- @return boolean? timeout
 function ChunkedContent:copy(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then
@@ -367,38 +406,43 @@ function ChunkedContent:copy(w, chunksize, handler)
         handler = DEFAULT_CHUNKHANDLER
     end
 
-    local nbyte = 0
-    local s, err = read(self, chunksize, handler)
+    local len = 0
+    local s, err, timeout = read(self, chunksize, handler)
     while s do
         -- write chunk
-        local n, werr = w:write(s)
-        if not n or werr then
-            return nil, werr
+        local n
+        n, err, timeout = w:write(s)
+        if err then
+            return nil, errorf('failed to copy()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
 
-        nbyte = nbyte + #s
-        s, err = read(self, chunksize, handler)
+        len = len + n
+        s, err, timeout = read(self, chunksize, handler)
     end
 
     if err then
-        return nil, err
+        return nil, errorf('failed to copy()', err)
+    elseif timeout then
+        return nil, nil, timeout
     end
 
-    return nbyte
+    return len
 end
 
 --- write
 --- @param w net.http.writer
 --- @param chunksize? integer
 --- @param handler? net.http.content.chunked.Handler
---- @return integer|nil len
+--- @return integer? len
 --- @return any err
---- @return boolean|nil timeout
+--- @return boolean? timeout
 function ChunkedContent:write(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
     elseif not is_uint(chunksize) or chunksize == 0 then
-        error('chunksize must be uint greater than 0', 2)
+        fatalf(2, 'chunksize must be uint greater than 0')
     end
 
     if handler == nil then
@@ -414,32 +458,42 @@ function ChunkedContent:write(w, chunksize, handler)
 
     -- read and write string
     local r = self.reader
-    local size = 0
+    local len = 0
     local s, err, timeout = r:read(chunksize)
     while s do
-        local n, werr = handler:write_chunk(w, s)
-        if not n or werr then
-            return nil, werr
+        local n
+        n, err, timeout = handler:write_chunk(w, s)
+        if err then
+            return nil, errorf('failed to write()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        size = size + #s
-
+        len = len + #s
         s, err, timeout = r:read(chunksize)
     end
 
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif timeout then
+        return nil, nil, timeout
     end
 
-    local n, werr = handler:write_last_chunk(w)
-    if not n or werr then
-        return nil, werr
+    local n
+    n, err, timeout = handler:write_last_chunk(w)
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
 
-    n, werr = handler:write_trailer(w)
-    if not n or werr then
-        return nil, werr
+    n, err, timeout = handler:write_trailer(w)
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    return size
+
+    return len
 end
 
 return {

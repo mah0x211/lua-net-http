@@ -21,6 +21,8 @@
 --
 local tostring = tostring
 local format = string.format
+local errorf = require('error').format
+local fatalf = require('error').fatalf
 local new_errno = require('errno').new
 local instanceof = require('metamodule').instanceof
 local new_header = require('net.http.header').new
@@ -59,7 +61,7 @@ end
 --- @return any err
 function Message:set_version(version)
     if not is_finite(version) then
-        error('version must be finite-number', 2)
+        fatalf(2, 'version must be finite-number')
     elseif not VALID_VERSION[version] then
         return false,
                new_errno('EINVAL',
@@ -73,8 +75,9 @@ end
 
 --- write_firstline
 --- @param w net.http.writer
---- @return integer n
+--- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 function Message:write_firstline(w)
     return 0
 end
@@ -85,9 +88,10 @@ end
 --- @param with_content? boolean
 --- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 local function write_header(self, w, with_content)
     if self.header_sent then
-        error('header has already been sent', 2)
+        fatalf(2, 'header has already been sent')
     end
     self.header_sent = 0
 
@@ -98,18 +102,22 @@ local function write_header(self, w, with_content)
     end
 
     -- write first-line
-    local len, err = self:write_firstline(w)
-    if not len or err then
-        return nil, err
+    local n, err, timeout = self:write_firstline(w)
+    if err then
+        return nil, errorf('failed to write_header()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    local n = len
 
     -- write header
-    len, err = self.header:write(w)
-    if not len or err then
-        return nil, err
+    local len = n
+    n, err, timeout = self.header:write(w)
+    if err then
+        return nil, errorf('failed to write_header()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    self.header_sent = n + len
+    self.header_sent = len + n
 
     return self.header_sent
 end
@@ -127,12 +135,13 @@ end
 --- @param content net.http.content
 --- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 function Message:write_content(w, content)
     if not instanceof(content, 'net.http.content') then
-        error('content must be net.http.content', 2)
+        fatalf(2, 'content must be net.http.content')
     end
 
-    local n = 0
+    local len = 0
     if not self.header_sent then
         local header = self.header
 
@@ -148,19 +157,23 @@ function Message:write_content(w, content)
         end
 
         -- write header
-        local len, err = write_header(self, w, true)
-        if not len or err then
-            return nil, err
+        local n, err, timeout = write_header(self, w, true)
+        if err then
+            return nil, errorf('failed to write_content()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        n = n + len
+        len = len + n
     end
 
     -- write content
-    local len, err = content:write(w)
-    if not len or err then
-        return nil, err
+    local n, err, timeout = content:write(w)
+    if err then
+        return nil, errorf('failed to write_content()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    return n + len
+    return len + n
 end
 
 --- write_file
@@ -171,42 +184,53 @@ end
 --- @return boolean? timeout
 function Message:write_file(w, file)
     if not is_file(file) then
-        error('file must be file*', 2)
+        fatalf(2, 'file must be file*')
     end
 
-    local n = 0
+    local len = 0
     local offset = file:seek('cur')
     local size = file:seek('end') - offset
-
     file:seek('set', offset)
+
     if not self.header_sent then
         self.header:set('Content-Length', tostring(size))
         -- write header
-        local len, err = write_header(self, w, true)
-        if not len or err then
-            return nil, err
+        local n, err, timeout = write_header(self, w, true)
+        if err then
+            return nil, errorf('failed to write_file()', err)
+        elseif not n then
+            return nil, nil, timeout
         end
-        n = n + len
+        len = len + n
     end
 
     -- write content
     local bufsize = 4096
-    local s = file:read(bufsize)
+    local s, err = file:read(bufsize)
     while s do
-        local len, err, timeout = w:write(s)
-        if err or timeout then
+        local n, timeout
+        n, err, timeout = w:write(s)
+        if err then
             assert(file:seek('set', offset))
-            return nil, err, timeout
+            return nil, errorf('failed to write_file()', err)
+        elseif not n then
+            assert(file:seek('set', offset))
+            return nil, nil, timeout
         end
-        n = n + len
+        len = len + n
 
-        if #s < bufsize then
+        if n < bufsize then
             break
         end
-        s = file:read(4096)
+        s, err = file:read(4096)
     end
     assert(file:seek('set', offset))
-    return n
+
+    if err then
+        return nil, errorf('failed to write_file()', err)
+    end
+
+    return len
 end
 
 --- write data
@@ -214,36 +238,42 @@ end
 --- @param data? string
 --- @return integer? n
 --- @return any err
+--- @return boolean? timeout
 function Message:write(w, data)
     local size = 0
     if data ~= nil then
         if not is_string(data) then
-            error('data must be string', 2)
+            fatalf(2, 'data must be string')
         end
         size = #data
     end
 
-    local n = 0
+    local len = 0
 
     if not self.header_sent then
         self.header:set('Content-Length', tostring(size))
         -- write header
-        local len, err = write_header(self, w, size > 0)
-        if not len or err then
-            return nil, err
+        local n, err, timeout = write_header(self, w, size > 0)
+        if err then
+            return nil, errorf('failed to write()', err)
+        elseif not n then
+            return nil, err, timeout
         end
-        n = n + len
+        len = len + n
     end
 
+    -- write no content
     if size == 0 then
-        return n
+        return len
     end
 
-    local len, err = w:write(data)
-    if not len or err then
-        return nil, err
+    local n, err, timeout = w:write(data)
+    if err then
+        return nil, errorf('failed to write()', err)
+    elseif not n then
+        return nil, nil, timeout
     end
-    return n + len
+    return len + n
 end
 
 return {

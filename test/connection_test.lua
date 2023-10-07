@@ -1,5 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
+local error = require('error')
 local new_connection = require('net.http.connection').new
 local parse = require('net.http.parse')
 
@@ -39,7 +41,7 @@ function testcase.close()
     -- test that call sock.close method
     local ok, err = c:close()
     assert.is_true(ok)
-    assert.equal(err, 'close error')
+    assert.match(err, 'close error')
 end
 
 function testcase.write()
@@ -54,8 +56,8 @@ function testcase.write()
     -- test that call sock.write method
     c.writer:setbufsize(0)
     local n, err = c:write('foo')
-    assert.equal(n, 0)
-    assert.equal(err, 'write error')
+    assert.is_nil(n)
+    assert.match(err, 'write error')
 end
 
 function testcase.flush()
@@ -72,8 +74,8 @@ function testcase.flush()
 
     -- test that call sock.flush method
     n, err = c:flush()
-    assert.equal(n, 0)
-    assert.equal(err, 'write error')
+    assert.is_nil(n)
+    assert.match(err, 'write error')
 end
 
 function testcase.read_request()
@@ -269,7 +271,7 @@ function testcase.read_request()
     }, '\r\n')
     msg, err = c:read_request()
     assert.is_nil(msg)
-    assert.equal(err.type, parse.EMSG)
+    assert(error.is(err, parse.EMSG))
 
     -- test that return EVERSION if request version is unknown
     data = table.concat({
@@ -280,7 +282,7 @@ function testcase.read_request()
     }, '\r\n')
     msg, err = c:read_request()
     assert.is_nil(msg)
-    assert.equal(err.type, parse.EVERSION)
+    assert(error.is(err, parse.EVERSION))
 
     -- test that return EMETHOD if previous content is not discarded
     data = table.concat({
@@ -304,7 +306,7 @@ function testcase.read_request()
     assert(msg.content ~= nil, 'content is nil')
     msg, err = c:read_request()
     assert.is_nil(msg)
-    assert.equal(err.type, parse.EMETHOD)
+    assert(error.is(err, parse.EMETHOD))
 end
 
 function testcase.read_response()
@@ -429,7 +431,7 @@ function testcase.read_response()
     }, '\r\n')
     msg, err = c:read_response()
     assert.is_nil(msg)
-    assert.equal(err.type, parse.ESTATUS)
+    assert(error.is(err, parse.ESTATUS))
 
     -- test that return EMSG if response message is invalid
     data = table.concat({
@@ -440,6 +442,6 @@ function testcase.read_response()
     }, '\r\n')
     msg, err = c:read_response()
     assert.is_nil(msg)
-    assert.equal(err.type, parse.EMSG)
+    assert(error.is(err, parse.EMSG))
 end
 

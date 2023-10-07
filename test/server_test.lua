@@ -1,9 +1,11 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local sleep = require('testcase.timer').sleep
 local fork = require('testcase.fork')
 local execvp = require('exec').execvp
 local mkstemp = require('mkstemp')
+local error = require('error')
 local errno = require('errno')
 local new_tls_config = require('net.tls.config').new
 local fetch = require('net.http.fetch')
@@ -76,7 +78,7 @@ function testcase.new_inet_server()
     local news
     news, err = new_server('127.0.0.1:8080')
     assert.is_nil(news)
-    assert.equal(err.type, errno.EADDRINUSE)
+    assert(error.is(err, errno.EADDRINUSE))
     assert(s:close())
 
     -- test that throws an error if addr is not string
@@ -107,7 +109,7 @@ function testcase.new_inet_tls_server()
         tlscfg = TLS_SERVER_CONFIG,
     })
     assert.is_nil(news)
-    assert.equal(err.type, errno.EADDRINUSE)
+    assert(error.is(err, errno.EADDRINUSE))
     assert(s:close())
 end
 
