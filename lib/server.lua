@@ -41,12 +41,11 @@ local Server = {}
 --- accepted
 --- @param self net.stream.Socket
 --- @param sock net.stream.Socket
---- @param nonblock boolean
 --- @param ai llsocket.addrinfo
 --- @return net.http.connection conn
 --- @return any err
 --- @return llsocket.addrinfo ai
-function Server:accepted(sock, nonblock, ai)
+function Server:accepted(sock, ai)
     return new_connection(sock), nil, ai
 end
 
@@ -84,9 +83,9 @@ local function new(addr, opts)
         if err then
             return nil, err
         elseif s.tls then
-            return UnixTLSServer(s.sock, s.nonblock, s.tls)
+            return UnixTLSServer(s.sock, s.tls)
         end
-        return UnixServer(s.sock, s.nonblock)
+        return UnixServer(s.sock)
     end
 
     -- inet server
@@ -102,9 +101,9 @@ local function new(addr, opts)
     if err then
         return nil, err
     elseif s.tls then
-        return InetTSLServer(s.sock, s.nonblock, s.tls)
+        return InetTSLServer(s.sock, s.tls)
     end
-    return InetServer(s.sock, s.nonblock)
+    return InetServer(s.sock)
 end
 
 return {
