@@ -7,7 +7,6 @@ local execvp = require('exec').execvp
 local mkstemp = require('mkstemp')
 local error = require('error')
 local errno = require('errno')
-local new_tls_config = require('net.tls.config').new
 local fetch = require('net.http.fetch')
 local new_response = require('net.http.message.response').new
 local new_server = require('net.http.server').new
@@ -41,8 +40,10 @@ function testcase.before_all()
         error('failed to generate cert files')
     end
 
-    TLS_SERVER_CONFIG = new_tls_config()
-    assert(TLS_SERVER_CONFIG:set_keypair_file('cert.pem', 'cert.key'))
+    TLS_SERVER_CONFIG = {
+        cert = 'cert.pem',
+        key = 'cert.key',
+    }
 end
 
 local SOCKFILE

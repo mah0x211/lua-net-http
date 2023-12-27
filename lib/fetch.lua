@@ -27,7 +27,6 @@ local is_file = isa.file
 local fatalf = require('error').fatalf
 local errorf = require('error').format
 local new_errno = require('errno').new
-local new_tls_config = require('net.tls.config').new
 local new_inet_client = require('net.stream.inet').client.new
 local new_unix_client = require('net.stream.unix').client.new
 local new_connection = require('net.http.connection').new
@@ -124,13 +123,11 @@ local function fetch(uri, opts)
     local tlscfg
     if req.scheme == 'https' then
         -- create tls config
-        tlscfg, err = new_tls_config()
-        if not tlscfg then
-            return nil, errorf('failed to fetch()', err)
-        elseif opts.insecure == true then
-            tlscfg:insecure_noverifycert()
-            tlscfg:insecure_noverifyname()
-            tlscfg:insecure_noverifytime()
+        tlscfg = {}
+        if opts.insecure == true then
+            tlscfg.noverify_cert = true
+            tlscfg.noverify_name = true
+            tlscfg.noverify_time = true
         end
     end
 

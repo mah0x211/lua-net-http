@@ -6,7 +6,6 @@ local sleep = require('testcase.timer').sleep
 local execvp = require('exec').execvp
 local error = require('error')
 local errno = require('errno')
-local new_tls_config = require('net.tls.config').new
 local new_inet_server = require('net.stream.inet').server.new
 local new_unix_server = require('net.stream.unix').server.new
 local new_response = require('net.http.message.response').new
@@ -42,8 +41,10 @@ function testcase.before_all()
     if res.exit ~= 0 then
         error('failed to generate cert files')
     end
-    TLS_SERVER_CONFIG = new_tls_config()
-    assert(TLS_SERVER_CONFIG:set_keypair_file('cert.pem', 'cert.key'))
+    TLS_SERVER_CONFIG = {
+        cert = 'cert.pem',
+        key = 'cert.key',
+    }
 end
 
 local SOCKFILE = '/tmp/example.sock'
@@ -152,7 +153,7 @@ function testcase.fetch()
     res, err, timeout = fetch('https://' .. host)
     assert.is_nil(res)
     assert.is_nil(timeout)
-    assert.match(err, 'verification failed')
+    assert.match(err, 'verify failed')
 
     -- test that throws an error if uri is not string
     err = assert.throws(fetch, true)
@@ -280,7 +281,7 @@ function testcase.fetch_with_string_content()
     res, err, timeout = fetch('https://' .. host)
     assert.is_nil(res)
     assert.is_nil(timeout)
-    assert.match(err, 'verification failed')
+    assert.match(err, 'verify failed')
 
     -- test that throws an error if uri is not string
     err = assert.throws(fetch, true)
