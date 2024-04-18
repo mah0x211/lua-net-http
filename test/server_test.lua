@@ -31,11 +31,13 @@ function testcase.before_all()
         '/C=US/CN=www.example.com',
     }))
 
-    for line in p.stderr:lines() do
+    local line = p.stderr:read()
+    while line do
         print(line)
+        line = p.stderr:read()
     end
 
-    local res = assert(p:waitpid())
+    local res = assert(p:close())
     if res.exit ~= 0 then
         error('failed to generate cert files')
     end

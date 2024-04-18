@@ -68,13 +68,13 @@ static void init_error_types(lua_State *L)
     lua_error_loadlib(L, 1);
 
 #define create_error_type(name, message)                                       \
- do {                                                                          \
-  lua_pushstring(L, "net.http.parse." #name);                                  \
-  lua_pushinteger(L, PARSE_##name);                                            \
-  lua_pushstring(L, (message));                                                \
-  lua_error_new_type(L, nameidx);                                              \
-  PARSE_ERR_##name = lauxh_ref(L);                                             \
- } while (0)
+    do {                                                                       \
+        lua_pushstring(L, "net.http.parse." #name);                            \
+        lua_pushinteger(L, PARSE_##name);                                      \
+        lua_pushstring(L, (message));                                          \
+        lua_error_new_type(L, nameidx);                                        \
+        PARSE_ERR_##name = lauxh_ref(L);                                       \
+    } while (0)
 
     create_error_type(EAGAIN, "resource temporarily unavailable");
     create_error_type(EMSG, "invalid message");
@@ -641,14 +641,14 @@ static int chunksize_lua(lua_State *L)
     }
 
 #define skip_bws()                                                             \
- do {                                                                          \
-  if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {                           \
-   return error_result_as_nil(L, PARSE_ELEN, "chunksize");                     \
-  } else if (str[cur] == 0) {                                                  \
-   /* more bytes need */                                                       \
-   return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");                   \
-  }                                                                            \
- } while (0)
+    do {                                                                       \
+        if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {                     \
+            return error_result_as_nil(L, PARSE_ELEN, "chunksize");            \
+        } else if (str[cur] == 0) {                                            \
+            /* more bytes need */                                              \
+            return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");          \
+        }                                                                      \
+    } while (0)
 
     // found tail
     if (str[cur] == CR) {

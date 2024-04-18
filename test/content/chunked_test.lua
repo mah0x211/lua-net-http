@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
 local new_chunked_content = require('net.http.content.chunked').new

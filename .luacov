@@ -1,6 +1,6 @@
 codefromstrings = false
 runreport = true
-deletestats = false
+deletestats = true
 modules = {
     ["net.http.connection"] = "lib/connection.lua",
     ["net.http.content"] = "lib/content.lua",
