@@ -28,16 +28,15 @@ local Form = {}
 Form = require('metamodule').new(Form, 'form')
 
 --- decode
---- @param reader table|userdata
---- @param chunksize? integer
+--- @param chunk string|table|userdata
 --- @param boundary? string
 --- @param maxsize? integer
 --- @param filetmpl? string
+--- @param chunksize? integer
 --- @return net.http.form? form
 --- @return any err
-local function decode(reader, chunksize, boundary, maxsize, filetmpl)
-    local form, err =
-        decode_form(reader, chunksize, boundary, maxsize, filetmpl)
+local function decode(chunk, boundary, maxsize, filetmpl, chunksize)
+    local form, err = decode_form(chunk, boundary, maxsize, filetmpl, chunksize)
     if err then
         return nil, err
     end

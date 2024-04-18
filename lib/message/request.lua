@@ -172,8 +172,8 @@ function Request:read_form(maxsize, filetmpl)
                 return nil, new_errno('EINVAL',
                                       'invalid Content-Type header: boundary not defined')
             end
-            self.form, err = decode_form(self.content, nil, params.boundary,
-                                         maxsize, filetmpl)
+            self.form, err = decode_form(self.content, params.boundary, maxsize,
+                                         filetmpl)
         end
     end
 
@@ -239,7 +239,7 @@ end
 local function write_form(self, w, form, boundary, tmpfiles)
     local chunks = {}
     -- encode form
-    local len, encerr = form:encode({
+    local len, encerr = form:encode(boundary, {
         write = function(_, s)
             chunks[#chunks + 1] = s
             return #s
@@ -260,7 +260,7 @@ local function write_form(self, w, form, boundary, tmpfiles)
             end
             return len - offset
         end,
-    }, boundary)
+    })
     if encerr then
         return nil, errorf('failed to write_form()', encerr)
     end
