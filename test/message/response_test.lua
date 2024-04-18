@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local sleep = require('testcase.timer').sleep
 local date = require('net.http.date')
 local new_message = require('net.http.message.response').new

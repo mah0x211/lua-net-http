@@ -1,5 +1,6 @@
 require('luacov')
 local testcase = require('testcase')
+local assert = require('assert')
 local errno = require('errno')
 local error = require('error')
 local new_message = require('net.http.message.request').new
