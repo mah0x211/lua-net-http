@@ -90,7 +90,7 @@ function testcase.decode_multipart()
         '--test_boundary--',
         '',
     }, '\r\n')
-    local form = assert(decode_form(reader, nil, 'test_boundary'))
+    local form = assert(decode_form(reader, 'test_boundary'))
     assert.equal(data, '')
     assert.match(form, '^net.http.form: ', false)
     assert.contains(form.data.foo[1], {
