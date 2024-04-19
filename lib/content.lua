@@ -21,7 +21,8 @@
 --
 local fatalf = require('error').fatalf
 local errorf = require('error').format
-local is_uint = require('isa').uint
+local is_uint = require('lauxhlib.is').uint
+local is_pint = require('lauxhlib.is').pint
 --- constants
 local DEFAULT_CHUNKSIZE = 1024 * 8
 
@@ -86,7 +87,7 @@ end
 function Content:read(chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
+    elseif not is_pint(chunksize) then
         fatalf(2, 'chunksize must be uint greater than 0')
     end
 
@@ -118,7 +119,7 @@ end
 function Content:copy(w, chunksize)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
+    elseif not is_pint(chunksize) then
         fatalf(2, 'chunksize must be uint greater than 0')
     end
 
