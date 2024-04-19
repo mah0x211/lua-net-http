@@ -26,10 +26,9 @@ local fatalf = require('error').fatalf
 local new_errno = require('errno').new
 local instanceof = require('metamodule').instanceof
 local new_header = require('net.http.header').new
-local isa = require('isa')
-local is_string = isa.string
-local is_file = isa.file
-local is_finite = isa.finite
+local is_string = require('lauxhlib.is').str
+local is_file = require('lauxhlib.is').file
+local is_finite = require('lauxhlib.is').finite
 --- constants
 local LIST_VALID_VERSION = '0.9 | 1.0 | 1.1'
 local VALID_VERSION = {}

@@ -28,9 +28,8 @@ local find = string.find
 local sub = string.sub
 local fatalf = require('error').fatalf
 local new_metamodule = require('metamodule').new
-local isa = require('isa')
-local is_string = isa.string
-local is_table = isa.table
+local is_string = require('lauxhlib.is').str
+local is_table = require('lauxhlib.is').table
 local new_inet_server = require('net.stream.inet').server.new
 local new_unix_server = require('net.stream.unix').server.new
 local new_connection = require('net.http.connection').new
@@ -76,6 +75,7 @@ local function new(addr, opts)
     elseif not is_table(opts) then
         fatalf(2, 'opts must be table')
     end
+    --- @cast opts table
 
     -- unix server
     if find(addr, '^[./]') then

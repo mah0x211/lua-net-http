@@ -27,10 +27,9 @@
 local find = string.find
 local format = string.format
 local fatalf = require('error').fatalf
-local isa = require('isa')
-local is_int = isa.int
-local is_finite = isa.finite
-local is_string = isa.string
+local is_int = require('lauxhlib.is').int
+local is_finite = require('lauxhlib.is').finite
+local is_string = require('lauxhlib.is').str
 --- constants
 local HTTP_VER = {
     [0.9] = 'HTTP/0.9',
@@ -407,16 +406,18 @@ _M.code2message = code2message
 --- @param reason? string
 --- @return string msg
 local function toline(code, ver, reason)
+    local version
+
     if not is_int(code) then
         fatalf(2, 'code must be integer')
     elseif ver ~= nil then
         local httpver = HTTP_VER[ver]
         if httpver then
-            ver = httpver
+            version = httpver
         elseif not is_finite(ver) then
             fatalf(2, 'version must be finite-number')
         else
-            ver = format('HTTP/%.1f', ver)
+            version = format('HTTP/%.1f', ver)
         end
     end
 
@@ -429,8 +430,8 @@ local function toline(code, ver, reason)
         fatalf(2, 'reason must be the following string: [a-zA-Z0-9\'_ \t-]')
     end
 
-    if ver then
-        return format('%s %d %s\r\n', ver, code, reason)
+    if version then
+        return format('%s %d %s\r\n', version, code, reason)
     end
 
     return format('%d %s\r\n', code, reason)

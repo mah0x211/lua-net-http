@@ -25,7 +25,7 @@ local find = string.find
 local sub = string.sub
 local errorf = require('error').format
 local fatalf = require('error').fatalf
-local is_uint = require('isa').uint
+local is_pint = require('lauxhlib.is').pint
 local parse = require('net.http.parse')
 local parse_header = parse.header
 local parse_chunksize = parse.chunksize
@@ -324,7 +324,7 @@ end
 function ChunkedContent:read(chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
+    elseif not is_pint(chunksize) then
         fatalf(2, 'chunksize must be uint greater than 0')
     end
 
@@ -397,7 +397,7 @@ end
 function ChunkedContent:copy(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
+    elseif not is_pint(chunksize) then
         fatalf(2, 'chunksize must be uint greater than 0')
     end
 
@@ -441,7 +441,7 @@ end
 function ChunkedContent:write(w, chunksize, handler)
     if chunksize == nil then
         chunksize = DEFAULT_CHUNKSIZE
-    elseif not is_uint(chunksize) or chunksize == 0 then
+    elseif not is_pint(chunksize) then
         fatalf(2, 'chunksize must be uint greater than 0')
     end
 

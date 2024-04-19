@@ -20,10 +20,9 @@
 -- THE SOFTWARE.
 --
 --- assign to local
-local isa = require('isa')
-local is_string = isa.string
-local is_table = isa.table
-local is_file = isa.file
+local is_string = require('lauxhlib.is').str
+local is_table = require('lauxhlib.is').table
+local is_file = require('lauxhlib.is').file
 local fatalf = require('error').fatalf
 local errorf = require('error').format
 local new_errno = require('errno').new
@@ -55,6 +54,7 @@ local function fetch(uri, opts)
     elseif not is_table(opts) then
         fatalf(2, 'opts must be table')
     end
+    --[[@cast opts table]]
 
     local req = new_request()
 

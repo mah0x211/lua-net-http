@@ -22,16 +22,17 @@
 local lower = string.lower
 local format = string.format
 local remove = table.remove
+local pairs = pairs
+local type = type
 local errorf = require('error').format
 local fatalf = require('error').fatalf
 local tointeger = require('tointeger')
 local capitalize = require('string.capitalize')
 local trim = require('string.trim')
 local split = require('string.split')
-local isa = require('isa')
-local is_boolean = isa.boolean
-local is_string = isa.string
-local is_table = isa.table
+local is_boolean = require('lauxhlib.is').bool
+local is_string = require('lauxhlib.is').str
+local is_table = require('lauxhlib.is').table
 local new_errno = require('errno').new
 local parse = require('net.http.parse')
 local parse_header_name = parse.header_name
@@ -407,7 +408,7 @@ function Header:content_type()
 end
 
 --- content_length
---- @return integer len
+--- @return integer? len
 function Header:content_length()
     local val = self:get('content-length')
     if val then
