@@ -263,7 +263,7 @@ end
 
 --- get
 --- @param key string
---- @param all boolean
+--- @param all boolean?
 --- @return string|string[]? val
 --- @return string? key
 function Header:get(key, all)

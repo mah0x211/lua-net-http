@@ -80,7 +80,7 @@ local function new(addr, opts)
     -- unix server
     if find(addr, '^[./]') then
         local s, err = new_unix_server(addr, opts.tlscfg)
-        if err then
+        if not s then
             return nil, err
         elseif s.tls then
             return UnixTLSServer(s.sock, s.tls)
@@ -98,7 +98,7 @@ local function new(addr, opts)
     end
 
     local s, err = new_inet_server(host, port, opts)
-    if err then
+    if not s then
         return nil, err
     elseif s.tls then
         return InetTSLServer(s.sock, s.tls)

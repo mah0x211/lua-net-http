@@ -36,7 +36,6 @@ jobs:
           - "5.2"
           - "5.3"
           - "5.4"
-          - "luajit-2.0.5"
           - "luajit-openresty"
     steps:
     -
@@ -46,7 +45,7 @@ jobs:
         submodules: 'true'
     -
       name: Setup Lua ${{ matrix.lua-version }}
-      uses: leafo/gh-actions-lua@v8
+      uses: leafo/gh-actions-lua@v9
       with:
         luaVersion: ${{ matrix.lua-version }}
     -
@@ -70,9 +69,10 @@ jobs:
         testcase --coverage ./test/
     -
       name: Upload lua coverage to Codecov
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v4
       with:
         files: ./luacov.report.out
+        token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
     # -
     #   name: Generate coverage reports

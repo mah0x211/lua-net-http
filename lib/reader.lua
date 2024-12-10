@@ -22,6 +22,7 @@
 local new_reader = require('bufio.reader').new
 
 --- @class net.http.reader
+--- @field protected reader bufio.reader
 local Reader = {}
 
 --- init
