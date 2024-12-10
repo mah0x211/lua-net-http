@@ -92,7 +92,7 @@ end
 --- read_message
 --- @param msg net.http.message
 --- @param parser function
---- @return net.http.message? msg
+--- @return boolean ok
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_message(msg, parser)
@@ -105,9 +105,9 @@ function Connection:read_message(msg, parser)
     while true do
         local s, err, timeout = reader:read(readsize)
         if err then
-            return nil, errorf('failed to read_message()', err)
+            return false, errorf('failed to read_message()', err)
         elseif not s then
-            return nil, nil, timeout
+            return false, nil, timeout
         end
         str = str .. s
 
@@ -146,11 +146,11 @@ function Connection:read_message(msg, parser)
                 msg.content = new_content(reader, len)
             end
 
-            return msg
+            return true
 
         elseif err.type ~= EAGAIN then
             -- parse error
-            return nil, err
+            return false, err
         end
         -- more bytes need
     end
@@ -161,24 +161,20 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_request()
-    local req, err, timeout = self:read_message(new_request(), parse_request)
-    if not req then
-        if err then
-            return nil, errorf('failed to read_request()', err)
+    local req = new_request()
+    local ok, err, timeout = self:read_message(req, parse_request)
+    if ok then
+        -- parse-uri
+        ok, err = req:set_uri(req.uri, true)
+        if not ok then
+            -- invalid uri format
+            return nil, EMSG:new('failed to read_request()', err)
         end
-        return nil, nil, timeout
+        return req
+    elseif err then
+        return nil, errorf('failed to read_request()', err)
     end
-
-    -- parse-uri
-    local _
-    _, err = req:set_uri(req.uri, true)
-    if err then
-        -- invalid uri format
-        return nil, EMSG:new('failed to read_request()', err)
-    end
-
-    --- @type net.http.message.request
-    return req
+    return nil, nil, timeout
 end
 
 --- read_response
@@ -186,7 +182,16 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_response()
-    return self:read_message(new_response(), parse_response)
+    local res = new_response()
+    local ok, err, timeout = self:read_message(res, parse_response)
+
+    if ok then
+        return res
+    elseif err then
+        return nil, errorf('failed to read_response()', err)
+    end
+    return nil, nil, timeout
+
 end
 
 return {
