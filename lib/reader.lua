@@ -60,8 +60,10 @@ end
 --- @return boolean? timeout
 function Reader:read(size)
     local data, err, timeout = self.reader:read(size)
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, err
+    elseif timeout then
+        return nil, nil, true
     end
     return data
 end
@@ -75,8 +77,10 @@ end
 --- @return boolean? timeout
 function Reader:readfull(size)
     local data, err, timeout = self.reader:readfull(size)
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, err
+    elseif timeout then
+        return nil, nil, true
     end
     return data
 end
