@@ -18,6 +18,7 @@ dependencies = {
     "form ~> 0.5.0",
     "net >= 0.38.0",
     "metamodule >= 0.4",
+    "mime >= 0.1.0",
     "lauxhlib >= 0.6.0",
     "realpath >= 0.4.0",
     "string-capitalize >= 0.2.0",
@@ -26,6 +27,7 @@ dependencies = {
     "table-flatten >= 0.4.0",
     "tointeger >= 0.1.0",
     "url >= 2.1.0",
+    "yyjson >= 0.10.0",
 }
 build = {
     type = "builtin",
@@ -42,6 +44,7 @@ build = {
         ["net.http.message.response"] = "lib/message/response.lua",
         ["net.http.query"] = "lib/query.lua",
         ["net.http.reader"] = "lib/reader.lua",
+        ["net.http.responder"] = "lib/responder.lua",
         ["net.http.server"] = "lib/server.lua",
         ["net.http.status"] = "lib/status.lua",
         ["net.http.writer"] = "lib/writer.lua",
