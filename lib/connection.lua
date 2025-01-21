@@ -101,7 +101,7 @@ function Connection:read_message(msg, parser)
     local header = msg.header
     local str = ''
 
-    msg.header = {}
+    msg.header = header.dict
     while true do
         local s, err, timeout = reader:read(readsize)
         if err then
@@ -122,7 +122,6 @@ function Connection:read_message(msg, parser)
             reader:prepend(sub(str, cur + 1))
 
             -- create header
-            header.dict = msg.header
             msg.header = header
 
             -- 3.3.3.  Message Body Length
