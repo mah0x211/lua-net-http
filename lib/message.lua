@@ -186,6 +186,8 @@ function Message:write_file(w, file)
         fatalf(2, 'file must be file*')
     end
 
+    -- TODO: it should be read a file with the pread syscall for simultaneous
+    -- access to the file.
     local len = 0
     local offset = file:seek('cur')
     local size = file:seek('end') - offset

@@ -47,8 +47,10 @@ end
 --- @return boolean? timeout
 function Writer:flush()
     local n, err, timeout = self.writer:flush()
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, err
+    elseif timeout then
+        return nil, nil, true
     end
     return n
 end
@@ -62,8 +64,10 @@ end
 --- @return boolean? timeout
 function Writer:write(data)
     local n, err, timeout = self.writer:write(data)
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, err
+    elseif timeout then
+        return nil, nil, true
     end
     return n
 end
@@ -77,13 +81,15 @@ end
 --- @return boolean? timeout
 function Writer:writeout(data)
     local n, err, timeout = self.writer:writeout(data)
-    if err or timeout then
-        return nil, err, timeout
+    if err then
+        return nil, err
+    elseif timeout then
+        return nil, nil, true
     end
     return n
 end
 
 return {
-    new = require('metamodule').new(Writer, 'bufio.writer'),
+    new = require('metamodule').new(Writer),
 }
 
