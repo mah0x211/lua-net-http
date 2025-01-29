@@ -259,7 +259,7 @@ function testcase.flush()
     assert.is_true(timeout)
 end
 
-function testcase.file()
+function testcase.reply_file()
     local data = ''
     local writer = {
         write = function(_, v)
@@ -272,8 +272,8 @@ function testcase.file()
     local res = new_responder(writer)
     local pathname = create_tempfile('.html', 'foo')
 
-    -- test that write a file content with headers
-    local ok, err, timeout = res:file(pathname)
+    -- test that write a file content
+    local ok, err, timeout = res:reply_file(200, pathname)
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
@@ -301,15 +301,79 @@ function testcase.file()
         },
     })
 
+    -- test that can be called with a file object
+    res = new_responder(writer)
+    local f = assert(io.open(pathname, 'r'))
+    ok, err, timeout = res:reply_file(202, f)
+    f:close()
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.is_true(ok)
+    -- confirm that data is written to writer
+    msg = create_response(data)
+    data = ''
+    assert.contains(msg, {
+        reason = 'Accepted',
+        status = 202,
+        version = 1.1,
+        content = 'foo',
+        header = {
+            dict = {
+                ['content-length'] = {
+                    val = {
+                        '3',
+                    },
+                },
+                ['content-type'] = {
+                    val = {
+                        'application/octet-stream',
+                    },
+                },
+            },
+        },
+    })
+
     -- test that file() method cannot be called twice
-    ok, err, timeout = res:file(pathname)
+    ok, err, timeout = res:reply_file(200, pathname)
     assert.is_false(ok)
     assert.match(err, 'cannot send a response message twice')
     assert.is_nil(timeout)
 
+    -- test that Content-Length is 0 if 204 No Content status code
+    res = new_responder(writer)
+    ok, err, timeout = res:reply_file(204, pathname)
+    assert.is_nil(err)
+    assert.is_nil(timeout)
+    assert.is_true(ok)
+    -- confirm that data is written to writer
+    msg = create_response(data)
+    data = ''
+    assert.contains(msg, {
+        reason = 'No Content',
+        status = 204,
+        version = 1.1,
+        content = '',
+        header = {
+            dict = {
+                ['content-length'] = {
+                    val = {
+                        '0',
+                    },
+                },
+            },
+        },
+    })
+
+    -- test that returns error if status is not a valid HTTP status code
+    res = new_responder(writer)
+    ok, err, timeout = res:reply_file(999, pathname)
+    assert.is_false(ok)
+    assert.match(err, 'unsupported status code')
+    assert.is_nil(timeout)
+
     -- test that returns error if pathname is not a file
     res = new_responder(writer)
-    ok, err, timeout = res:file('./nonexistent')
+    ok, err, timeout = res:reply_file(200, './nonexistent')
     assert.is_false(ok)
     assert.match(err, 'failed to open a file')
     assert.is_nil(timeout)
@@ -317,7 +381,7 @@ function testcase.file()
     -- test that Content-Type header will be set to 'application/octet-stream'
     pathname = create_tempfile('.unknown', 'foo')
     data = ''
-    ok, err, timeout = res:file(pathname)
+    ok, err, timeout = res:reply_file(200, pathname)
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
@@ -350,7 +414,7 @@ function testcase.file()
             return 123
         end,
     })
-    ok, err, timeout = res:file(pathname)
+    ok, err, timeout = res:reply_file(200, pathname)
     assert.is_false(ok)
     assert.match(err, 'mime:getmime() returns non-string value: "number"')
     assert.is_nil(timeout)

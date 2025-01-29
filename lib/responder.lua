@@ -21,11 +21,12 @@
 --
 local find = string.find
 local type = type
-local open = io.open
+local pcall = pcall
+local fopen = require('io.fopen')
 local fatalf = require('error').fatalf
 local errorf = require('error').format
-local check = require('lauxhlib.check')
 local checkopt = require('lauxhlib.checkopt')
+local is_file = require('lauxhlib.is').file
 local encode_json = require('yyjson').encode
 local new_mime = require('mime').new
 local new_response = require('net.http.message.response').new
@@ -125,41 +126,62 @@ function Responder:flush()
     return true
 end
 
---- file a write a file content to the writer.
+--- reply_file a write a file content to the writer.
 --- if the Content-Type header is not set, then determine the content type from
 --- the file extension and set it to the 'Content-Type' header. if the content type
 --- is not found, then set it to 'application/octet-stream' as the default.
---- @param pathname string
+--- @param code integer
+--- @param file string|file*
 --- @return boolean ok
 --- @return any err
 --- @return boolean? timeout
-function Responder:file(pathname)
+function Responder:reply_file(code, file)
     if self.message.header_sent then
         return false, errorf('cannot send a response message twice')
     end
-    check.str(pathname, 'pathname')
+    local filetype = type(file)
+    assert(filetype == 'string' or is_file(file),
+           'file must be a string or file*')
 
-    local f, err = open(pathname)
-    if not f then
-        return false, errorf('failed to open a file', err)
+    -- set status code
+    local ok, err = self.message:set_status(code)
+    if not ok then
+        return false, err
+    elseif code == 204 then
+        -- ignore file for 204 No Content response
+        self.header:set('Content-Length', '0')
+        return self:write('')
     end
 
+    -- set 'Content-Type' header
     if not self.header:get('Content-Type') then
-        -- determine the content type from the file extension and set it to
-        -- the 'Content-Type' header. if the content type is not found, then set
-        -- it to 'application/octet-stream' as the default.
-        local mime = self.mime:getmime(pathname, true)
-        if mime == nil then
-            mime = 'application/octet-stream'
-        elseif type(mime) ~= 'string' then
-            f:close()
-            return false, errorf('mime:getmime() returns non-string value: %q',
-                                 type(mime))
+        local mime = 'application/octet-stream' -- default content type is binary
+        if filetype == 'string' then
+            -- determine the content type from the file extension and set it to
+            -- the 'Content-Type' header. if the content type is not found, then set
+            -- it to 'application/octet-stream' as the default.
+            mime = self.mime:getmime(file, true)
+            if mime == nil then
+                mime = 'application/octet-stream'
+            elseif type(mime) ~= 'string' then
+                return false, errorf(
+                           'mime:getmime() returns non-string value: %q',
+                           type(mime))
+            end
         end
         self.header:set('Content-Type', mime)
     end
 
-    local ok, timeout
+    if filetype ~= 'string' then
+        return self:write_file(file)
+    end
+
+    local f
+    f, err = fopen(file)
+    if not f then
+        return false, errorf('failed to open a file', err)
+    end
+    local timeout
     ok, err, timeout = self:write_file(f)
     f:close()
     return ok, err, timeout
