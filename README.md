@@ -27,7 +27,7 @@ luarocks install net-http
 ```lua
 local format = string.format
 local server = require('net.http.server')
-local response = require('net.http.message.response')
+local responder = require('net.http.responder')
 
 -- create server with SO_REUSEADDR option
 local s = server.new('127.0.0.1:8080', {
@@ -49,9 +49,10 @@ print(content)
 print('')
 
 -- reply response
-local res = response.new()
-res:write(conn, 'reply ' .. content)
-conn:flush()
+local res = responder.new(conn)
+res.header:set('content-type', 'text/plain')
+res:ok('reply ' .. (content or '') .. '\n')
+res:flush()
 conn:close()
 
 -- $ lua ./server.lua
