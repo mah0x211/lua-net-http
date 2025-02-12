@@ -25,10 +25,12 @@ local errorf = require('error').format
 local fatalf = require('error').fatalf
 local new_errno = require('errno').new
 local instanceof = require('metamodule').instanceof
-local new_header = require('net.http.header').new
 local is_string = require('lauxhlib.is').str
 local is_file = require('lauxhlib.is').file
 local is_finite = require('lauxhlib.is').finite
+local pread = require('io.pread')
+local fstat = require('fstat')
+local new_header = require('net.http.header').new
 --- constants
 local LIST_VALID_VERSION = '0.9 | 1.0 | 1.1'
 local VALID_VERSION = {}
@@ -186,17 +188,21 @@ function Message:write_file(w, file)
         fatalf(2, 'file must be file*')
     end
 
-    -- TODO: it should be read a file with the pread syscall for simultaneous
-    -- access to the file.
+    local stat, err = fstat(file)
+    if not stat then
+        return nil, errorf('failed to write_file()', err)
+    end
+
+    -- get the cursor position and calculate the remaining content size
     local len = 0
-    local offset = file:seek('cur')
-    local size = file:seek('end') - offset
-    file:seek('set', offset)
+    local offset = file:seek()
+    local size = stat.size - offset
 
     if not self.header_sent then
         self.header:set('Content-Length', tostring(size))
         -- write header
-        local n, err, timeout = write_header(self, w, true)
+        local n, timeout
+        n, err, timeout = write_header(self, w, true)
         if err then
             return nil, errorf('failed to write_file()', err)
         elseif not n then
@@ -207,15 +213,14 @@ function Message:write_file(w, file)
 
     -- write content
     local bufsize = 4096
-    local s, err = file:read(bufsize)
+    local s
+    s, err = pread(file, bufsize, offset)
     while s do
         local n, timeout
         n, err, timeout = w:write(s)
         if err then
-            assert(file:seek('set', offset))
             return nil, errorf('failed to write_file()', err)
         elseif not n then
-            assert(file:seek('set', offset))
             return nil, nil, timeout
         end
         len = len + n
@@ -223,9 +228,10 @@ function Message:write_file(w, file)
         if n < bufsize then
             break
         end
-        s, err = file:read(4096)
+        -- next read
+        offset = offset + #s
+        s, err = pread(file, bufsize, offset)
     end
-    assert(file:seek('set', offset))
 
     if err then
         return nil, errorf('failed to write_file()', err)
@@ -258,7 +264,7 @@ function Message:write(w, data)
         if err then
             return nil, errorf('failed to write()', err)
         elseif not n then
-            return nil, err, timeout
+            return nil, nil, timeout
         end
         len = len + n
     end

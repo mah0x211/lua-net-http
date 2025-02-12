@@ -127,7 +127,8 @@ end
 
 function testcase.write_file()
     local f = assert(io.tmpfile())
-    f:write('hello world!')
+    local filedata = 'hello world' .. string.rep('!', 1024 * 16)
+    f:write(filedata)
     f:seek('set')
     local wctx = {
         msg = '',
@@ -148,10 +149,10 @@ function testcase.write_file()
     assert(m:write_file(w, f))
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
-        'Content-Length: 12',
+        'Content-Length: ' .. tostring(#filedata),
         'Content-Type: application/octet-stream',
         '',
-        'hello world!',
+        filedata,
     }, '\r\n'))
     assert.equal(f:seek('cur'), 0)
 
@@ -161,10 +162,10 @@ function testcase.write_file()
     f:seek('set', 3)
     assert(m:write_file(w, f))
     assert.equal(wctx.msg, table.concat({
-        'Content-Length: 9',
+        'Content-Length: ' .. tostring(#filedata - 3),
         'Content-Type: application/octet-stream',
         '',
-        'lo world!',
+        string.sub(filedata, 4),
     }, '\r\n'))
     assert.equal(f:seek('cur'), 3)
 
@@ -179,7 +180,7 @@ function testcase.write_file()
         '',
         '',
     }, '\r\n'))
-    assert.equal(f:seek('cur'), 12)
+    assert.equal(f:seek('cur'), #filedata)
 
     -- test that throws an error if file is not file*
     local err = assert.throws(m.write_file, m, w, true)
