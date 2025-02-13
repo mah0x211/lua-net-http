@@ -505,7 +505,8 @@ function testcase.write_form_multipart()
 
     local form = new_form()
     local file = assert(io.tmpfile())
-    file:write('hello world!')
+    local filedata = 'hello world' .. string.rep('!', 1024 * 16)
+    file:write(filedata)
     file:seek('set')
     form:add('foo', 'bar')
     form:add('foo', '')
@@ -581,6 +582,6 @@ function testcase.write_form_multipart()
             filename = "hello.txt",
         },
     })
-    assert.equal(form.data.hello[1].file:read('*a'), 'hello world!')
+    assert.equal(form.data.hello[1].file:read('*a'), filedata)
 end
 

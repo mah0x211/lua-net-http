@@ -30,6 +30,7 @@ local ipairs = ipairs
 local is_string = require('lauxhlib.is').str
 local errorf = require('error').format
 local fatalf = require('error').fatalf
+local pread = require('io.pread')
 local base64encode = require('base64mix').encode
 local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
@@ -246,10 +247,6 @@ local function write_form(self, w, form, boundary, tmpfiles)
             return #s
         end,
         writefile = function(_, file, len, offset, part)
-            local ok, err = file:seek('set', offset)
-            if not ok then
-                return nil, err
-            end
             chunks[#chunks + 1] = {
                 file = file,
                 len = len,
@@ -301,7 +298,8 @@ local function write_form(self, w, form, boundary, tmpfiles)
         else
             -- TODO: add support sendfile api
             local file = v.file
-            local s, err = file:read(4096)
+            local offset = v.offset
+            local s, err = pread(file, 4096, offset)
             while s do
                 local n, timeout
                 n, err, timeout = w:write(s)
@@ -311,7 +309,8 @@ local function write_form(self, w, form, boundary, tmpfiles)
                     return nil, nil, timeout
                 end
                 nsent = nsent + n
-                s, err = file:read(4096)
+                offset = offset + #s
+                s, err = pread(file, 4096, offset)
             end
 
             if err then
