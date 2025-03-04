@@ -56,5 +56,6 @@ build = {
                 "src/parse.c",
             },
         },
+        ["net.http.router.loadfenv"] = "lib/router/loadfenv.lua",
     },
 }
