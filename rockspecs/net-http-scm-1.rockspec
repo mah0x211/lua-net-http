@@ -23,6 +23,7 @@ dependencies = {
     "metamodule >= 0.4",
     "mime >= 0.1.0",
     "lauxhlib >= 0.6.0",
+    "loadchunk >= 0.1.2",
     "realpath >= 0.4.0",
     "string-capitalize >= 0.2.0",
     "string-split >= 0.3.0",
@@ -56,6 +57,7 @@ build = {
                 "src/parse.c",
             },
         },
+        ["net.http.router.compiler"] = "lib/router/compiler.lua",
         ["net.http.router.loadfenv"] = "lib/router/loadfenv.lua",
     },
 }
