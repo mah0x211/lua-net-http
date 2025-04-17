@@ -21,7 +21,7 @@
 --
 local concat = table.concat
 local lower = string.lower
-local gsub = string.gsub
+local sub = string.sub
 local pcall = pcall
 local format = string.format
 local tostring = tostring
@@ -34,7 +34,7 @@ local pread = require('io.pread')
 local base64encode = require('base64mix').encode
 local instanceof = require('metamodule').instanceof
 local parse_url = require('url').parse
-local realpath = require('realpath')
+local path_normalize = require('realpath.normalize')
 local new_errno = require('errno').new
 local new_header = require('net.http.header').new
 local new_form = require('net.http.form').new
@@ -85,8 +85,10 @@ local Request = {}
 function Request:init()
     self.header = new_header()
     self.method = 'GET'
-    self.uri = '/'
     self.version = '1.1'
+    self.uri = '/'
+    self.rawpath = '/'
+    self.path = '/'
     return self
 end
 
@@ -128,21 +130,17 @@ function Request:set_uri(uri, parse_query)
     for k, v in pairs(parsed_uri) do
         self[k] = v
     end
-    self.rawpath = self.path or '/'
+    self.rawpath = parsed_uri.path or '/'
 
     -- path normalization
     local path
-    path, err = realpath(self.rawpath, nil, false)
+    path, err = path_normalize(self.rawpath, nil, false)
     if err then
         return false, errorf('failed to set_uri()', err)
+    elseif sub(path, 1, 1) ~= '/' then
+        -- add leading slash if not exists
+        path = '/' .. path
     end
-
-    path = gsub(path, '^[^/]', function(c)
-        if c == '.' then
-            return '/'
-        end
-        return '/' .. c
-    end)
     self.path = path
 
     return true
