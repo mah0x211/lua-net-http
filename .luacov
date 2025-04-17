@@ -14,6 +14,7 @@ modules = {
     ["net.http.message.response"] = "lib/message/response.lua",
     ["net.http.query"] = "lib/query.lua",
     ["net.http.responder"] = "lib/responder.lua",
+    ["net.http.router"] = "lib/router.lua",
     ["net.http.router.compiler"] = "lib/router/compiler.lua",
     ["net.http.router.parse"] = "lib/router/parse.lua",
     ["net.http.server"] = "lib/server.lua",
