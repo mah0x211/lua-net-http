@@ -25,6 +25,7 @@ dependencies = {
     "lauxhlib >= 0.6.0",
     "loadchunk >= 0.1.2",
     "realpath >= 0.4.0",
+    "regex >= 0.2.0",
     "string-capitalize >= 0.2.0",
     "string-split >= 0.3.0",
     "string-trim >= 0.2.0",
@@ -59,5 +60,6 @@ build = {
         },
         ["net.http.router.compiler"] = "lib/router/compiler.lua",
         ["net.http.router.loadfenv"] = "lib/router/loadfenv.lua",
+        ["net.http.router.parse"] = "lib/router/parse.lua",
     },
 }
