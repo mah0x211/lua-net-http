@@ -64,20 +64,21 @@ end
 LIST_VALID_METHOD = concat(LIST_VALID_METHOD, ' | ')
 
 --- @class net.http.message.request : net.http.message
---- @field method string
---- @field uri string
---- @field userinfo string
---- @field user string
---- @field password string
---- @field scheme string
---- @field host string
---- @field hostname string
---- @field port string
---- @field path string
---- @field rawpath string
---- @field query string
---- @field query_params table
---- @field fragment string
+--- @field method string method string (e.g., GET, POST, PUT, DELETE)
+--- @field uri string raw uri
+--- @field scheme string? scheme (e.g., http, https)
+--- @field userinfo string? userinfo (e.g., user:password)
+--- @field user string? username part of userinfo
+--- @field password string? password part of userinfo
+--- @field host string? host (e.g., www.example.com, www.example.com:8080)
+--- @field hostname string? hostname part of host
+--- @field port string? port part of host
+--- @field rawpath string raw path (default: '/')
+--- @field path string normalized path (default: '/')
+--- @field query string? query string (e.g., ?foo=bar&foo=baz)
+--- @field query_params table? parsed query string (e.g., { foo = { 'bar', 'baz' } })
+--- @field fragment string? fragment (e.g., #foo)
+--- @field parsed_uri string uri with a normalized path
 local Request = {}
 
 --- init
@@ -127,11 +128,19 @@ function Request:set_uri(uri, parse_query)
     end
 
     self.uri = uri
-    for k, v in pairs(parsed_uri) do
-        self[k] = v
-    end
+    -- set parsed values
+    self.scheme = parsed_uri.scheme
+    self.userinfo = parsed_uri.userinfo
+    self.user = parsed_uri.user
+    self.password = parsed_uri.password
+    self.host = parsed_uri.host
+    self.hostname = parsed_uri.hostname
+    self.port = parsed_uri.port
+    self.path = parsed_uri.path
+    self.query = parsed_uri.query
+    self.query_params = parsed_uri.query_params
+    self.fragment = parsed_uri.fragment
     self.rawpath = parsed_uri.path or '/'
-
     -- path normalization
     local path
     path, err = path_normalize(self.rawpath, nil, false)
@@ -142,6 +151,15 @@ function Request:set_uri(uri, parse_query)
         path = '/' .. path
     end
     self.path = path
+    -- re-construct uri with normalized path
+    self.parsed_uri = concat({
+        self.scheme and self.scheme .. '://' or '',
+        self.userinfo and self.userinfo .. '@' or '',
+        self.host or '',
+        self.path,
+        self.query or '',
+        self.fragment and '#' .. self.fragment or '',
+    })
 
     return true
 end

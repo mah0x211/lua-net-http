@@ -57,6 +57,7 @@ function testcase.set_uri()
         rawpath = '/foo/../bar/./../hello',
         query = '?q=foo&q=bar&baa=baz',
         fragment = 'hash',
+        parsed_uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
     })
 
     -- test that set uri and parse query string
@@ -85,6 +86,35 @@ function testcase.set_uri()
             },
         },
         fragment = 'hash',
+        parsed_uri = 'https://user:pswd@www.example.com:80/hello?q=foo&q=bar&baa=baz#hash',
+    })
+
+    -- test that set uri only scheme and authority
+    assert(m:set_uri('https://user:pswd@www.example.com:80', true))
+    assert.contains(m, {
+        uri = 'https://user:pswd@www.example.com:80',
+        scheme = 'https',
+        userinfo = 'user:pswd',
+        user = 'user',
+        password = 'pswd',
+        host = 'www.example.com:80',
+        hostname = 'www.example.com',
+        port = '80',
+        -- leading slash will be added to path even if it is not specified
+        path = '/',
+        rawpath = '/',
+        parsed_uri = 'https://user:pswd@www.example.com:80/',
+    })
+
+    -- test that set only path and query string
+    assert(m:set_uri('/foo/../bar/./../hello?q=foo&q=bar&baa=baz#hash'))
+    assert.contains(m, {
+        uri = '/foo/../bar/./../hello?q=foo&q=bar&baa=baz#hash',
+        path = '/hello',
+        rawpath = '/foo/../bar/./../hello',
+        query = '?q=foo&q=bar&baa=baz',
+        fragment = 'hash',
+        parsed_uri = '/hello?q=foo&q=bar&baa=baz#hash',
     })
 
     -- test that return EINVAL if argument is invalid uri string
