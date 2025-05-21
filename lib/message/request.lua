@@ -174,11 +174,8 @@ function Request:read_form(maxsize, filetmpl)
     if form then
         return form
     elseif not self.content then
-        if self.method == 'POST' then
-            self.form = new_form()
-            return self.form
-        end
-        return nil
+        self.form = new_form()
+        return self.form
     end
 
     local mime, err, params = self.header:content_type()
