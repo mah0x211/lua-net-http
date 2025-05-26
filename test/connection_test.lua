@@ -17,14 +17,15 @@ function testcase.new()
 
     -- test that throws an error if sock has no read function
     local err = assert.throws(new_connection, {})
-    assert.match(err, 'src.read must be function')
+    assert.match(err, 'src must be string or have read() method')
 
-    -- test that throws an error if sock has no read function
+    -- test that throws an error if sock has no write function
     err = assert.throws(new_connection, {
         read = function()
         end,
+        write = {},
     })
-    assert.match(err, 'dst.write must be function')
+    assert.match(err, 'dst must be table or have write() method')
 end
 
 function testcase.close()
