@@ -55,8 +55,9 @@ function Responder:init(writer, mime, filter)
         -- check whether the writer has net.http.writer methods.
         assert(type(writer.write) == 'function')
         assert(type(writer.flush) == 'function')
+        assert(type(writer.bytes_out) == 'function')
     end) then
-        fatalf('writer must have write() and flush() methods')
+        fatalf('writer must have write(), flush() and bytes_out() methods')
     elseif mime == nil then
         mime = new_mime()
     elseif not pcall(function()
@@ -74,6 +75,12 @@ function Responder:init(writer, mime, filter)
     self.message = new_response()
     self.header = self.message.header
     return self
+end
+
+--- bytes_out returns the number of bytes written to the writer.
+--- @return integer n
+function Responder:bytes_out()
+    return self.writer:bytes_out()
 end
 
 --- write a data string to the writer.
@@ -245,7 +252,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:continue(data)
     return self:reply(100, data)
 end
@@ -254,7 +261,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:switching_protocols(data)
     return self:reply(101, data)
 end
@@ -263,7 +270,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:processing(data)
     return self:reply(102, data)
 end
@@ -272,7 +279,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:ok(data)
     return self:reply(200, data)
 end
@@ -281,7 +288,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:created(data)
     return self:reply(201, data)
 end
@@ -290,7 +297,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:accepted(data)
     return self:reply(202, data)
 end
@@ -299,7 +306,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:non_authoritative_information(data)
     return self:reply(203, data)
 end
@@ -307,7 +314,7 @@ end
 --- no_content
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:no_content(data)
     return self:reply(204, data)
 end
@@ -316,7 +323,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:reset_content(data)
     return self:reply(205, data)
 end
@@ -325,7 +332,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:partial_content(data)
     return self:reply(206, data)
 end
@@ -334,7 +341,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:multi_status(data)
     return self:reply(207, data)
 end
@@ -343,7 +350,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:already_reported(data)
     return self:reply(208, data)
 end
@@ -352,7 +359,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:im_used(data)
     return self:reply(226, data)
 end
@@ -360,11 +367,11 @@ end
 --- response300_304 response a 300 Multiple Choices or 304 Not Modified response.
 --- @param self net.http.responder
 --- @param code integer
---- @param uri string
+--- @param uri string?
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 local function response300_304(self, code, data, uri)
     if uri ~= nil then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
@@ -382,7 +389,7 @@ end
 --- @param uri string?
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:multiple_choices(data, uri)
     return response300_304(self, 300, data, uri)
 end
@@ -392,7 +399,7 @@ end
 --- @param uri string?
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:not_modified(data, uri)
     return response300_304(self, 304, data, uri)
 end
@@ -404,7 +411,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 local function response3xx(self, code, uri, data)
     if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
         return false, errorf('uri must be non-empty string with no spaces')
@@ -418,7 +425,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:moved_permanently(uri, data)
     return response3xx(self, 301, uri, data)
 end
@@ -428,7 +435,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:found(uri, data)
     return response3xx(self, 302, uri, data)
 end
@@ -438,7 +445,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:see_other(uri, data)
     return response3xx(self, 303, uri, data)
 end
@@ -448,7 +455,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:use_proxy(uri, data)
     return response3xx(self, 305, uri, data)
 end
@@ -458,7 +465,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:temporary_redirect(uri, data)
     return response3xx(self, 307, uri, data)
 end
@@ -468,7 +475,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:permanent_redirect(uri, data)
     return response3xx(self, 308, uri, data)
 end
@@ -477,7 +484,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:bad_request(data)
     return self:reply(400, data)
 end
@@ -486,7 +493,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:unauthorized(data)
     return self:reply(401, data)
 end
@@ -495,7 +502,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:payment_required(data)
     return self:reply(402, data)
 end
@@ -504,7 +511,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:forbidden(data)
     return self:reply(403, data)
 end
@@ -513,7 +520,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:not_found(data)
     return self:reply(404, data)
 end
@@ -522,7 +529,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:method_not_allowed(data)
     return self:reply(405, data)
 end
@@ -531,7 +538,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:not_acceptable(data)
     return self:reply(406, data)
 end
@@ -540,7 +547,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:proxy_authentication_required(data)
     return self:reply(407, data)
 end
@@ -549,7 +556,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:request_timeout(data)
     return self:reply(408, data)
 end
@@ -558,7 +565,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:conflict(data)
     return self:reply(409, data)
 end
@@ -567,7 +574,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:gone(data)
     return self:reply(410, data)
 end
@@ -576,7 +583,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:length_required(data)
     return self:reply(411, data)
 end
@@ -585,7 +592,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:precondition_failed(data)
     return self:reply(412, data)
 end
@@ -594,7 +601,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:payload_too_large(data)
     return self:reply(413, data)
 end
@@ -603,7 +610,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:request_uri_too_long(data)
     return self:reply(414, data)
 end
@@ -612,7 +619,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:unsupported_media_type(data)
     return self:reply(415, data)
 end
@@ -621,7 +628,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:requested_range_not_satisfiable(data)
     return self:reply(416, data)
 end
@@ -630,7 +637,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:expectation_failed(data)
     return self:reply(417, data)
 end
@@ -639,7 +646,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:unprocessable_entity(data)
     return self:reply(422, data)
 end
@@ -648,7 +655,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:locked(data)
     return self:reply(423, data)
 end
@@ -657,7 +664,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:failed_dependency(data)
     return self:reply(424, data)
 end
@@ -666,7 +673,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:upgrade_required(data)
     return self:reply(426, data)
 end
@@ -675,7 +682,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:precondition_required(data)
     return self:reply(428, data)
 end
@@ -684,7 +691,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:too_many_requests(data)
     return self:reply(429, data)
 end
@@ -693,7 +700,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:request_header_fields_too_large(data)
     return self:reply(431, data)
 end
@@ -702,7 +709,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:unavailable_for_legal_reasons(data)
     return self:reply(451, data)
 end
@@ -711,7 +718,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:internal_server_error(data)
     return self:reply(500, data)
 end
@@ -720,7 +727,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:not_implemented(data)
     return self:reply(501, data)
 end
@@ -729,7 +736,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:bad_gateway(data)
     return self:reply(502, data)
 end
@@ -738,7 +745,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:service_unavailable(data)
     return self:reply(503, data)
 end
@@ -747,7 +754,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:gateway_timeout(data)
     return self:reply(504, data)
 end
@@ -756,7 +763,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:http_version_not_supported(data)
     return self:reply(505, data)
 end
@@ -765,7 +772,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:variant_also_negotiates(data)
     return self:reply(506, data)
 end
@@ -774,7 +781,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:insufficient_storage(data)
     return self:reply(507, data)
 end
@@ -783,7 +790,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:loop_detected(data)
     return self:reply(508, data)
 end
@@ -792,7 +799,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:not_extended(data)
     return self:reply(510, data)
 end
@@ -801,7 +808,7 @@ end
 --- @param data any
 --- @return boolean ok
 --- @return any err
---- @return boolean timeout
+--- @return boolean? timeout
 function Responder:network_authentication_required(data)
     return self:reply(511, data)
 end

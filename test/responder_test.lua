@@ -1,6 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
+local new_writer = require('net.http.writer').new
 local new_responder = require('net.http.responder').new
 local new_response = require('net.http.message.response').new
 local parse_response = require('net.http.parse').response
@@ -21,6 +22,9 @@ local function create_response(str)
 end
 
 local TMPFILES = {}
+
+local NOOP = function()
+end
 
 --- create_tempfile creates a temporary file with the given extension and data.
 --- @param ext string file extension (e.g. '.txt')
@@ -45,16 +49,15 @@ function testcase.after_each()
 end
 
 function testcase.new()
-    local noop = function()
-    end
     local writer = {
-        write = noop,
-        flush = noop,
+        write = NOOP,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
     local mime = {
-        getmime = noop,
+        getmime = NOOP,
     }
-    local filter = noop
+    local filter = NOOP
 
     -- test that new responder instance
     local res = new_responder(writer, mime, filter)
@@ -72,7 +75,8 @@ function testcase.new()
 
     -- test that throws an error if writer has no required method
     err = assert.throws(new_responder, {}, mime, filter)
-    assert.match(err, 'writer must have write() and flush() methods')
+    assert.match(err,
+                 'writer must have write(), flush() and bytes_out() methods')
 
     -- test that throws an error if mime has no required method
     err = assert.throws(new_responder, writer, {}, filter)
@@ -93,6 +97,9 @@ function testcase.write()
             return #v
         end,
         flush = function()
+        end,
+        bytes_out = function()
+            return #data
         end,
     }
     local res = new_responder(writer)
@@ -152,6 +159,22 @@ function testcase.write()
     assert.is_true(timeout)
 end
 
+function testcase.bytes_out()
+    local data = {}
+    local writer = new_writer(data)
+    local res = new_responder(writer)
+    assert(res:write('foo'))
+
+    -- test that bytes_out is 0 before flush() is called
+    assert.equal(res:bytes_out(), 0)
+    assert.equal(writer:bytes_out(), 0)
+
+    -- test that bytes_out returns the number of bytes written to the writer
+    assert(res:flush())
+    assert.equal(res:bytes_out(), #(table.concat(data)))
+    assert.equal(res:bytes_out(), writer:bytes_out())
+end
+
 function testcase.write_file()
     local data = ''
     local writer = {
@@ -159,8 +182,8 @@ function testcase.write_file()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
     local res = new_responder(writer)
     local _, file = create_tempfile('.txt', 'foo')
@@ -224,12 +247,12 @@ end
 function testcase.flush()
     local ncall = 0
     local writer = {
-        write = function()
-        end,
+        write = NOOP,
         flush = function()
             ncall = ncall + 1
             return 0
         end,
+        bytes_out = NOOP,
     }
     local res = new_responder(writer)
 
@@ -266,8 +289,8 @@ function testcase.reply_file()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
     local res = new_responder(writer)
     local pathname = create_tempfile('.html', 'foo')
@@ -427,8 +450,8 @@ function testcase.reply()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
     local res = new_responder(writer)
 
@@ -603,8 +626,8 @@ function testcase.reply1XX_2xx()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
 
     -- test that 1xx Informational and 2xx Success responses
@@ -676,8 +699,8 @@ function testcase.multiple_choices()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
 
     -- test that multiple_choices
@@ -724,8 +747,8 @@ function testcase.not_modified()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
 
     -- test that multiple_choices
@@ -772,8 +795,8 @@ function testcase.reply3xx()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
 
     -- test that 3xx responses except 300 and 304 responses
@@ -829,8 +852,8 @@ function testcase.reply4xx5xx()
             data = data .. v
             return #v
         end,
-        flush = function()
-        end,
+        flush = NOOP,
+        bytes_out = NOOP,
     }
 
     -- test that 4xx and 5xx responses
