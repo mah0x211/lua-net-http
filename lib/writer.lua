@@ -39,6 +39,12 @@ function Writer:setbufsize(size)
     self.writer:setbufsize(size)
 end
 
+--- bytes_out returns the number of bytes written to the connection.
+--- @return integer n
+function Writer:bytes_out()
+    return self.writer:bytes_out()
+end
+
 --- flush a buffered data to the connection.
 --- if the error or timeout occurs, then returns nil, err, timeout,
 --- otherwise, returns the number of bytes flushed.
