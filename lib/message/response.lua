@@ -74,6 +74,43 @@ function Response:write_firstline(w)
     return n
 end
 
+local http_parse_response = require('net.http.parse').response
+
+--- parse_message parse a response message from a string
+--- @param str string
+--- @param msg net.http.message.response
+--- @return integer? cur position of the next character to read
+--- @return any err
+local function parse_response(str, msg)
+    local header = msg.header
+    msg.header = header.dict
+    local cur, err = http_parse_response(str, msg)
+    msg.header = header
+    return cur, err
+end
+
+local new_response = require('metamodule').new(Response, 'net.http.message')
+local parse_message = require('net.http.message').parse
+
+--- parse a response message from a reader
+--- @param reader net.http.reader
+--- @param readsize integer
+--- @return net.http.message.response? res
+--- @return any err
+--- @return boolean? timeout
+local function parse(reader, readsize)
+    local res = new_response()
+    local ok, err, timeout =
+        parse_message(reader, readsize, parse_response, res)
+    if ok then
+        return res
+    elseif err then
+        return nil, errorf('failed to response.parse()', err)
+    end
+    return nil, nil, timeout
+end
+
 return {
-    new = require('metamodule').new(Response, 'net.http.message'),
+    parse = parse,
+    new = new_response,
 }

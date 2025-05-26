@@ -357,6 +357,50 @@ function Request:write_form(w, form, boundary)
     return res, err
 end
 
+local http_parse_request = require('net.http.parse').request
+
+--- parse_message parse a request message from a string
+--- @param str string
+--- @param msg net.http.message.request
+--- @return integer? cur position of the next character to read
+--- @return any err
+local function parse_request(str, msg)
+    local header = msg.header
+    msg.header = header.dict
+    local cur, err = http_parse_request(str, msg)
+    msg.header = header
+    return cur, err
+end
+
+local new_request = require('metamodule').new(Request, 'net.http.message')
+local message_parse = require('net.http.message').parse
+-- invalid message error
+local EMSG = require('net.http.parse').EMSG
+
+--- parse a request message from a reader
+--- @param reader net.http.reader
+--- @param readsize integer
+--- @return net.http.message.request? req
+--- @return any err
+--- @return boolean? timeout
+local function parse(reader, readsize)
+    local req = new_request()
+    local ok, err, timeout = message_parse(reader, readsize, parse_request, req)
+    if ok then
+        -- parse-uri
+        ok, err = req:set_uri(req.uri, true)
+        if not ok then
+            -- invalid uri format
+            return nil, EMSG:new('failed to request.parse()', err)
+        end
+        return req
+    elseif err then
+        return nil, errorf('failed to request.parse()', err)
+    end
+    return nil, nil, timeout
+end
+
 return {
-    new = require('metamodule').new(Request, 'net.http.message'),
+    parse = parse,
+    new = new_request,
 }

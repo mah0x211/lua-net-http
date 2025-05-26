@@ -274,6 +274,7 @@ function Message:write(w, data)
         return len
     end
 
+    --- @cast data string
     local n, err, timeout = w:write(data)
     if err then
         return nil, errorf('failed to write()', err)
@@ -283,7 +284,82 @@ function Message:write(w, data)
     return len + n
 end
 
+--- parse_message parse a message from a string
+--- @param _ string
+--- @return integer? cur position of the next character to read
+--- @return any err
+function Message:parse_message(_)
+    return nil, errorf(2, 'parse_message() is not implemented')
+end
+
+local sub = string.sub
+local new_content = require('net.http.content').new
+local new_chunked_content = require('net.http.content.chunked').new
+--- constants
+-- need more bytes
+local EAGAIN = require('net.http.parse').EAGAIN
+
+--- read_message
+--- @param reader net.http.reader
+--- @param readsize integer
+--- @param parser fun(str:string, msg:net.http.message): (pos: integer?, err:any)
+--- @param msg net.http.message
+--- @return boolean ok
+--- @return any err
+--- @return boolean? timeout
+local function parse(reader, readsize, parser, msg)
+    local str = ''
+    while true do
+        local s, err, timeout = reader:read(readsize)
+        if err then
+            return false, errorf('failed to message.parse()', err)
+        elseif not s then
+            return false, nil, timeout
+        end
+        str = str .. s
+
+        -- TODO: add methods to sets the MAX_MSGLEN, MAX_HDRLEN and MAX_HDRNUM
+        -- parse message
+        -- parser(str, tbl, MAX_MSGLEN, MAX_HDRLEN, MAX_HDRNUM)
+        local cur
+        cur, err = parser(str, msg)
+        -- parsed
+        if cur then
+            -- prepend extra data
+            reader:prepend(sub(str, cur + 1))
+
+            -- 3.3.3.  Message Body Length
+            -- https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
+            --
+            -- If a message is received with both a Transfer-Encoding and a
+            -- Content-Length header field, the Transfer-Encoding overrides the
+            -- Content-Length.
+            --
+            -- Such a message might indicate an attempt to perform request
+            -- smuggling (Section 9.5) or response splitting (Section 9.4) and
+            -- ought to be handled as an error.
+            --
+            -- A sender MUST remove the received Content-Length field prior to
+            -- forwarding such a message downstream.
+            --
+            local len = msg.header:content_length()
+            if msg.header:is_transfer_encoding_chunked() then
+                msg.content = new_chunked_content(reader)
+            elseif len and len > 0 then
+                msg.content = new_content(reader, len)
+            end
+            return true
+
+        elseif err.type ~= EAGAIN then
+            -- parse error
+            return false, err
+        end
+        -- more bytes need
+    end
+end
+
 return {
+    parse = parse,
     new = require('metamodule').new(Message),
 }
 
