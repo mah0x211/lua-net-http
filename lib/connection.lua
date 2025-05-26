@@ -20,21 +20,12 @@
 -- THE SOFTWARE.
 --
 --- assign to local
-local sub = string.sub
 local errorf = require('error').format
 local new_reader = require('net.http.reader').new
 local new_writer = require('net.http.writer').new
-local new_request = require('net.http.message.request').new
-local new_response = require('net.http.message.response').new
-local new_content = require('net.http.content').new
-local new_chunked_content = require('net.http.content.chunked').new
-local parse = require('net.http.parse')
-local parse_request = parse.request
-local parse_response = parse.response
+local parse_request = require('net.http.message.request').parse
+local parse_response = require('net.http.message.response').parse
 --- constants
--- need more bytes
-local EAGAIN = parse.EAGAIN
-local EMSG = parse.EMSG
 --- parse error code to http status code
 local DEFAULT_READSIZE = 4096
 
@@ -89,91 +80,12 @@ function Connection:flush()
     return n, nil, timeout
 end
 
---- read_message
---- @param msg net.http.message
---- @param parser function
---- @return boolean ok
---- @return any err
---- @return boolean? timeout
-function Connection:read_message(msg, parser)
-    local reader = self.reader
-    local readsize = self.readsize
-    local header = msg.header
-    local str = ''
-
-    msg.header = header.dict
-    while true do
-        local s, err, timeout = reader:read(readsize)
-        if err then
-            return false, errorf('failed to read_message()', err)
-        elseif not s then
-            return false, nil, timeout
-        end
-        str = str .. s
-
-        -- TODO: add methods to sets the MAX_MSGLEN, MAX_HDRLEN and MAX_HDRNUM
-        -- parse message
-        -- parser(str, tbl, MAX_MSGLEN, MAX_HDRLEN, MAX_HDRNUM)
-        local cur
-        cur, err = parser(str, msg)
-        -- parsed
-        if cur then
-            -- prepend extra data
-            reader:prepend(sub(str, cur + 1))
-
-            -- create header
-            msg.header = header
-
-            -- 3.3.3.  Message Body Length
-            -- https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
-            --
-            -- If a message is received with both a Transfer-Encoding and a
-            -- Content-Length header field, the Transfer-Encoding overrides the
-            -- Content-Length.
-            --
-            -- Such a message might indicate an attempt to perform request
-            -- smuggling (Section 9.5) or response splitting (Section 9.4) and
-            -- ought to be handled as an error.
-            --
-            -- A sender MUST remove the received Content-Length field prior to
-            -- forwarding such a message downstream.
-            --
-            local len = header:content_length()
-            if header:is_transfer_encoding_chunked() then
-                msg.content = new_chunked_content(reader)
-            elseif len and len > 0 then
-                msg.content = new_content(reader, len)
-            end
-
-            return true
-
-        elseif err.type ~= EAGAIN then
-            -- parse error
-            return false, err
-        end
-        -- more bytes need
-    end
-end
-
 --- read_request
 --- @return net.http.message.request? req
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_request()
-    local req = new_request()
-    local ok, err, timeout = self:read_message(req, parse_request)
-    if ok then
-        -- parse-uri
-        ok, err = req:set_uri(req.uri, true)
-        if not ok then
-            -- invalid uri format
-            return nil, EMSG:new('failed to read_request()', err)
-        end
-        return req
-    elseif err then
-        return nil, errorf('failed to read_request()', err)
-    end
-    return nil, nil, timeout
+    return parse_request(self.reader, self.readsize)
 end
 
 --- read_response
@@ -181,16 +93,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Connection:read_response()
-    local res = new_response()
-    local ok, err, timeout = self:read_message(res, parse_response)
-
-    if ok then
-        return res
-    elseif err then
-        return nil, errorf('failed to read_response()', err)
-    end
-    return nil, nil, timeout
-
+    return parse_response(self.reader, self.readsize)
 end
 
 return {
