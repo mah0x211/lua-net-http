@@ -29,36 +29,32 @@ local checkopt = require('lauxhlib.checkopt')
 local is_file = require('lauxhlib.is').file
 local encode_json = require('yyjson').encode
 local new_mime = require('mime').new
+local instanceof = require('metamodule').instanceof
 local new_response = require('net.http.message.response').new
 local code2message = require('net.http.status').code2message
 
 --- @class mime
 --- @field getmime fun(self, ext: string, as_pathname:boolean?): string?
 
+--- @alias net.http.responder.filter fun(code:integer, data: any, as_json:boolean?):(data:any, err:any)
+
 --- @class net.http.responder
 --- @field header net.http.header
 --- @field private writer net.http.writer
 --- @field private mime mime
---- @field private filter fun(code:integer, data: any, as_json:boolean?):(data:any, err:any)
+--- @field private filter net.http.responder.filter
 --- @field private message net.http.message.response
 local Responder = {}
 
 --- init
 --- @param writer net.http.writer
 --- @param mime? mime
---- @param filter? fun(code:integer, data: any, as_json:boolean?):(data:any, err:any)
+--- @param filter? net.http.responder.filter
 --- @return net.http.responder res
 function Responder:init(writer, mime, filter)
-    if writer == nil then
-        fatalf('writer is required')
-    elseif not pcall(function()
-        -- check whether the writer has net.http.writer methods.
-        assert(type(writer.write) == 'function')
-        assert(type(writer.flush) == 'function')
-        assert(type(writer.bytes_out) == 'function')
-    end) then
-        fatalf('writer must have write(), flush() and bytes_out() methods')
-    elseif mime == nil then
+    assert(instanceof(writer, 'net.http.writer'),
+           'writer must be an instance of net.http.writer')
+    if mime == nil then
         mime = new_mime()
     elseif not pcall(function()
         -- check whether the mime has a getmime() method.
