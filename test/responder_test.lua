@@ -84,8 +84,7 @@ function testcase.new()
 
     -- test that throws an error if filter is not a function
     err = assert.throws(new_responder, writer, mime, {})
-    assert.match(err,
-                 "bad argument 'filter' .+callable object expected, got table",
+    assert.match(err, "bad argument 'filter' .+function expected, got table",
                  false)
 end
 
