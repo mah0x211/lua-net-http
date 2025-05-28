@@ -67,7 +67,7 @@ function Responder:init(writer, mime, filter)
         fatalf('mime must have a getmime() method')
     end
     -- check whether the filter is a callable or nil.
-    checkopt.callable(filter, nil, 'filter')
+    checkopt.func(filter, nil, 'filter')
 
     self.writer = writer
     self.mime = mime
