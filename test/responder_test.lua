@@ -7,10 +7,23 @@ local new_response = require('net.http.message.response').new
 local parse_response = require('net.http.parse').response
 local code2reason = require('net.http.status').code2reason
 
+--- clear given table
+--- @param tbl table
+local function clear_table(tbl)
+    local keys = {}
+    for k in pairs(tbl) do
+        keys[#keys + 1] = k
+    end
+    for _, k in ipairs(keys) do
+        tbl[k] = nil
+    end
+end
+
 --- create_response creates a response object from the given string.
---- @param str string
+--- @param strs string[]
 --- @return net.http.message.response res
-local function create_response(str)
+local function create_response(strs)
+    local str = table.concat(strs)
     local res = new_response()
     local dict = res.header.dict
     local header = res.header
@@ -18,13 +31,11 @@ local function create_response(str)
     local pos = assert(parse_response(str, res))
     res.header = header
     res.content = str:sub(pos + 1)
+    clear_table(strs)
     return res
 end
 
 local TMPFILES = {}
-
-local NOOP = function()
-end
 
 --- create_tempfile creates a temporary file with the given extension and data.
 --- @param ext string file extension (e.g. '.txt')
@@ -49,15 +60,13 @@ function testcase.after_each()
 end
 
 function testcase.new()
-    local writer = {
-        write = NOOP,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local writer = new_writer({})
     local mime = {
-        getmime = NOOP,
+        getmime = function()
+        end,
     }
-    local filter = NOOP
+    local filter = function()
+    end
 
     -- test that new responder instance
     local res = new_responder(writer, mime, filter)
@@ -69,14 +78,9 @@ function testcase.new()
     res = new_responder(writer)
     assert.re_match(res, '^net\\.http\\.responder: ')
 
-    -- test that throws an error if writer is nil
+    -- test that throws an error if writer is not an instance of net.http.writer
     local err = assert.throws(new_responder, nil, mime, filter)
-    assert.match(err, 'writer is required')
-
-    -- test that throws an error if writer has no required method
-    err = assert.throws(new_responder, {}, mime, filter)
-    assert.match(err,
-                 'writer must have write(), flush() and bytes_out() methods')
+    assert.match(err, 'writer must be an instance of net.http.writer', false)
 
     -- test that throws an error if mime has no required method
     err = assert.throws(new_responder, writer, {}, filter)
@@ -89,18 +93,8 @@ function testcase.new()
 end
 
 function testcase.write()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = function()
-        end,
-        bytes_out = function()
-            return #data
-        end,
-    }
+    local data = {}
+    local writer = new_writer(data)
     local res = new_responder(writer)
 
     -- test that write() method write headers and data to writer
@@ -109,6 +103,7 @@ function testcase.write()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
     assert.contains(msg, {
         reason = 'OK',
@@ -132,12 +127,12 @@ function testcase.write()
     })
 
     -- test that write() method write a data to writer after headers are sent
-    data = ''
     ok, err, timeout = res:write('bar')
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
-    assert.equal(data, 'bar')
+    res:flush()
+    assert.equal(data[1], 'bar')
 
     -- test that returns error from writer.write() method
     writer.write = function()
@@ -175,15 +170,8 @@ function testcase.bytes_out()
 end
 
 function testcase.write_file()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
     local res = new_responder(writer)
     local _, file = create_tempfile('.txt', 'foo')
 
@@ -193,6 +181,7 @@ function testcase.write_file()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
     assert.contains(msg, {
         reason = 'OK',
@@ -216,12 +205,12 @@ function testcase.write_file()
     })
 
     -- test that write a file content without headers after headers are sent
-    data = ''
     ok, err, timeout = res:write_file(file)
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
-    assert.equal(data, 'foo')
+    res:flush()
+    assert.equal(data[1], 'foo')
 
     -- test that returns error from writer.write() method
     writer.write = function()
@@ -245,14 +234,12 @@ end
 
 function testcase.flush()
     local ncall = 0
-    local writer = {
-        write = NOOP,
-        flush = function()
-            ncall = ncall + 1
-            return 0
-        end,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
+    writer.flush = function()
+        ncall = ncall + 1
+        return 0
+    end
     local res = new_responder(writer)
 
     -- test that flush() method calls writer:flush() method
@@ -282,15 +269,8 @@ function testcase.flush()
 end
 
 function testcase.reply_file()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
     local res = new_responder(writer)
     local pathname = create_tempfile('.html', 'foo')
 
@@ -300,8 +280,8 @@ function testcase.reply_file()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -332,8 +312,8 @@ function testcase.reply_file()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'Accepted',
         status = 202,
@@ -362,14 +342,15 @@ function testcase.reply_file()
     assert.is_nil(timeout)
 
     -- test that Content-Length is 0 if 204 No Content status code
+    clear_table(data)
     res = new_responder(writer)
     ok, err, timeout = res:reply_file(204, pathname)
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'No Content',
         status = 204,
@@ -401,14 +382,15 @@ function testcase.reply_file()
     assert.is_nil(timeout)
 
     -- test that Content-Type header will be set to 'application/octet-stream'
+    clear_table(data)
     pathname = create_tempfile('.unknown', 'foo')
-    data = ''
     ok, err, timeout = res:reply_file(200, pathname)
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
+    -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -443,15 +425,8 @@ function testcase.reply_file()
 end
 
 function testcase.reply()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
     local res = new_responder(writer)
 
     -- test that reply() method write headers and data to writer
@@ -460,8 +435,8 @@ function testcase.reply()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -497,12 +472,14 @@ function testcase.reply()
     assert.is_nil(timeout)
 
     -- test that write a no-content response
+    clear_table(data)
     ok, err, timeout = res:reply(204, 'hello')
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
+    -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'No Content',
         status = 204,
@@ -525,8 +502,9 @@ function testcase.reply()
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
+    -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -554,8 +532,9 @@ function testcase.reply()
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
+    -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -587,6 +566,7 @@ function testcase.reply()
     assert.is_nil(timeout)
 
     -- test that write a JSON response
+    clear_table(data)
     res = new_responder(writer)
     ok, err, timeout = res:reply(200, {
         foo = 'bar',
@@ -594,8 +574,9 @@ function testcase.reply()
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
+    -- confirm that data is written to writer
+    res:flush()
     msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = 'OK',
         status = 200,
@@ -619,15 +600,8 @@ function testcase.reply()
 end
 
 function testcase.reply1XX_2xx()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
 
     -- test that 1xx Informational and 2xx Success responses
     for status, code in pairs({
@@ -653,8 +627,8 @@ function testcase.reply1XX_2xx()
         assert.is_nil(timeout)
         assert.is_true(ok)
         -- confirm that data is written to writer
+        res:flush()
         local msg = create_response(data)
-        data = ''
         if code == 204 then
             assert.contains(msg, {
                 reason = 'No Content',
@@ -692,15 +666,8 @@ function testcase.reply1XX_2xx()
 end
 
 function testcase.multiple_choices()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
 
     -- test that multiple_choices
     local res = new_responder(writer)
@@ -709,8 +676,8 @@ function testcase.multiple_choices()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = code2reason(300),
         status = 300,
@@ -740,15 +707,8 @@ function testcase.multiple_choices()
 end
 
 function testcase.not_modified()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
 
     -- test that multiple_choices
     local res = new_responder(writer)
@@ -757,8 +717,8 @@ function testcase.not_modified()
     assert.is_nil(timeout)
     assert.is_true(ok)
     -- confirm that data is written to writer
+    res:flush()
     local msg = create_response(data)
-    data = ''
     assert.contains(msg, {
         reason = code2reason(304),
         status = 304,
@@ -788,15 +748,8 @@ function testcase.not_modified()
 end
 
 function testcase.reply3xx()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
 
     -- test that 3xx responses except 300 and 304 responses
     for status, code in pairs({
@@ -813,8 +766,8 @@ function testcase.reply3xx()
         assert.is_nil(timeout)
         assert.is_true(ok)
         -- confirm that data is written to writer
+        res:flush()
         local msg = create_response(data)
-        data = ''
         assert.contains(msg, {
             reason = code2reason(code),
             status = code,
@@ -845,15 +798,8 @@ function testcase.reply3xx()
 end
 
 function testcase.reply4xx5xx()
-    local data = ''
-    local writer = {
-        write = function(_, v)
-            data = data .. v
-            return #v
-        end,
-        flush = NOOP,
-        bytes_out = NOOP,
-    }
+    local data = {}
+    local writer = new_writer(data)
 
     -- test that 4xx and 5xx responses
     for status, code in pairs({
@@ -903,8 +849,8 @@ function testcase.reply4xx5xx()
         assert.is_nil(timeout)
         assert.is_true(ok)
         -- confirm that data is written to writer
+        res:flush()
         local msg = create_response(data)
-        data = ''
         assert.contains(msg, {
             reason = code2reason(code),
             status = code,
