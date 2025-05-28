@@ -46,6 +46,7 @@ end
 --- @field header net.http.header
 --- @field version number
 --- @field content? net.http.content
+--- @field firstline_sent? integer
 --- @field header_sent? integer
 local Message = {}
 
@@ -80,6 +81,10 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Message:write_firstline(w)
+    if self.firstline_sent then
+        fatalf(2, 'the first line has already been sent')
+    end
+    self.firstline_sent = 0
     return 0
 end
 
@@ -92,7 +97,7 @@ end
 --- @return boolean? timeout
 local function write_header(self, w, with_content)
     if self.header_sent then
-        fatalf(2, 'header has already been sent')
+        fatalf(2, 'the headers have already been sent')
     end
     self.header_sent = 0
 
@@ -102,17 +107,20 @@ local function write_header(self, w, with_content)
         header:set('Content-Type', 'application/octet-stream')
     end
 
-    -- write first-line
-    local n, err, timeout = self:write_firstline(w)
-    if err then
-        return nil, errorf('failed to write_header()', err)
-    elseif not n then
-        return nil, nil, timeout
+    local len = 0
+    if not self.firstline_sent then
+        -- write firstline
+        local n, err, timeout = self:write_firstline(w)
+        if err then
+            return nil, errorf('failed to write_header()', err)
+        elseif not n then
+            return nil, nil, timeout
+        end
+        len = n
     end
 
     -- write header
-    local len = n
-    n, err, timeout = self.header:write(w)
+    local n, err, timeout = self.header:write(w)
     if err then
         return nil, errorf('failed to write_header()', err)
     elseif not n then

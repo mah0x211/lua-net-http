@@ -204,6 +204,11 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Request:write_firstline(w)
+    if self.firstline_sent then
+        fatalf(2, 'the first line has already been sent')
+    end
+    self.firstline_sent = 0
+
     if not self.host then
         local ok, err = self:set_uri(self.uri)
         if not ok then
@@ -239,6 +244,7 @@ function Request:write_firstline(w)
     elseif not n then
         return nil, nil, timeout
     end
+    self.firstline_sent = n
     return n
 end
 

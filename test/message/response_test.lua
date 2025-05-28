@@ -58,6 +58,7 @@ function testcase.write_firstline()
 
     -- test that write custome status-line
     sleep(1.2)
+    m = assert(new_message())
     now = date.update()
     m.status = 50
     m.version = 2.5
@@ -66,4 +67,8 @@ function testcase.write_firstline()
     assert(m:write_firstline(w))
     assert.equal(wctx.msg, 'HTTP/2.5 50 My Status\r\n')
     assert.equal(m.header:get('Date'), now)
+
+    -- test that throws an error if firstline has already been sent
+    local err = assert.throws(m.write_firstline, m, w)
+    assert.match(err, 'the first line has already been sent')
 end

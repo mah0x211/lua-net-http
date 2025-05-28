@@ -20,6 +20,7 @@
 -- THE SOFTWARE.
 --
 local errorf = require('error').format
+local fatalf = require('error').fatalf
 local date_now = require('net.http.date').now
 local new_header = require('net.http.header').new
 local status = require('net.http.status')
@@ -60,6 +61,11 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Response:write_firstline(w)
+    if self.firstline_sent then
+        fatalf(2, 'the first line has already been sent')
+    end
+    self.firstline_sent = 0
+
     local line = toline(self.status, self.version, self.reason)
 
     -- set date header
@@ -71,6 +77,7 @@ function Response:write_firstline(w)
     elseif not n then
         return nil, nil, timeout
     end
+    self.firstline_sent = n
     return n
 end
 
