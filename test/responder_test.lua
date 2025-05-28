@@ -155,6 +155,11 @@ end
 
 function testcase.bytes_out()
     local data = {}
+    local clear_data = function()
+        for i = 1, #data do
+            data[i] = nil
+        end
+    end
     local writer = new_writer(data)
     local res = new_responder(writer)
     assert(res:write('foo'))
@@ -165,8 +170,20 @@ function testcase.bytes_out()
 
     -- test that bytes_out returns the number of bytes written to the writer
     assert(res:flush())
-    assert.equal(res:bytes_out(), #(table.concat(data)))
+    local nbyte = #(table.concat(data))
+    assert.equal(res:bytes_out(), nbyte)
     assert.equal(res:bytes_out(), writer:bytes_out())
+
+    -- test that bytes_out returns corret number of bytes even reuse the writer
+    res = new_responder(writer)
+    assert.equal(res:bytes_out(), 0)
+    assert.equal(writer:bytes_out(), nbyte)
+    clear_data()
+    assert(res:write('bar'))
+    res:flush()
+    nbyte = nbyte + #(table.concat(data))
+    assert.equal(res:bytes_out(), #(table.concat(data)))
+    assert.equal(writer:bytes_out(), nbyte)
 end
 
 function testcase.write_file()

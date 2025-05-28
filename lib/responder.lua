@@ -44,6 +44,7 @@ local code2message = require('net.http.status').code2message
 --- @field private mime mime
 --- @field private filter net.http.responder.filter
 --- @field private message net.http.message.response
+--- @field private start_bytes integer
 local Responder = {}
 
 --- init
@@ -65,6 +66,11 @@ function Responder:init(writer, mime, filter)
     -- check whether the filter is a callable or nil.
     checkopt.func(filter, nil, 'filter')
 
+    -- check whether the writer:bytes_out() returns a number
+    self.start_bytes = writer:bytes_out()
+    assert(type(self.start_bytes) == 'number',
+           'writer:bytes_out() must return a number')
+
     self.writer = writer
     self.mime = mime
     self.filter = filter
@@ -76,7 +82,7 @@ end
 --- bytes_out returns the number of bytes written to the writer.
 --- @return integer n
 function Responder:bytes_out()
-    return self.writer:bytes_out()
+    return self.writer:bytes_out() - self.start_bytes
 end
 
 --- write a data string to the writer.
