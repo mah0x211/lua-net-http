@@ -166,6 +166,10 @@ function testcase.write_firstline()
     assert.is_nil(n)
     assert(error.is(err, errno.EINVAL))
     assert.match(err, 'invalid uri character .+ found at 1', false)
+
+    -- test that throws an error if firstline has already been sent
+    err = assert.throws(m.write_firstline, m, w)
+    assert.match(err, 'the first line has already been sent')
 end
 
 function testcase.read_form()

@@ -36,6 +36,18 @@ function testcase.set_version()
     assert.match(err, 'version must be finite-number')
 end
 
+function testcase.write_firstline()
+    local w = new_writer({})
+
+    -- test that write firstline
+    local m = assert(new_message())
+    assert.equal(m:write_firstline(w), 0)
+
+    -- test that throws an error if firstline has already been sent
+    local err = assert.throws(m.write_firstline, m, w)
+    assert.match(err, 'the first line has already been sent')
+end
+
 function testcase.write_header()
     local rctx = {
         msg = 'hello world!',
@@ -77,7 +89,7 @@ function testcase.write_header()
 
     -- test that cannot write header twice
     local err = assert.throws(m.write_header, m, w)
-    assert.match(err, 'header has already been sent')
+    assert.match(err, 'the headers have already been sent')
 end
 
 function testcase.write_content()
