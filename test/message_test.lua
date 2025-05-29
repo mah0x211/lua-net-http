@@ -271,14 +271,13 @@ function testcase.write()
     assert(m:write(w, 'qux'))
     assert.equal(wctx.msg, 'bazqux')
 
-    -- test that write empty message
+    -- test that no content-length and content-type headers if sent no message
     wctx.msg = ''
     m = assert(new_message())
     m.header:set('foo', 'bar')
     assert(m:write(w))
     assert.equal(wctx.msg, table.concat({
         'Foo: bar',
-        'Content-Length: 0',
         '',
         '',
     }, '\r\n'))
