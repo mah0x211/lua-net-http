@@ -75,9 +75,9 @@ function Message:set_version(version)
     return true
 end
 
---- has_firstline_sent returns true if the first line has been sent
+--- is_firstline_sent returns true if the first line has been sent
 --- @return boolean ok
-function Message:has_firstline_sent()
+function Message:is_firstline_sent()
     return self.firstline_sent ~= nil
 end
 
@@ -87,16 +87,16 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Message:write_firstline(w)
-    if self:has_firstline_sent() then
+    if self:is_firstline_sent() then
         fatalf(2, 'the first line has already been sent')
     end
     self.firstline_sent = 0
     return 0
 end
 
---- has_header_sent returns true if the header has been sent
+--- is_header_sent returns true if the header has been sent
 --- @return boolean ok
-function Message:has_header_sent()
+function Message:is_header_sent()
     return self.header_sent ~= nil
 end
 
@@ -108,7 +108,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 local function write_header(self, w, with_content)
-    if self:has_header_sent() then
+    if self:is_header_sent() then
         fatalf(2, 'the headers have already been sent')
     end
     self.header_sent = 0
@@ -120,7 +120,7 @@ local function write_header(self, w, with_content)
     end
 
     local len = 0
-    if not self:has_firstline_sent() then
+    if not self:is_firstline_sent() then
         -- write firstline
         local n, err, timeout = self:write_firstline(w)
         if err then
@@ -163,7 +163,7 @@ function Message:write_content(w, content)
     end
 
     local len = 0
-    if not self:has_header_sent() then
+    if not self:is_header_sent() then
         local header = self.header
 
         if content.is_chunked then
@@ -218,7 +218,7 @@ function Message:write_file(w, file)
     local offset = file:seek()
     local size = stat.size - offset
 
-    if not self:has_header_sent() then
+    if not self:is_header_sent() then
         self.header:set('Content-Length', tostring(size))
         -- write header
         local n, timeout
@@ -277,7 +277,7 @@ function Message:write(w, data)
 
     local len = 0
 
-    if not self:has_header_sent() then
+    if not self:is_header_sent() then
         self.header:set('Content-Length', tostring(size))
         -- write header
         local n, err, timeout = write_header(self, w, size > 0)

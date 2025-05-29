@@ -145,7 +145,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply_file(code, file)
-    if self.message:has_firstline_sent() then
+    if self.message:is_firstline_sent() then
         return false, errorf('cannot send a response message more than once')
     end
 
@@ -205,7 +205,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply(code, data, as_json)
-    if self.message:has_firstline_sent() then
+    if self.message:is_firstline_sent() then
         -- cannot send a status code twice
         return false, errorf('cannot send a response message more than once')
     end
