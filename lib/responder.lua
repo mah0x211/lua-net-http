@@ -145,9 +145,10 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply_file(code, file)
-    if self.message.header_sent then
-        return false, errorf('cannot send a response message twice')
+    if self.message:has_firstline_sent() then
+        return false, errorf('cannot send a response message more than once')
     end
+
     local filetype = type(file)
     assert(filetype == 'string' or is_file(file),
            'file must be a string or file*')
@@ -204,9 +205,9 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply(code, data, as_json)
-    if self.message.header_sent then
+    if self.message:has_firstline_sent() then
         -- cannot send a status code twice
-        return false, errorf('cannot send a response message twice')
+        return false, errorf('cannot send a response message more than once')
     end
 
     -- set status code

@@ -355,7 +355,7 @@ function testcase.reply_file()
     -- test that file() method cannot be called twice
     ok, err, timeout = res:reply_file(200, pathname)
     assert.is_false(ok)
-    assert.match(err, 'cannot send a response message twice')
+    assert.match(err, 'cannot send a response message more than once')
     assert.is_nil(timeout)
 
     -- test that Content-Length is 0 if 204 No Content status code
@@ -478,7 +478,7 @@ function testcase.reply()
     -- test that reply() method cannot be called twice
     ok, err, timeout = res:reply(200, 'foo')
     assert.is_false(ok)
-    assert.match(err, 'cannot send a response message twice')
+    assert.match(err, 'cannot send a response message more than once')
     assert.is_nil(timeout)
 
     -- test that returns error if status is not a valid HTTP status code

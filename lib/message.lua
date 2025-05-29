@@ -75,13 +75,19 @@ function Message:set_version(version)
     return true
 end
 
+--- has_firstline_sent returns true if the first line has been sent
+--- @return boolean ok
+function Message:has_firstline_sent()
+    return self.firstline_sent ~= nil
+end
+
 --- write_firstline
 --- @param w net.http.writer
 --- @return integer? n
 --- @return any err
 --- @return boolean? timeout
 function Message:write_firstline(w)
-    if self.firstline_sent then
+    if self:has_firstline_sent() then
         fatalf(2, 'the first line has already been sent')
     end
     self.firstline_sent = 0
@@ -108,7 +114,7 @@ local function write_header(self, w, with_content)
     end
 
     local len = 0
-    if not self.firstline_sent then
+    if not self:has_firstline_sent() then
         -- write firstline
         local n, err, timeout = self:write_firstline(w)
         if err then
