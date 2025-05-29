@@ -91,6 +91,12 @@ function Responder:is_firstline_sent()
     return self.message:is_firstline_sent()
 end
 
+--- is_header_sent returns true if the response headers have been sent.
+--- @return boolean ok
+function Responder:is_header_sent()
+    return self.message:is_header_sent()
+end
+
 --- write a data string to the writer.
 --- if the error or timeout occurs, then returns false, err, timeout,
 --- otherwise, returns a true
