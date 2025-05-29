@@ -104,6 +104,19 @@ function testcase.write_header()
     assert.match(err, 'the headers have already been sent')
 end
 
+function testcase.has_header_sent()
+    local m = assert(new_message())
+
+    -- test that has_header_sent returns false before header is sent
+    assert.is_false(m:has_header_sent())
+
+    -- test that has_header_sent returns true after header is sent
+    local w = new_writer({})
+    m.header:set('foo', 'bar')
+    assert(m:write_header(w))
+    assert.is_true(m:has_header_sent())
+end
+
 function testcase.write_content()
     local rctx = {
         msg = 'hello world!',
