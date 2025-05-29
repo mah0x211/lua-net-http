@@ -61,7 +61,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Response:write_firstline(w)
-    if self:has_firstline_sent() then
+    if self:is_firstline_sent() then
         fatalf(2, 'the first line has already been sent')
     end
     self.firstline_sent = 0
