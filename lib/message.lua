@@ -27,6 +27,7 @@ local new_errno = require('errno').new
 local instanceof = require('metamodule').instanceof
 local is_string = require('lauxhlib.is').str
 local is_file = require('lauxhlib.is').file
+local is_uint = require('lauxhlib.is').uint
 local is_finite = require('lauxhlib.is').finite
 local pread = require('io.pread')
 local fstat = require('fstat')
@@ -103,7 +104,7 @@ end
 --- write_header
 --- @param self net.http.message
 --- @param w net.http.writer
---- @param with_content? boolean
+--- @param with_content? integer
 --- @return integer? n
 --- @return any err
 --- @return boolean? timeout
@@ -111,12 +112,23 @@ local function write_header(self, w, with_content)
     if self:is_header_sent() then
         fatalf(2, 'the headers have already been sent')
     end
-    self.header_sent = 0
 
     local header = self.header
-    if with_content and not header:get('Content-Type') then
-        -- add default Content-Type header
-        header:set('Content-Type', 'application/octet-stream')
+    if with_content ~= nil then
+        if not is_uint(with_content) then
+            fatalf(2, 'with_content must be nil or finite-number')
+        end
+        -- set Content-Length header
+        header:set('Content-Length', tostring(with_content))
+        if not header:get('Content-Type') then
+            -- add default Content-Type header
+            header:set('Content-Type', 'application/octet-stream')
+        end
+
+        -- remove Transfer-Encoding header if it is set
+        if header:is_transfer_encoding_chunked() then
+            header:set('Transfer-Encoding')
+        end
     end
 
     local len = 0
@@ -132,6 +144,7 @@ local function write_header(self, w, with_content)
     end
 
     -- write header
+    self.header_sent = 0
     local n, err, timeout = self.header:write(w)
     if err then
         return nil, errorf('failed to write_header()', err)
@@ -165,20 +178,16 @@ function Message:write_content(w, content)
     local len = 0
     if not self:is_header_sent() then
         local header = self.header
+        local with_content
 
-        if content.is_chunked then
-            if not header:is_transfer_encoding_chunked() then
-                header:set('Content-Length')
-                header:set('Transfer-Encoding', 'chunked')
-            end
-        elseif not header:content_length() then
-            local size = content:size()
-            header:set('Content-Length', tostring(size))
-            header:set('Transfer-Encoding')
+        if not content.is_chunked then
+            with_content = content:size()
+        elseif not header:is_transfer_encoding_chunked() then
+            header:set('Transfer-Encoding', 'chunked')
         end
 
         -- write header
-        local n, err, timeout = write_header(self, w, true)
+        local n, err, timeout = write_header(self, w, with_content)
         if err then
             return nil, errorf('failed to write_content()', err)
         elseif not n then
@@ -217,12 +226,10 @@ function Message:write_file(w, file)
     local len = 0
     local offset = file:seek()
     local size = stat.size - offset
-
     if not self:is_header_sent() then
-        self.header:set('Content-Length', tostring(size))
         -- write header
         local n, timeout
-        n, err, timeout = write_header(self, w, true)
+        n, err, timeout = write_header(self, w, size)
         if err then
             return nil, errorf('failed to write_file()', err)
         elseif not n then
@@ -267,7 +274,7 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Message:write(w, data)
-    local size = 0
+    local size
     if data ~= nil then
         if not is_string(data) then
             fatalf(2, 'data must be string')
@@ -276,11 +283,9 @@ function Message:write(w, data)
     end
 
     local len = 0
-
     if not self:is_header_sent() then
-        self.header:set('Content-Length', tostring(size))
         -- write header
-        local n, err, timeout = write_header(self, w, size > 0)
+        local n, err, timeout = write_header(self, w, size)
         if err then
             return nil, errorf('failed to write()', err)
         elseif not n then
@@ -290,7 +295,7 @@ function Message:write(w, data)
     end
 
     -- write no content
-    if size == 0 then
+    if not data then
         return len
     end
 
