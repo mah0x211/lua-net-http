@@ -186,6 +186,19 @@ function testcase.bytes_out()
     assert.equal(writer:bytes_out(), nbyte)
 end
 
+function testcase.is_firstline_sent()
+    local data = {}
+    local writer = new_writer(data)
+    local res = new_responder(writer)
+
+    -- test that is_firstline_sent() returns false before write() is called
+    assert.is_false(res:is_firstline_sent())
+
+    -- test that is_firstline_sent() returns true after write() is called
+    assert(res:write('foo'))
+    assert.is_true(res:is_firstline_sent())
+end
+
 function testcase.write_file()
     local data = {}
     local writer = new_writer(data)

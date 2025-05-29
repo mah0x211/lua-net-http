@@ -85,6 +85,12 @@ function Responder:bytes_out()
     return self.writer:bytes_out() - self.start_bytes
 end
 
+--- is_firstline_sent returns true if the first line of the response message has been sent.
+--- @return boolean ok
+function Responder:is_firstline_sent()
+    return self.message:is_firstline_sent()
+end
+
 --- write a data string to the writer.
 --- if the error or timeout occurs, then returns false, err, timeout,
 --- otherwise, returns a true
