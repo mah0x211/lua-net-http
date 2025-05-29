@@ -48,6 +48,18 @@ function testcase.write_firstline()
     assert.match(err, 'the first line has already been sent')
 end
 
+function testcase.has_firstline_sent()
+    local m = assert(new_message())
+
+    -- test that has_firstline_sent returns false before firstline is sent
+    assert.is_false(m:has_firstline_sent())
+
+    -- test that has_firstline_sent returns true after firstline is sent
+    local w = new_writer({})
+    assert(m:write_firstline(w))
+    assert.is_true(m:has_firstline_sent())
+end
+
 function testcase.write_header()
     local rctx = {
         msg = 'hello world!',
@@ -90,6 +102,19 @@ function testcase.write_header()
     -- test that cannot write header twice
     local err = assert.throws(m.write_header, m, w)
     assert.match(err, 'the headers have already been sent')
+end
+
+function testcase.has_header_sent()
+    local m = assert(new_message())
+
+    -- test that has_header_sent returns false before header is sent
+    assert.is_false(m:has_header_sent())
+
+    -- test that has_header_sent returns true after header is sent
+    local w = new_writer({})
+    m.header:set('foo', 'bar')
+    assert(m:write_header(w))
+    assert.is_true(m:has_header_sent())
 end
 
 function testcase.write_content()
