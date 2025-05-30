@@ -47,8 +47,7 @@ end
 --- @return any err
 function Response:set_status(code)
     if not code2name(code) then
-        return false, errorf(
-                   'failed to set_status(): unsupported status code %d', code)
+        return false, errorf('unsupported status code %d', code)
     end
 
     self.status = code

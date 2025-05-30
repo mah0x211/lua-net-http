@@ -147,6 +147,35 @@ function Responder:flush()
     return true
 end
 
+--- check_reply_args checks the arguments for the reply methods.
+--- if the message is already sent, then throws an error.
+--- if the status code is not valid, then throws an error.
+--- if the data is not nil and the status code is 1xx, 204, 205 or 304,
+--- then throws an error.
+--- @param msg net.http.message.response
+--- @param code integer
+--- @param data any
+local function check_reply_args(msg, code, data)
+    if msg:is_firstline_sent() then
+        fatalf(3, 'cannot send a response message more than once')
+    end
+
+    -- set status code
+    local ok, err = msg:set_status(code)
+    if not ok then
+        fatalf(3, 'failed to set status code: %s', err)
+    end
+
+    -- throws an error if the code that should not have a body is set
+    --  * 1xx Informational
+    --  * 204 No Content
+    --  * 205 Reset Content
+    --  * 304 Not Modified
+    if data ~= nil and (code < 200 or code == 204 or code == 205 or code == 304) then
+        fatalf(3, '%s response cannot have a content body', code2message(code))
+    end
+end
+
 --- reply_file a write a file content to the writer.
 --- if the Content-Type header is not set, then determine the content type from
 --- the file extension and set it to the 'Content-Type' header. if the content type
@@ -157,23 +186,11 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply_file(code, file)
-    if self.message:is_firstline_sent() then
-        return false, errorf('cannot send a response message more than once')
-    end
+    check_reply_args(self.message, code, file)
 
     local filetype = type(file)
     assert(filetype == 'string' or is_file(file),
            'file must be a string or file*')
-
-    -- set status code
-    local ok, err = self.message:set_status(code)
-    if not ok then
-        return false, err
-    elseif code == 204 then
-        -- ignore file for 204 No Content response
-        self.header:set('Content-Length', '0')
-        return self:write('')
-    end
 
     -- set 'Content-Type' header
     if not self.header:get('Content-Type') then
@@ -198,12 +215,11 @@ function Responder:reply_file(code, file)
         return self:write_file(file)
     end
 
-    local f
-    f, err = fopen(file)
+    local f, err = fopen(file)
     if not f then
         return false, errorf('failed to open a file', err)
     end
-    local timeout
+    local ok, timeout
     ok, err, timeout = self:write_file(f)
     f:close()
     return ok, err, timeout
@@ -217,48 +233,32 @@ end
 --- @return any err
 --- @return boolean? timeout
 function Responder:reply(code, data, as_json)
-    if self.message:is_firstline_sent() then
-        -- cannot send a status code twice
-        return false, errorf('cannot send a response message more than once')
-    end
-
-    -- set status code
-    local ok, err = self.message:set_status(code)
-    if not ok then
-        return false, err
-    elseif code == 204 then
-        -- ignore data for 204 No Content response
-        self.header:set('Content-Length', '0')
-        return self:write('')
-    end
+    check_reply_args(self.message, code, data)
 
     as_json = as_json == true
     if self.filter then
+        local err
         data, err = self.filter(code, data, as_json)
         if err then
             return false, errorf('failed to filter()', err)
         end
     end
 
-    if data == nil then
-        -- set default data for non-204 response code
-        data = code2message(code)
-        self.header:set('Content-Type', 'text/plain')
-    end
-
-    if as_json then
-        data = encode_json(data)
-        if not data then
-            return false, errorf('failed to encode data as JSON')
+    if data ~= nil then
+        if as_json then
+            data = encode_json(data)
+            if not data then
+                return false, errorf('failed to encode data as JSON')
+            end
+            self.header:set('Content-Type', 'application/json')
+        elseif not self.header:get('Content-Type') then
+            self.header:set('Content-Type', 'application/octet-stream')
+            if type(data) ~= 'string' then
+                data = tostring(data)
+            end
         end
-        self.header:set('Content-Type', 'application/json')
-    elseif not self.header:get('Content-Type') then
-        self.header:set('Content-Type', 'application/octet-stream')
-        if type(data) ~= 'string' then
-            data = tostring(data)
-        end
+        self.header:set('Content-Length', tostring(#data))
     end
-    self.header:set('Content-Length', tostring(#data))
 
     return self:write(data)
 end
@@ -391,12 +391,12 @@ end
 local function response3xx(self, code, uri, data)
     if code ~= 300 and code ~= 304 then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
-            return false, errorf('uri must be non-empty string with no spaces')
+            fatalf(2, 'uri must be non-empty string with no spaces')
         end
         self.header:set('Location', uri)
     elseif uri ~= nil then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
-            return false, errorf('uri must be non-empty string with no spaces')
+            fatalf(2, 'uri must be non-empty string with no spaces')
         end
         -- set 'Content-Location' header for 304 Not Modified response, otherwise
         -- set 'Location' header.
