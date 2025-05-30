@@ -378,44 +378,20 @@ function testcase.reply_file()
         },
     })
 
-    -- test that file() method cannot be called twice
-    ok, err, timeout = res:reply_file(200, pathname)
-    assert.is_false(ok)
+    -- test that throws an error if reply_file() method is called twice
+    err = assert.throws(res.reply_file, res, 200, pathname)
     assert.match(err, 'cannot send a response message more than once')
-    assert.is_nil(timeout)
 
-    -- test that Content-Length is 0 if 204 No Content status code
+    -- test that throws an error if 204 No Content with a content body
     clear_table(data)
     res = new_responder(writer)
-    ok, err, timeout = res:reply_file(204, pathname)
-    assert.is_nil(err)
-    assert.is_nil(timeout)
-    assert.is_true(ok)
-    -- confirm that data is written to writer
-    res:flush()
-    msg = create_response(data)
-    assert.contains(msg, {
-        reason = 'No Content',
-        status = 204,
-        version = 1.1,
-        content = '',
-        header = {
-            dict = {
-                ['content-length'] = {
-                    val = {
-                        '0',
-                    },
-                },
-            },
-        },
-    })
+    err = assert.throws(res.reply_file, res, 204, pathname)
+    assert.match(err, '204 No Content response cannot have a content body')
 
-    -- test that returns error if status is not a valid HTTP status code
+    -- test that throws an error if status is not a valid HTTP status code
     res = new_responder(writer)
-    ok, err, timeout = res:reply_file(999, pathname)
-    assert.is_false(ok)
+    err = assert.throws(res.reply_file, res, 999, pathname)
     assert.match(err, 'unsupported status code')
-    assert.is_nil(timeout)
 
     -- test that returns error if pathname is not a file
     res = new_responder(writer)
@@ -501,43 +477,19 @@ function testcase.reply()
         },
     })
 
-    -- test that reply() method cannot be called twice
-    ok, err, timeout = res:reply(200, 'foo')
-    assert.is_false(ok)
+    -- test that throws an error if reply() method is called twice
+    err = assert.throws(res.reply, res, 200, 'foo')
     assert.match(err, 'cannot send a response message more than once')
-    assert.is_nil(timeout)
 
-    -- test that returns error if status is not a valid HTTP status code
+    -- test that throws an error if status is not a valid HTTP status code
     res = new_responder(writer)
-    ok, err, timeout = res:reply(999, 'foo')
-    assert.is_false(ok)
+    err = assert.throws(res.reply, res, 999, 'foo')
     assert.match(err, 'unsupported status code')
-    assert.is_nil(timeout)
 
-    -- test that write a no-content response
+    -- test that throws an error if 204 No Content with a content body
     clear_table(data)
-    ok, err, timeout = res:reply(204, 'hello')
-    assert.is_nil(err)
-    assert.is_nil(timeout)
-    assert.is_true(ok)
-    -- confirm that data is written to writer
-    res:flush()
-    msg = create_response(data)
-    assert.contains(msg, {
-        reason = 'No Content',
-        status = 204,
-        version = 1.1,
-        content = '',
-        header = {
-            dict = {
-                ['content-length'] = {
-                    val = {
-                        '0',
-                    },
-                },
-            },
-        },
-    })
+    err = assert.throws(res.reply, res, 204, 'hello')
+    assert.match(err, '204 No Content response cannot have a content body')
 
     -- test that data will be stringified if it is not a string
     res = new_responder(writer)
@@ -582,21 +534,7 @@ function testcase.reply()
         reason = 'OK',
         status = 200,
         version = 1.1,
-        content = '200 OK',
-        header = {
-            dict = {
-                ['content-length'] = {
-                    val = {
-                        '6',
-                    },
-                },
-                ['content-type'] = {
-                    val = {
-                        'text/plain',
-                    },
-                },
-            },
-        },
+        content = '',
     })
 
     -- test that returns error if filter() returns an error
@@ -642,16 +580,46 @@ function testcase.reply()
     })
 end
 
-function testcase.reply1XX_2xx()
+function testcase.reply1XX()
     local data = {}
     local writer = new_writer(data)
 
-    -- test that 1xx Informational and 2xx Success responses
+    -- test that 1xx Informational
     for status, code in pairs({
         -- 1xx Informational responses
         continue = 100,
         switching_protocols = 101,
         processing = 102,
+    }) do
+        local res = new_responder(writer)
+        local ok, err, timeout = res[status](res)
+        assert.is_nil(err)
+        assert.is_nil(timeout)
+        assert.is_true(ok)
+        -- confirm that data is written to writer
+        res:flush()
+        local msg = create_response(data)
+        assert.contains(msg, {
+            reason = code2reason(code),
+            status = code,
+            version = 1.1,
+            content = '',
+        })
+
+        -- test that throws an error if reply wiht a content body
+        res = new_responder(writer)
+        err = assert.throws(res[status], res, 'hello')
+        assert.re_match(err, tostring(code) ..
+                            ' .+ response cannot have a content body')
+    end
+end
+
+function testcase.reply2xx()
+    local data = {}
+    local writer = new_writer(data)
+
+    -- test that 1xx Informational and 2xx Success responses
+    for status, code in pairs({
         -- 2xx Success responses
         ok = 200,
         created = 201,
@@ -665,7 +633,8 @@ function testcase.reply1XX_2xx()
         im_used = 226,
     }) do
         local res = new_responder(writer)
-        local ok, err, timeout = res[status](res, 'hello')
+        local body = (code ~= 204 and code ~= 205) and 'hello' or nil
+        local ok, err, timeout = res[status](res, body)
         assert.is_nil(err)
         assert.is_nil(timeout)
         assert.is_true(ok)
@@ -678,15 +647,13 @@ function testcase.reply1XX_2xx()
                 status = code,
                 version = 1.1,
                 content = '',
-                header = {
-                    dict = {
-                        ['content-length'] = {
-                            val = {
-                                '0',
-                            },
-                        },
-                    },
-                },
+            })
+        elseif code == 205 then
+            assert.contains(msg, {
+                reason = 'Reset Content',
+                status = code,
+                version = 1.1,
+                content = '',
             })
         else
             assert.contains(msg, {
