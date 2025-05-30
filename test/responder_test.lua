@@ -743,10 +743,8 @@ function testcase.multiple_choices()
     })
 
     -- test that returns error if uri is not a string
-    ok, err, timeout = res:multiple_choices(123, 'hello')
-    assert.is_false(ok)
+    err = assert.throws(res.multiple_choices, res, 123, 'hello')
     assert.match(err, 'uri must be non-empty string')
-    assert.is_nil(timeout)
 end
 
 function testcase.not_modified()
@@ -778,10 +776,8 @@ function testcase.not_modified()
     })
 
     -- test that returns error if uri is not a string
-    ok, err, timeout = res:not_modified(123)
-    assert.is_false(ok)
+    err = assert.throws(res.not_modified, res, 123)
     assert.match(err, 'uri must be non-empty string')
-    assert.is_nil(timeout)
 end
 
 function testcase.reply3xx()
@@ -827,10 +823,8 @@ function testcase.reply3xx()
         })
 
         -- test that returns error if uri is not a string
-        ok, err, timeout = res[status](res, 123, 'hello')
-        assert.is_false(ok)
+        err = assert.throws(res[status], res, 123, 'hello')
         assert.match(err, 'uri must be non-empty string')
-        assert.is_nil(timeout)
     end
 end
 

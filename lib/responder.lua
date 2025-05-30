@@ -391,12 +391,12 @@ end
 local function response3xx(self, code, uri, data)
     if code ~= 300 and code ~= 304 then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
-            return false, errorf('uri must be non-empty string with no spaces')
+            fatalf(2, 'uri must be non-empty string with no spaces')
         end
         self.header:set('Location', uri)
     elseif uri ~= nil then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
-            return false, errorf('uri must be non-empty string with no spaces')
+            fatalf(2, 'uri must be non-empty string with no spaces')
         end
         -- set 'Content-Location' header for 304 Not Modified response, otherwise
         -- set 'Location' header.
