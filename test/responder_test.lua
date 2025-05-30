@@ -714,7 +714,7 @@ function testcase.multiple_choices()
 
     -- test that multiple_choices
     local res = new_responder(writer)
-    local ok, err, timeout = res:multiple_choices('hello', 'http://example.com')
+    local ok, err, timeout = res:multiple_choices('http://example.com', 'hello')
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
@@ -743,7 +743,7 @@ function testcase.multiple_choices()
     })
 
     -- test that returns error if uri is not a string
-    ok, err, timeout = res:multiple_choices('hello', 123)
+    ok, err, timeout = res:multiple_choices(123, 'hello')
     assert.is_false(ok)
     assert.match(err, 'uri must be non-empty string')
     assert.is_nil(timeout)
@@ -753,9 +753,9 @@ function testcase.not_modified()
     local data = {}
     local writer = new_writer(data)
 
-    -- test that multiple_choices
+    -- test that not_modified
     local res = new_responder(writer)
-    local ok, err, timeout = res:not_modified('hello', 'http://example.com')
+    local ok, err, timeout = res:not_modified('http://example.com', 'hello')
     assert.is_nil(err)
     assert.is_nil(timeout)
     assert.is_true(ok)
@@ -766,7 +766,6 @@ function testcase.not_modified()
         reason = code2reason(304),
         status = 304,
         version = 1.1,
-        content = 'hello',
         header = {
             dict = {
                 ['content-location'] = {
@@ -774,17 +773,12 @@ function testcase.not_modified()
                         'http://example.com',
                     },
                 },
-                ['content-length'] = {
-                    val = {
-                        '5',
-                    },
-                },
             },
         },
     })
 
     -- test that returns error if uri is not a string
-    ok, err, timeout = res:not_modified('hello', 123)
+    ok, err, timeout = res:not_modified(123)
     assert.is_false(ok)
     assert.match(err, 'uri must be non-empty string')
     assert.is_nil(timeout)

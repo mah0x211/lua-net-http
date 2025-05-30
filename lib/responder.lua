@@ -379,7 +379,8 @@ function Responder:im_used(data)
     return self:reply(226, data)
 end
 
---- response300_304 response a 300 Multiple Choices or 304 Not Modified response.
+--- response3xx response a 3xx response code.
+--- a uri is required for 3xx response codes except 300 and 304.
 --- @param self net.http.responder
 --- @param code integer
 --- @param uri string?
@@ -387,8 +388,13 @@ end
 --- @return boolean ok
 --- @return any err
 --- @return boolean? timeout
-local function response300_304(self, code, data, uri)
-    if uri ~= nil then
+local function response3xx(self, code, uri, data)
+    if code ~= 300 and code ~= 304 then
+        if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
+            return false, errorf('uri must be non-empty string with no spaces')
+        end
+        self.header:set('Location', uri)
+    elseif uri ~= nil then
         if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
             return false, errorf('uri must be non-empty string with no spaces')
         end
@@ -400,39 +406,13 @@ local function response300_304(self, code, data, uri)
 end
 
 --- multiple_choices
---- @param data any
 --- @param uri string?
---- @return boolean ok
---- @return any err
---- @return boolean? timeout
-function Responder:multiple_choices(data, uri)
-    return response300_304(self, 300, data, uri)
-end
-
---- not_modified
---- @param data any
---- @param uri string?
---- @return boolean ok
---- @return any err
---- @return boolean? timeout
-function Responder:not_modified(data, uri)
-    return response300_304(self, 304, data, uri)
-end
-
---- response3xx
---- @param self net.http.responder
---- @param code integer
---- @param uri string
 --- @param data any
 --- @return boolean ok
 --- @return any err
 --- @return boolean? timeout
-local function response3xx(self, code, uri, data)
-    if type(uri) ~= 'string' or #uri == 0 or find(uri, '%s') then
-        return false, errorf('uri must be non-empty string with no spaces')
-    end
-    self.header:set('Location', uri)
-    return self:reply(code, data)
+function Responder:multiple_choices(uri, data)
+    return response3xx(self, 300, uri, data)
 end
 
 --- moved_permanently
@@ -463,6 +443,15 @@ end
 --- @return boolean? timeout
 function Responder:see_other(uri, data)
     return response3xx(self, 303, uri, data)
+end
+
+--- not_modified
+--- @param uri string?
+--- @return boolean ok
+--- @return any err
+--- @return boolean? timeout
+function Responder:not_modified(uri)
+    return response3xx(self, 304, uri)
 end
 
 --- use_proxy
