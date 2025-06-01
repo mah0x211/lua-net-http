@@ -437,10 +437,8 @@ function testcase.reply_file()
             return 123
         end,
     })
-    ok, err, timeout = res:reply_file(200, pathname)
-    assert.is_false(ok)
-    assert.match(err, 'mime:getmime() returns non-string value: "number"')
-    assert.is_nil(timeout)
+    err = assert.throws(res.reply_file, res, 200, pathname)
+    assert.match(err, 'mime:getmime() must return a string or nil')
 end
 
 function testcase.reply()

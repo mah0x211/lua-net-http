@@ -203,9 +203,8 @@ function Responder:reply_file(code, file)
             if mime == nil then
                 mime = 'application/octet-stream'
             elseif type(mime) ~= 'string' then
-                return false, errorf(
-                           'mime:getmime() returns non-string value: %q',
-                           type(mime))
+                fatalf(2, 'mime:getmime() must return a string or nil, got %q',
+                       type(mime))
             end
         end
         self.header:set('Content-Type', mime)
@@ -246,9 +245,10 @@ function Responder:reply(code, data, as_json)
 
     if data ~= nil then
         if as_json then
-            data = encode_json(data)
+            local err
+            data, err = encode_json(data)
             if not data then
-                return false, errorf('failed to encode data as JSON')
+                return false, errorf('failed to encode data as JSON', err)
             end
             self.header:set('Content-Type', 'application/json')
         elseif not self.header:get('Content-Type') then
