@@ -916,6 +916,7 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
                       size_t *cur, size_t *maxhdrlen)
 {
     int top       = lua_gettop(L);
+    size_t maxlen = (len > *maxhdrlen) ? *maxhdrlen : len;
     size_t pos    = 0;
     luaL_Buffer b = {0};
 
@@ -923,14 +924,8 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
         luaL_buffinit(L, &b);
     }
 
-    for (; pos < len; pos++) {
+    for (; pos < maxlen; pos++) {
         unsigned char c = TCHAR[str[pos]];
-
-        if (pos > *maxhdrlen) {
-            lua_settop(L, top);
-            return PARSE_EHDRLEN;
-        }
-
         switch (c) {
         // illegal byte sequence
         case 0:
@@ -961,7 +956,7 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
     }
 
     // header-length too large
-    if (len > *maxhdrlen) {
+    if (len > maxlen) {
         lua_settop(L, top);
         return PARSE_EHDRLEN;
     }
