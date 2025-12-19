@@ -813,45 +813,43 @@ CHECK_EOB:
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
-    size_t tail     = 0;
-    size_t pos      = 0;
-    unsigned char c = 0;
+    size_t tail      = 0;
+    size_t pos       = 0;
+    size_t ows_start = (size_t)-1;
+    size_t maxlen    = (len > *maxhdrlen) ? *maxhdrlen : len;
+    unsigned char c  = 0;
 
-    for (; pos < len; pos++) {
-        // check length
-        if (pos > *maxhdrlen) {
-            return PARSE_EHDRLEN;
-        }
-
+    for (; pos < maxlen; pos++) {
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
+            // field-content
+            ows_start = (size_t)-1;
+            continue;
+
         case 2:
+            // start of OWS
+            if (ows_start == (size_t)-1) {
+                ows_start = pos;
+            }
             continue;
 
         // LF or CR
         case 3:
-            tail = pos;
-            // found LF
+            // set tail position
+            tail = (ows_start == (size_t)-1) ? pos : ows_start;
             if (c == LF) {
+                // found LF
                 pos += 1;
-            }
-            // found CRLF
-            else if (str[pos + 1] == LF) {
+            } else if (str[pos + 1] == LF) {
+                // found CRLF
                 pos += 2;
-            }
-            // null-terminator
-            else if (!str[pos + 1]) {
+            } else if (!str[pos + 1]) {
+                // null-terminator
                 goto CHECK_AGAIN;
-            }
-            // invalid end-of-line terminator
-            else {
+            } else {
+                // invalid end-of-line terminator
                 return PARSE_EEOL;
-            }
-
-            // remove OWS
-            while (tail > 0 && (str[tail - 1] == SP || str[tail - 1] == HT)) {
-                tail--;
             }
 
             *cur       = pos;
@@ -866,7 +864,7 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
 
 CHECK_AGAIN:
     // header-length too large
-    if (len > *maxhdrlen) {
+    if (len > maxlen) {
         return PARSE_EHDRLEN;
     }
 
@@ -918,6 +916,7 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
                       size_t *cur, size_t *maxhdrlen)
 {
     int top       = lua_gettop(L);
+    size_t maxlen = (len > *maxhdrlen) ? *maxhdrlen : len;
     size_t pos    = 0;
     luaL_Buffer b = {0};
 
@@ -925,14 +924,8 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
         luaL_buffinit(L, &b);
     }
 
-    for (; pos < len; pos++) {
+    for (; pos < maxlen; pos++) {
         unsigned char c = TCHAR[str[pos]];
-
-        if (pos > *maxhdrlen) {
-            lua_settop(L, top);
-            return PARSE_EHDRLEN;
-        }
-
         switch (c) {
         // illegal byte sequence
         case 0:
@@ -963,7 +956,7 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
     }
 
     // header-length too large
-    if (len > *maxhdrlen) {
+    if (len > maxlen) {
         lua_settop(L, top);
         return PARSE_EHDRLEN;
     }
@@ -1149,42 +1142,26 @@ static int header_lua(lua_State *L)
     return 1;
 }
 
-/**
- *  structure for 64 bit comparison
- */
-typedef union {
-    char str[8];
-    uint64_t bit;
-} match64bit_u;
-
 static int parse_version(unsigned char *str, size_t len, size_t *cur,
                          double *ver)
 {
 // version length: HTTP/x.x
 #define VER_LEN 8
 
-    // versions
-    static match64bit_u V_10 = {.str = "HTTP/1.0"};
-    static match64bit_u V_11 = {.str = "HTTP/1.1"};
-
     if (len < VER_LEN) {
+        // versions string incomplete
         return PARSE_EAGAIN;
-    } else {
-        match64bit_u src = {.bit = *(uint64_t *)str};
-
-        *cur = VER_LEN;
-        // HTTP/1.1
-        if (src.bit == V_11.bit) {
-            *ver = 1.1;
-            return PARSE_OK;
-        }
-        // HTTP/1.0
-        else if (src.bit == V_10.bit) {
-            *ver = 1.0;
-            return PARSE_OK;
-        }
     }
 
+    // parse version
+    *cur = VER_LEN;
+    if (memcmp(str, "HTTP/1.1", VER_LEN) == 0) {
+        *ver = 1.1;
+        return PARSE_OK;
+    } else if (memcmp(str, "HTTP/1.0", VER_LEN) == 0) {
+        *ver = 1.0;
+        return PARSE_OK;
+    }
     // invalid version format
     return PARSE_EVERSION;
 
@@ -1197,19 +1174,8 @@ static int parse_method(unsigned char *str, size_t len, size_t *cur,
 // maximum method length with SP
 #define METHOD_LEN 8
 
-    // methods
-    static match64bit_u M_GET     = {.str = "GET"};
-    static match64bit_u M_HEAD    = {.str = "HEAD"};
-    static match64bit_u M_POST    = {.str = "POST"};
-    static match64bit_u M_PUT     = {.str = "PUT"};
-    static match64bit_u M_DELETE  = {.str = "DELETE"};
-    static match64bit_u M_OPTIONS = {.str = "OPTIONS"};
-    static match64bit_u M_TRACE   = {.str = "TRACE"};
-    static match64bit_u M_CONNECT = {.str = "CONNECT"};
-
-    size_t pos       = *cur;
-    size_t maxlen    = pos + METHOD_LEN;
-    match64bit_u src = {.bit = 0};
+    size_t pos    = *cur;
+    size_t maxlen = pos + METHOD_LEN;
 
     if (len < maxlen) {
         return PARSE_EAGAIN;
@@ -1227,56 +1193,31 @@ static int parse_method(unsigned char *str, size_t len, size_t *cur,
 
     switch (len) {
     case 3:
-        src.str[0] = str[0];
-        src.str[1] = str[1];
-        src.str[2] = str[2];
-        if (src.bit == M_GET.bit || src.bit == M_PUT.bit) {
+        if (memcmp(str, "GET", 3) == 0 || memcmp(str, "PUT", 3) == 0) {
             return PARSE_OK;
         }
         return PARSE_EMETHOD;
 
     case 4:
-        src.str[0] = str[0];
-        src.str[1] = str[1];
-        src.str[2] = str[2];
-        src.str[3] = str[3];
-        if (src.bit == M_POST.bit || src.bit == M_HEAD.bit) {
+        if (memcmp(str, "POST", 4) == 0 || memcmp(str, "HEAD", 4) == 0) {
             return PARSE_OK;
         }
         return PARSE_EMETHOD;
 
     case 5:
-        src.str[0] = str[0];
-        src.str[1] = str[1];
-        src.str[2] = str[2];
-        src.str[3] = str[3];
-        src.str[4] = str[4];
-        if (src.bit == M_TRACE.bit) {
+        if (memcmp(str, "TRACE", 5) == 0) {
             return PARSE_OK;
         }
         return PARSE_EMETHOD;
 
     case 6:
-        src.str[0] = str[0];
-        src.str[1] = str[1];
-        src.str[2] = str[2];
-        src.str[3] = str[3];
-        src.str[4] = str[4];
-        src.str[5] = str[5];
-        if (src.bit == M_DELETE.bit) {
+        if (memcmp(str, "DELETE", 6) == 0) {
             return PARSE_OK;
         }
         return PARSE_EMETHOD;
 
     case 7:
-        src.str[0] = str[0];
-        src.str[1] = str[1];
-        src.str[2] = str[2];
-        src.str[3] = str[3];
-        src.str[4] = str[4];
-        src.str[5] = str[5];
-        src.str[6] = str[6];
-        if (src.bit == M_OPTIONS.bit || src.bit == M_CONNECT.bit) {
+        if (memcmp(str, "OPTIONS", 7) == 0 || memcmp(str, "CONNECT", 7) == 0) {
             return PARSE_OK;
         }
         return PARSE_EMETHOD;
@@ -1394,18 +1335,13 @@ SKIP_NEXT_CRLF:
 }
 
 static int parse_reason(unsigned char *str, size_t len, size_t *cur,
-                        size_t *maxlen)
+                        size_t *maxmsglen)
 {
-    size_t pos      = 0;
-    unsigned char c = 0;
+    size_t maxlen = (len > *maxmsglen) ? *maxmsglen : len;
+    size_t pos    = 0;
 
-    for (; pos < len; pos++) {
-        // phrase-length too large
-        if (pos > *maxlen) {
-            return PARSE_ELEN;
-        }
-
-        c = str[pos];
+    for (; pos < maxlen; pos++) {
+        unsigned char c = str[pos];
         switch (VCHAR[c]) {
         case 1:
         case 2:
@@ -1413,36 +1349,32 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
 
         // LF or CR
         case 3:
-            *maxlen = pos;
-
-            // found LF
+            *maxmsglen = pos;
             if (c == LF) {
+                // found LF
                 pos++;
-            }
-            // found LF after CR
-            else if (str[pos + 1] == LF) {
+            } else if (str[pos + 1] == LF) {
+                // found LF after CR
                 pos += 2;
-            }
-            // null-terminated
-            else if (!str[pos + 1]) {
+            } else if (!str[pos + 1]) {
+                // null-terminated
                 return PARSE_EAGAIN;
-            }
-            // invalid end-of-line terminator
-            else {
+            } else {
+                // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
 
             *cur = pos;
             return PARSE_OK;
 
-        // invalid
         default:
+            // invalid reason-phrase
             return PARSE_EMSG;
         }
     }
 
     // phrase-length too large
-    if (len > *maxlen) {
+    if (len > maxlen) {
         return PARSE_ELEN;
     }
 
