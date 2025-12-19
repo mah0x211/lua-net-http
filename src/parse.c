@@ -813,45 +813,43 @@ CHECK_EOB:
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
-    size_t tail     = 0;
-    size_t pos      = 0;
-    unsigned char c = 0;
+    size_t tail      = 0;
+    size_t pos       = 0;
+    size_t ows_start = (size_t)-1;
+    size_t maxlen    = (len > *maxhdrlen) ? *maxhdrlen : len;
+    unsigned char c  = 0;
 
-    for (; pos < len; pos++) {
-        // check length
-        if (pos > *maxhdrlen) {
-            return PARSE_EHDRLEN;
-        }
-
+    for (; pos < maxlen; pos++) {
         c = str[pos];
         switch (VCHAR[c]) {
         case 1:
+            // field-content
+            ows_start = (size_t)-1;
+            continue;
+
         case 2:
+            // start of OWS
+            if (ows_start == (size_t)-1) {
+                ows_start = pos;
+            }
             continue;
 
         // LF or CR
         case 3:
-            tail = pos;
-            // found LF
+            // set tail position
+            tail = (ows_start == (size_t)-1) ? pos : ows_start;
             if (c == LF) {
+                // found LF
                 pos += 1;
-            }
-            // found CRLF
-            else if (str[pos + 1] == LF) {
+            } else if (str[pos + 1] == LF) {
+                // found CRLF
                 pos += 2;
-            }
-            // null-terminator
-            else if (!str[pos + 1]) {
+            } else if (!str[pos + 1]) {
+                // null-terminator
                 goto CHECK_AGAIN;
-            }
-            // invalid end-of-line terminator
-            else {
+            } else {
+                // invalid end-of-line terminator
                 return PARSE_EEOL;
-            }
-
-            // remove OWS
-            while (tail > 0 && (str[tail - 1] == SP || str[tail - 1] == HT)) {
-                tail--;
             }
 
             *cur       = pos;
@@ -866,7 +864,7 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
 
 CHECK_AGAIN:
     // header-length too large
-    if (len > *maxhdrlen) {
+    if (len > maxlen) {
         return PARSE_EHDRLEN;
     }
 
