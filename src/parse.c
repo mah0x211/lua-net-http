@@ -1335,18 +1335,13 @@ SKIP_NEXT_CRLF:
 }
 
 static int parse_reason(unsigned char *str, size_t len, size_t *cur,
-                        size_t *maxlen)
+                        size_t *maxmsglen)
 {
-    size_t pos      = 0;
-    unsigned char c = 0;
+    size_t maxlen = (len > *maxmsglen) ? *maxmsglen : len;
+    size_t pos    = 0;
 
-    for (; pos < len; pos++) {
-        // phrase-length too large
-        if (pos > *maxlen) {
-            return PARSE_ELEN;
-        }
-
-        c = str[pos];
+    for (; pos < maxlen; pos++) {
+        unsigned char c = str[pos];
         switch (VCHAR[c]) {
         case 1:
         case 2:
@@ -1354,36 +1349,32 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
 
         // LF or CR
         case 3:
-            *maxlen = pos;
-
-            // found LF
+            *maxmsglen = pos;
             if (c == LF) {
+                // found LF
                 pos++;
-            }
-            // found LF after CR
-            else if (str[pos + 1] == LF) {
+            } else if (str[pos + 1] == LF) {
+                // found LF after CR
                 pos += 2;
-            }
-            // null-terminated
-            else if (!str[pos + 1]) {
+            } else if (!str[pos + 1]) {
+                // null-terminated
                 return PARSE_EAGAIN;
-            }
-            // invalid end-of-line terminator
-            else {
+            } else {
+                // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
 
             *cur = pos;
             return PARSE_OK;
 
-        // invalid
         default:
+            // invalid reason-phrase
             return PARSE_EMSG;
         }
     }
 
     // phrase-length too large
-    if (len > *maxlen) {
+    if (len > maxlen) {
         return PARSE_ELEN;
     }
 
