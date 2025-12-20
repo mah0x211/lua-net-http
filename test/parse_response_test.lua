@@ -137,10 +137,14 @@ function testcase.parse_response()
     local line = 'HTTP/1.0 200 OK' .. CRLF
     msg = line .. 'Server: example-server' .. CRLF .. CRLF
     res = {}
-    assert.equal(parse_response(msg, res), #line)
+    assert.equal(parse_response(msg, res), #msg)
     assert.equal(res, {
         status = 200,
         reason = 'OK',
         version = 1.0,
+        header = {
+            kv_server,
+            server = kv_server,
+        },
     })
 end

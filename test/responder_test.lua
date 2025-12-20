@@ -25,10 +25,9 @@ end
 local function create_response(strs)
     local str = table.concat(strs)
     local res = new_response()
-    local dict = res.header.dict
     local header = res.header
-    res.header = dict
     local pos = assert(parse_response(str, res))
+    header.dict = res.header
     res.header = header
     res.content = str:sub(pos + 1)
     clear_table(strs)

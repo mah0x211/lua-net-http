@@ -916,15 +916,15 @@ static int header_value_lua(lua_State *L)
     }
 }
 
-static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
-                      size_t *cur, size_t *maxhdrlen)
+static int parse_hkey(lua_State *L, unsigned char *str, size_t len, size_t *cur,
+                      size_t *maxhdrlen, int push)
 {
     int top       = lua_gettop(L);
     size_t maxlen = (len > *maxhdrlen) ? *maxhdrlen : len;
     size_t pos    = 0;
     luaL_Buffer b = {0};
 
-    if (lkey) {
+    if (push) {
         luaL_buffinit(L, &b);
     }
 
@@ -946,14 +946,13 @@ static int parse_hkey(lua_State *L, int *lkey, unsigned char *str, size_t len,
 
             *maxhdrlen = pos;
             *cur       = pos + 1;
-            if (lkey) {
+            if (push) {
                 luaL_pushresult(&b);
-                *lkey = lauxh_ref(L);
             }
             return PARSE_OK;
 
         default:
-            if (lkey) {
+            if (push) {
                 luaL_addchar(&b, c);
             }
         }
@@ -975,7 +974,7 @@ static int header_name_lua(lua_State *L)
     const char *str = lauxh_checklstring(L, 1, &len);
     size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
     size_t cur      = 0;
-    int rv = parse_hkey(L, NULL, (unsigned char *)str, len, &cur, &maxlen);
+    int rv = parse_hkey(L, (unsigned char *)str, len, &cur, &maxlen, 0);
 
     switch (rv) {
     case PARSE_EAGAIN:
@@ -990,127 +989,146 @@ static int header_name_lua(lua_State *L)
     }
 }
 
-typedef struct {
-    int lkey;
-    char *key;
-    char *val;
-    size_t klen;
-    size_t vlen;
-} header_t;
-
 static int parse_header(lua_State *L, unsigned char *str, size_t len,
                         size_t *cur, uint16_t maxhdrlen, uint8_t maxhdrnum)
 {
     int tblidx         = lua_gettop(L);
-    header_t *hdridx   = lua_newuserdata(L, sizeof(header_t) * maxhdrnum);
     unsigned char *top = str;
     uintptr_t head     = 0;
     uint8_t nhdr       = 0;
     size_t pos         = 0;
     int rv             = 0;
+    size_t klen        = 0;
+    size_t vlen        = 0;
+    char *val          = NULL;
 
 RETRY:
     switch (*str) {
     // need more bytes
     case 0:
+        lua_settop(L, tblidx);
         return PARSE_EAGAIN;
 
     // check header-tail
     case CR:
         // null-terminated
         if (!str[1]) {
+            lua_settop(L, tblidx);
             return PARSE_EAGAIN;
         } else if (str[1] == LF) {
             // skip CR
             str++;
         case LF:
-            str++;
             // skip LF
-            goto PUSH_HEADERS;
+            str++;
+            *cur = (uintptr_t)str - (uintptr_t)top;
+            return PARSE_OK;
         }
     }
 
-    // too many headers
+    // check maximum header number constraint
     if (nhdr >= maxhdrnum) {
+        lua_settop(L, tblidx);
         return PARSE_EHDRNUM;
     }
+    nhdr++;
 
-    head              = (uintptr_t)str;
-    hdridx[nhdr].lkey = LUA_NOREF;
-    hdridx[nhdr].key  = (char *)str;
-    hdridx[nhdr].klen = maxhdrlen;
-    rv = parse_hkey(L, &hdridx[nhdr].lkey, str, len, &pos, &hdridx[nhdr].klen);
+    head = (uintptr_t)str;
+    klen = maxhdrlen;
+    // parse key and push to stack
+    rv   = parse_hkey(L, str, len, &pos, &klen, 1);
     if (rv != PARSE_OK) {
+        lua_settop(L, tblidx);
         return rv;
     }
+
     // skip OWS
     while (str[pos] == SP || str[pos] == HT) {
         pos++;
     }
+
+    // re-check maximum header length constraint
+    if (pos > maxhdrlen) {
+        lua_settop(L, tblidx);
+        return PARSE_EHDRLEN;
+    }
     str += pos;
     len -= pos;
 
-    hdridx[nhdr].val  = (char *)str;
-    hdridx[nhdr].vlen = maxhdrlen - ((intptr_t)str - head);
-    rv                = parse_hval(str, len, &pos, &hdridx[nhdr].vlen);
+    val  = (char *)str;
+    vlen = maxhdrlen - ((intptr_t)str - head);
+    rv   = parse_hval(str, len, &pos, &vlen);
     if (rv != PARSE_OK) {
+        lua_settop(L, tblidx);
         return rv;
     }
     str += pos;
     len -= pos;
-    // set header
-    if (hdridx[nhdr].vlen) {
-        nhdr++;
-    }
 
-    goto RETRY;
-
-PUSH_HEADERS:
-    while (nhdr) {
-        // check existing kv table of key
-        lauxh_pushref(L, hdridx->lkey);
-        lua_rawget(L, tblidx);
-        switch (lua_type(L, -1)) {
-        default: {
-            int idx = lauxh_rawlen(L, tblidx) + 1;
-            lua_pop(L, 1);
-            // create kv table
-            lua_createtable(L, 3, 0);
-            lauxh_pushint2tbl(L, "idx", idx);
-            lauxh_pushlstr2tbl(L, "key", hdridx->key, hdridx->klen);
-            // create kv->val table
-            lua_pushliteral(L, "val");
-            lua_createtable(L, 1, 0);
-            lauxh_pushlstr2arr(L, 1, hdridx->val, hdridx->vlen);
-            lua_rawset(L, -3);
-
-            // push kv table to tbl[key]
-            lauxh_pushref(L, hdridx->lkey);
-            // copy kv table
-            lua_pushvalue(L, -2);
-            lua_rawset(L, tblidx);
-
-            // push kv table to tbl[idx]
-            lua_rawseti(L, tblidx, idx);
-        } break;
-
-        case LUA_TTABLE: {
-            // get kv->val table
-            lua_pushliteral(L, "val");
-            lua_rawget(L, -2);
-            // append to tail
-            lauxh_pushlstr2arr(L, lauxh_rawlen(L, -1) + 1, hdridx->val,
-                               hdridx->vlen);
-            lua_pop(L, 2);
-        } break;
-        }
-        lauxh_unref(L, hdridx->lkey);
+    // check empty header value
+    if (!vlen) {
+        // avoid header with empty value
+        // pop key
+        lua_pop(L, 1);
         nhdr--;
-        hdridx++;
+        goto RETRY;
     }
 
-    *cur = (uintptr_t)str - (uintptr_t)top;
-    return PARSE_OK;
+    // check existing kv table of key
+    // stack: tbl, key
+    lua_pushvalue(L, -1);
+    // stack: tbl, key, key
+    lua_rawget(L, tblidx);
+    // stack: tbl, key, val?
+    switch (lua_type(L, -1)) {
+    default: {
+        int idx = lauxh_rawlen(L, tblidx) + 1;
+        lua_pop(L, 1);
+        // stack: tbl, key
+
+        // create kv table
+        lua_createtable(L, 3, 0);
+        lauxh_pushint2tbl(L, "idx", idx);
+        // set raw-key
+        lua_pushliteral(L, "key");
+        lua_pushlstring(L, (char *)head, klen);
+        lua_rawset(L, -3);
+
+        // create kv->val table
+        lua_pushliteral(L, "val");
+        lua_createtable(L, 1, 0);
+        lauxh_pushlstr2arr(L, 1, val, vlen);
+        lua_rawset(L, -3);
+
+        // push kv table to tbl[key]
+        // stack: tbl, key, kv
+        lua_pushvalue(L, -2);
+        // stack: tbl, key, kv, key
+        lua_pushvalue(L, -2);
+        // stack: tbl, key, kv, key, kv
+        lua_rawset(L, tblidx);
+        // stack: tbl, key, kv
+
+        // push kv table to tbl[idx]
+        lua_rawseti(L, tblidx, idx);
+        // stack: tbl, key
+    } break;
+
+    case LUA_TTABLE:
+        // stack: tbl, key, kv
+        // get kv->val table
+        lua_pushliteral(L, "val");
+        lua_rawget(L, -2);
+        // stack: tbl, key, kv, val_tbl
+        // append to tail
+        lauxh_pushlstr2arr(L, lauxh_rawlen(L, -1) + 1, val, vlen);
+        lua_pop(L, 2);
+        // stack: tbl, key
+        break;
+    }
+    // pop key
+    lua_pop(L, 1);
+    goto RETRY;
 }
 
 static int header_lua(lua_State *L)
@@ -1322,16 +1340,14 @@ SKIP_NEXT_CRLF:
     str += cur;
     len -= cur;
 
-    // parse header if exists
-    lua_pushliteral(L, "header");
-    lua_rawget(L, -2);
-    if (lua_type(L, -1) == LUA_TTABLE) {
-        rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
-        if (rv < 0) {
-            return error_result_as_nil(L, rv, "request");
-        }
-        str += cur;
+    // parse headers
+    lua_createtable(L, 0, (maxhdrnum > 2) ? maxhdrnum / 2 : maxhdrnum);
+    rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
+    if (rv < 0) {
+        return error_result_as_nil(L, rv, "request");
     }
+    lua_setfield(L, -2, "header");
+    str += cur;
 
     lua_settop(L, 1);
     lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
@@ -1475,16 +1491,14 @@ SKIP_NEXT_CRLF:
     str += cur;
     len -= cur;
 
-    // parse header if exists
-    lua_pushliteral(L, "header");
-    lua_rawget(L, -2);
-    if (lua_type(L, -1) == LUA_TTABLE) {
-        rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
-        if (rv < 0) {
-            return error_result_as_nil(L, rv, "response");
-        }
-        str += cur;
+    // parse headers
+    lua_createtable(L, 0, (maxhdrnum > 2) ? maxhdrnum / 2 : maxhdrnum);
+    rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
+    if (rv < 0) {
+        return error_result_as_nil(L, rv, "response");
     }
+    lua_setfield(L, -2, "header");
+    str += cur;
 
     lua_settop(L, 1);
     lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);

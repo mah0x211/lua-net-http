@@ -372,8 +372,8 @@ local http_parse_request = require('net.http.parse').request
 --- @return any err
 local function parse_request(str, msg)
     local header = msg.header
-    msg.header = header.dict
     local cur, err = http_parse_request(str, msg)
+    header.dict = msg.header
     msg.header = header
     return cur, err
 end

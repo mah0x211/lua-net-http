@@ -76,13 +76,14 @@ function testcase.parse_methods()
         'TRACE',
         'CONNECT',
     }) do
-        local msg = method .. ' /foo/bar/baz/qux HTTP/1.1\r\n'
+        local msg = method .. ' /foo/bar/baz/qux HTTP/1.1\r\n\r\n'
         local req = {}
         assert.equal(parse_request(msg, req), #msg)
         assert.equal(req, {
             method = method,
             uri = '/foo/bar/baz/qux',
             version = 1.1,
+            header = {},
         })
     end
 
@@ -215,19 +216,6 @@ function testcase.parse_partial_messages()
             kv_host,
             host = kv_host,
         },
-    })
-end
-
-function testcase.parse_only_request_line()
-    -- test that only request-line is parsed if header table does not exists
-    local line = 'GET /foo/bar/baz/qux HTTP/1.0\n'
-    local msg = line .. 'Host: example.com\n' .. '\n'
-    local req = {}
-    assert.equal(parse_request(msg, req), #line)
-    assert.equal(req, {
-        method = 'GET',
-        uri = '/foo/bar/baz/qux',
-        version = 1.0,
     })
 end
 
