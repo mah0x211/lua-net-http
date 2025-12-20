@@ -430,6 +430,10 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
 
             case BACKSLASH:
                 // quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
+                if (pos + 1 >= len) {
+                    // reach to the end of string, need more bytes
+                    return PARSE_EAGAIN;
+                }
                 switch (VCHAR[str[pos + 1]]) {
                 case 1:
                 case 2: // HT, SP
