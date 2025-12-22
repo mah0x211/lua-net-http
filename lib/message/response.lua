@@ -89,8 +89,8 @@ local http_parse_response = require('net.http.parse').response
 --- @return any err
 local function parse_response(str, msg)
     local header = msg.header
-    msg.header = header.dict
     local cur, err = http_parse_response(str, msg)
+    header.dict = msg.header
     msg.header = header
     return cur, err
 end
