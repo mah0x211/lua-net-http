@@ -280,27 +280,30 @@ static int tchar_lua(lua_State *L)
  * VCHAR          = %x21-7E
  * obs-text       = %x80-FF
  */
-// 1 = field-content
-// 2 = LF or CR
-// 0 = invalid
+// 1 = field-content (VCHAR or obs-text)
+// 2 = HT or SP (OWS)
+// 3 = LF or CR (TERMINATOR)
+// 0 = invalid (including DEL)
 static const unsigned char VCHAR[256] = {
-    //                         HT LF       CR
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0,
-    // SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
-    0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    //  0  1  2  3  4  5  6  7  8  9
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    //  :  ;  <  =  >  ?  @
-    1, 1, 1, 1, 1, 1, 1,
-    //  A  B  C  D  E  F  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X Y
+    0, 0, 0, 0, 0, 0, 0, 0,
+    // HT LF       CR
+    0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    // SP
+    0, 2,
+    // VCHAR 0x21 - 0x7E
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    //  Z  [  \  ]  ^  _  `
-    1, 1, 1, 1, 1, 1, 1,
-    //  a  b  c  d  e  f  g  h  i  j  k  l  m  n  o  p  q  r  s  t  u  v  w  x y
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    //  z  {  |  }  ~
-    1, 1, 1, 1, 1};
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    // except DEL 0x7F
+    0,
+    // all obs-text 0x80 - 0xFF
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4};
 
 static int vchar_lua(lua_State *L)
 {
@@ -435,8 +438,9 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
                     return PARSE_EAGAIN;
                 }
                 switch (VCHAR[str[pos + 1]]) {
-                case 1:
+                case 1: // VCHAR
                 case 2: // HT, SP
+                case 4: // obs-text
                     pos += 2;
                     continue;
                 }
@@ -826,20 +830,20 @@ static int parse_hval(unsigned char *str, size_t len, size_t *cur,
     for (; pos < maxlen; pos++) {
         c = str[pos];
         switch (VCHAR[c]) {
-        case 1:
+        case 1: // VCHAR
+        case 4: // obs-text
             // field-content
             ows_start = (size_t)-1;
             continue;
 
-        case 2:
+        case 2: // HT or SP
             // start of OWS
             if (ows_start == (size_t)-1) {
                 ows_start = pos;
             }
             continue;
 
-        // LF or CR
-        case 3:
+        case 3: // LF or CR
             // set tail position
             tail = (ows_start == (size_t)-1) ? pos : ows_start;
             if (c == LF) {
@@ -901,8 +905,8 @@ static int header_value_lua(lua_State *L)
 
     switch (rv) {
     case PARSE_EAGAIN:
-        // end with field-content
-        if (VCHAR[str[len - 1]] == 1) {
+        // end with field-content (VCHAR or obs-text)
+        if (VCHAR[str[len - 1]] == 1 || VCHAR[str[len - 1]] == 4) {
             lua_pushboolean(L, 1);
             return 1;
         }
@@ -1363,12 +1367,12 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
     for (; pos < maxlen; pos++) {
         unsigned char c = str[pos];
         switch (VCHAR[c]) {
-        case 1:
-        case 2:
+        case 1: // VCHAR
+        case 2: // HT or SP
+        case 4: // obs-text
             continue;
 
-        // LF or CR
-        case 3:
+        case 3: // LF or CR
             *maxmsglen = pos;
             if (c == LF) {
                 // found LF
