@@ -24,6 +24,8 @@
  *  Created by Masatoshi Teruya on 18/06/04.
  */
 
+#include <limits.h>
+#include <stdint.h>
 #include <string.h>
 // lua
 #include <lua_error.h>
@@ -363,7 +365,7 @@ static const unsigned char HEXDIGIT[256] = {
 
 static ssize_t hex2size(unsigned char *str, size_t len, size_t *cur)
 {
-    ssize_t dec = 0;
+    uint64_t dec = 0;
 
     if (!len) {
         return PARSE_EAGAIN;
@@ -376,15 +378,19 @@ static ssize_t hex2size(unsigned char *str, size_t len, size_t *cur)
             // found non hexdigit
             *cur = pos;
             return dec;
-        } else if (pos >= 8) {
-            // limit to max value of 32bit (0xFFFFFFFF)
+        }
+        // accumulate digit
+        dec = (dec << 4) | (c - 1);
+
+        if (dec > (uint64_t)SSIZE_MAX) {
+            // result too large
+            // limit to max value of 32bit (0x7FFFFFFF)
             return PARSE_ERANGE;
         }
-        dec = (dec << 4) | (c - 1);
     }
 
     *cur = len;
-    return dec;
+    return (ssize_t)dec;
 }
 
 /**
@@ -1197,6 +1203,9 @@ static int parse_version(unsigned char *str, size_t len, size_t *cur,
 static int parse_method(unsigned char *str, size_t len, size_t *cur,
                         size_t *mlen)
 {
+// TODO: a method allows 1*tchar, but we only implement common methods here.
+// Probably, we should support 1*tchar and let user to verify the method
+// string.
 // maximum method length with SP
 #define METHOD_LEN 8
 
@@ -1416,6 +1425,9 @@ static int parse_status(unsigned char *str, size_t len, size_t *cur,
     } else if (str[STATUS_LEN] != SP) {
         return PARSE_ESTATUS;
     }
+    // TODO: HTTP status code allows 3*DIGIT, but we only validate common status
+    // codes here. Probably, we should support 3*DIGIT and let user to verify
+    // the code.
     // invalid status code
     else if (str[0] < '1' || str[0] > '5' || str[1] < '0' || str[1] > '9' ||
              str[2] < '0' || str[2] > '9') {
