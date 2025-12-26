@@ -834,50 +834,66 @@ CHECK_EOB:
 #undef skip_bws
 }
 
+// is_vchar: check if character is field-content (VCHAR or obs-text)
+// Returns 1 if VCHAR[c] == 1 or VCHAR[c] == 4, otherwise returns 0
+static inline int is_vchar(unsigned char c)
+{
+    unsigned char v = VCHAR[c];
+    return (v == 1 || v == 4);
+}
+
+// strvchar: count consecutive field-content characters (VCHAR or obs-text)
+// Returns the number of consecutive characters from the beginning of str
+// that are field-content (VCHAR or obs-text)
+static inline size_t strvchar(const unsigned char *str, size_t len)
+{
+    size_t pos = 0;
+    while (pos < len && is_vchar(str[pos])) {
+        pos++;
+    }
+    return pos;
+}
+
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
-    size_t tail      = 0;
     size_t pos       = 0;
-    size_t ows_start = (size_t)-1;
+    size_t ows_start = SIZE_MAX;
     size_t maxlen    = (len > *maxhdrlen) ? *maxhdrlen : len;
-    unsigned char c  = 0;
 
-    for (; pos < maxlen; pos++) {
-        c = str[pos];
-        switch (VCHAR[c]) {
-        case 1: // VCHAR
-        case 4: // obs-text
-            // field-content
-            ows_start = (size_t)-1;
-            continue;
-
-        case 2: // HT or SP
-            // start of OWS
-            if (ows_start == (size_t)-1) {
-                ows_start = pos;
+CHECK_NEXT:
+    pos += strvchar(str + pos, maxlen - pos);
+    if (pos < maxlen) {
+        // stop at first non VCHAR/obs-text
+        unsigned char c = str[pos];
+        switch (c) {
+        case HT:
+        case SP:
+            // skip OWS
+            ows_start = pos;
+            pos++;
+            while (pos < maxlen && (str[pos] == HT || str[pos] == SP)) {
+                pos++;
             }
-            continue;
+            if (is_vchar(str[pos])) {
+                // continue with field-content
+                ows_start = SIZE_MAX;
+            }
+            goto CHECK_NEXT;
 
-        case 3: // LF or CR
-            // set tail position
-            tail = (ows_start == (size_t)-1) ? pos : ows_start;
-            if (c == LF) {
-                // found LF
-                pos += 1;
-            } else if (str[pos + 1] == LF) {
-                // found CRLF
-                pos += 2;
-            } else if (!str[pos + 1]) {
+        case CR:
+            if (!str[pos + 1]) {
                 // null-terminator
-                goto CHECK_AGAIN;
-            } else {
+                break;
+            }
+            if (str[pos + 1] != LF) {
                 // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
-
-            *cur       = pos;
-            *maxhdrlen = tail;
+        case LF:
+            // set tail position
+            *cur       = pos + 1 + (c == CR);
+            *maxhdrlen = (ows_start == SIZE_MAX) ? pos : ows_start;
             return PARSE_OK;
 
         // invalid
