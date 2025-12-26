@@ -1399,31 +1399,33 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
     size_t maxlen = (len > *maxmsglen) ? *maxmsglen : len;
     size_t pos    = 0;
 
-    for (; pos < maxlen; pos++) {
+CHECK_NEXT:
+    pos += strvchar(str + pos, maxlen - pos);
+    if (pos < maxlen) {
+        // stop at first non VCHAR/HT/SP/obs-text
         unsigned char c = str[pos];
-        switch (VCHAR[c]) {
-        case 1: // VCHAR
-        case 2: // HT or SP
-        case 4: // obs-text
-            continue;
-
-        case 3: // LF or CR
-            *maxmsglen = pos;
-            if (c == LF) {
-                // found LF
+        switch (c) {
+        case HT:
+        case SP:
+            // skip OWS
+            pos++;
+            while (pos < maxlen && (str[pos] == HT || str[pos] == SP)) {
                 pos++;
-            } else if (str[pos + 1] == LF) {
-                // found LF after CR
-                pos += 2;
-            } else if (!str[pos + 1]) {
-                // null-terminated
-                return PARSE_EAGAIN;
-            } else {
+            }
+            goto CHECK_NEXT;
+
+        case CR:
+            if (!str[pos + 1]) {
+                // null-terminator
+                break;
+            }
+            if (str[pos + 1] != LF) {
                 // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
-
-            *cur = pos;
+        case LF:
+            *cur       = pos + 1 + (c == CR);
+            *maxmsglen = pos;
             return PARSE_OK;
 
         default:
