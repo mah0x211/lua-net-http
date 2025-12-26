@@ -283,15 +283,10 @@ static int tchar_lua(lua_State *L)
  * obs-text       = %x80-FF
  */
 // 1 = field-content (VCHAR or obs-text)
-// 2 = HT or SP (OWS)
-// 3 = LF or CR (TERMINATOR)
 // 0 = invalid (including DEL)
 static const unsigned char VCHAR[256] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    // HT LF       CR
-    0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // SP
-    0, 2,
     // VCHAR 0x21 - 0x7E
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -300,12 +295,19 @@ static const unsigned char VCHAR[256] = {
     // except DEL 0x7F
     0,
     // all obs-text 0x80 - 0xFF
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4};
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1};
+
+// is_vchar: check if character is field-content (VCHAR or obs-text)
+// Returns 1 if VCHAR[c] == 1, otherwise returns 0
+static inline int is_vchar(unsigned char c)
+{
+    return VCHAR[c] == 1;
+}
 
 static int vchar_lua(lua_State *L)
 {
@@ -317,7 +319,7 @@ static int vchar_lua(lua_State *L)
     }
 
     for (size_t i = 0; i < len; i++) {
-        if (VCHAR[str[i]] != 1) {
+        if (!is_vchar(str[i])) {
             return error_result_as_false(L, PARSE_EILSEQ, "vchar");
         }
     }
@@ -438,10 +440,11 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
 
     pos++;
     for (; pos < len; pos++) {
+        unsigned char c = str[pos];
         if (pos > *maxlen) {
             return PARSE_ELEN;
-        } else if (!QDTEXT[str[pos]]) {
-            switch (str[pos]) {
+        } else if (!QDTEXT[c]) {
+            switch (c) {
             case DQUOTE:
                 *maxlen = pos - head;
                 *cur    = pos + 1;
@@ -453,14 +456,14 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
                     // reach to the end of string, need more bytes
                     return PARSE_EAGAIN;
                 }
-                switch (VCHAR[str[pos + 1]]) {
-                case 1: // VCHAR
-                case 2: // HT, SP
-                case 4: // obs-text
+                c = str[pos + 1];
+                if (is_vchar(c) || c == HT || c == SP) {
+                    // valid quoted-pair
                     pos += 2;
                     continue;
                 }
                 // pass-through
+
             default:
                 // found illegal byte sequence
                 return PARSE_EILSEQ;
@@ -834,14 +837,6 @@ CHECK_EOB:
 #undef skip_bws
 }
 
-// is_vchar: check if character is field-content (VCHAR or obs-text)
-// Returns 1 if VCHAR[c] == 1 or VCHAR[c] == 4, otherwise returns 0
-static inline int is_vchar(unsigned char c)
-{
-    unsigned char v = VCHAR[c];
-    return (v == 1 || v == 4);
-}
-
 // strvchar: count consecutive field-content characters (VCHAR or obs-text)
 // Returns the number of consecutive characters from the beginning of str
 // that are field-content (VCHAR or obs-text)
@@ -938,7 +933,7 @@ static int header_value_lua(lua_State *L)
     switch (rv) {
     case PARSE_EAGAIN:
         // end with field-content (VCHAR or obs-text)
-        if (VCHAR[str[len - 1]] == 1 || VCHAR[str[len - 1]] == 4) {
+        if (is_vchar(str[len - 1])) {
             lua_pushboolean(L, 1);
             return 1;
         }
