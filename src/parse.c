@@ -843,6 +843,30 @@ CHECK_EOB:
 static inline size_t strvchar(const unsigned char *str, size_t len)
 {
     size_t pos = 0;
+
+#define CHECK_VCHAR()                                                          \
+    do {                                                                       \
+        if (!is_vchar(str[pos])) {                                             \
+            return pos;                                                        \
+        }                                                                      \
+        pos++;                                                                 \
+    } while (0)
+
+    // Process 8 bytes at a time (manual unrolling)
+    while (pos + 8 <= len) {
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+        CHECK_VCHAR();
+    }
+
+#undef CHECK_VCHAR
+
+    // Handle remaining bytes (< 8)
     while (pos < len && is_vchar(str[pos])) {
         pos++;
     }
