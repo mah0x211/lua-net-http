@@ -283,15 +283,10 @@ static int tchar_lua(lua_State *L)
  * obs-text       = %x80-FF
  */
 // 1 = field-content (VCHAR or obs-text)
-// 2 = HT or SP (OWS)
-// 3 = LF or CR (TERMINATOR)
 // 0 = invalid (including DEL)
 static const unsigned char VCHAR[256] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    // HT LF       CR
-    0, 2, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // SP
-    0, 2,
     // VCHAR 0x21 - 0x7E
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -300,12 +295,19 @@ static const unsigned char VCHAR[256] = {
     // except DEL 0x7F
     0,
     // all obs-text 0x80 - 0xFF
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 4};
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1};
+
+// is_vchar: check if character is field-content (VCHAR or obs-text)
+// Returns 1 if VCHAR[c] == 1, otherwise returns 0
+static inline int is_vchar(unsigned char c)
+{
+    return VCHAR[c] == 1;
+}
 
 static int vchar_lua(lua_State *L)
 {
@@ -317,7 +319,7 @@ static int vchar_lua(lua_State *L)
     }
 
     for (size_t i = 0; i < len; i++) {
-        if (VCHAR[str[i]] != 1) {
+        if (!is_vchar(str[i])) {
             return error_result_as_false(L, PARSE_EILSEQ, "vchar");
         }
     }
@@ -438,10 +440,11 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
 
     pos++;
     for (; pos < len; pos++) {
+        unsigned char c = str[pos];
         if (pos > *maxlen) {
             return PARSE_ELEN;
-        } else if (!QDTEXT[str[pos]]) {
-            switch (str[pos]) {
+        } else if (!QDTEXT[c]) {
+            switch (c) {
             case DQUOTE:
                 *maxlen = pos - head;
                 *cur    = pos + 1;
@@ -453,14 +456,14 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
                     // reach to the end of string, need more bytes
                     return PARSE_EAGAIN;
                 }
-                switch (VCHAR[str[pos + 1]]) {
-                case 1: // VCHAR
-                case 2: // HT, SP
-                case 4: // obs-text
+                c = str[pos + 1];
+                if (is_vchar(c) || c == HT || c == SP) {
+                    // valid quoted-pair
                     pos += 2;
                     continue;
                 }
                 // pass-through
+
             default:
                 // found illegal byte sequence
                 return PARSE_EILSEQ;
@@ -834,50 +837,58 @@ CHECK_EOB:
 #undef skip_bws
 }
 
+// strvchar: count consecutive field-content characters (VCHAR or obs-text)
+// Returns the number of consecutive characters from the beginning of str
+// that are field-content (VCHAR or obs-text)
+static inline size_t strvchar(const unsigned char *str, size_t len)
+{
+    size_t pos = 0;
+    while (pos < len && is_vchar(str[pos])) {
+        pos++;
+    }
+    return pos;
+}
+
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
                       size_t *maxhdrlen)
 {
-    size_t tail      = 0;
     size_t pos       = 0;
-    size_t ows_start = (size_t)-1;
+    size_t ows_start = SIZE_MAX;
     size_t maxlen    = (len > *maxhdrlen) ? *maxhdrlen : len;
-    unsigned char c  = 0;
 
-    for (; pos < maxlen; pos++) {
-        c = str[pos];
-        switch (VCHAR[c]) {
-        case 1: // VCHAR
-        case 4: // obs-text
-            // field-content
-            ows_start = (size_t)-1;
-            continue;
-
-        case 2: // HT or SP
-            // start of OWS
-            if (ows_start == (size_t)-1) {
-                ows_start = pos;
+CHECK_NEXT:
+    pos += strvchar(str + pos, maxlen - pos);
+    if (pos < maxlen) {
+        // stop at first non VCHAR/obs-text
+        unsigned char c = str[pos];
+        switch (c) {
+        case HT:
+        case SP:
+            // skip OWS
+            ows_start = pos;
+            pos++;
+            while (pos < maxlen && (str[pos] == HT || str[pos] == SP)) {
+                pos++;
             }
-            continue;
+            if (is_vchar(str[pos])) {
+                // continue with field-content
+                ows_start = SIZE_MAX;
+            }
+            goto CHECK_NEXT;
 
-        case 3: // LF or CR
-            // set tail position
-            tail = (ows_start == (size_t)-1) ? pos : ows_start;
-            if (c == LF) {
-                // found LF
-                pos += 1;
-            } else if (str[pos + 1] == LF) {
-                // found CRLF
-                pos += 2;
-            } else if (!str[pos + 1]) {
+        case CR:
+            if (!str[pos + 1]) {
                 // null-terminator
-                goto CHECK_AGAIN;
-            } else {
+                break;
+            }
+            if (str[pos + 1] != LF) {
                 // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
-
-            *cur       = pos;
-            *maxhdrlen = tail;
+        case LF:
+            // set tail position
+            *cur       = pos + 1 + (c == CR);
+            *maxhdrlen = (ows_start == SIZE_MAX) ? pos : ows_start;
             return PARSE_OK;
 
         // invalid
@@ -922,7 +933,7 @@ static int header_value_lua(lua_State *L)
     switch (rv) {
     case PARSE_EAGAIN:
         // end with field-content (VCHAR or obs-text)
-        if (VCHAR[str[len - 1]] == 1 || VCHAR[str[len - 1]] == 4) {
+        if (is_vchar(str[len - 1])) {
             lua_pushboolean(L, 1);
             return 1;
         }
@@ -1383,31 +1394,33 @@ static int parse_reason(unsigned char *str, size_t len, size_t *cur,
     size_t maxlen = (len > *maxmsglen) ? *maxmsglen : len;
     size_t pos    = 0;
 
-    for (; pos < maxlen; pos++) {
+CHECK_NEXT:
+    pos += strvchar(str + pos, maxlen - pos);
+    if (pos < maxlen) {
+        // stop at first non VCHAR/HT/SP/obs-text
         unsigned char c = str[pos];
-        switch (VCHAR[c]) {
-        case 1: // VCHAR
-        case 2: // HT or SP
-        case 4: // obs-text
-            continue;
-
-        case 3: // LF or CR
-            *maxmsglen = pos;
-            if (c == LF) {
-                // found LF
+        switch (c) {
+        case HT:
+        case SP:
+            // skip OWS
+            pos++;
+            while (pos < maxlen && (str[pos] == HT || str[pos] == SP)) {
                 pos++;
-            } else if (str[pos + 1] == LF) {
-                // found LF after CR
-                pos += 2;
-            } else if (!str[pos + 1]) {
-                // null-terminated
-                return PARSE_EAGAIN;
-            } else {
+            }
+            goto CHECK_NEXT;
+
+        case CR:
+            if (!str[pos + 1]) {
+                // null-terminator
+                break;
+            }
+            if (str[pos + 1] != LF) {
                 // invalid end-of-line terminator
                 return PARSE_EEOL;
             }
-
-            *cur = pos;
+        case LF:
+            *cur       = pos + 1 + (c == CR);
+            *maxmsglen = pos;
             return PARSE_OK;
 
         default:
