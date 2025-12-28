@@ -214,7 +214,7 @@ static const unsigned char TCHAR[256] = {
     //   "                            (  )            ,            /
     '!', 0, '#', '$', '%', '&', '\'', 0, 0, '*', '+', 0, '-', '.', 0,
     //                                                :  ;  <  =  >  ?  @
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 1, 0, 0, 0, 0, 0, 0,
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0, 0, 0, 0, 0, 0, 0,
     // upper case
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y',
@@ -226,6 +226,51 @@ static const unsigned char TCHAR[256] = {
     //   {       }
     'z', 0, '|', 0, '~'};
 
+static inline unsigned char is_tchar(unsigned char c)
+{
+    return TCHAR[c];
+}
+
+// strtchar: count consecutive tchar characters with lowercase conversion
+// Returns the number of consecutive characters from the beginning of str
+// that are valid tchar. Stops at first non-tchar or end of string.
+
+#define STRTCHAR_NOOP ((void)0)
+
+#define STRTCHAR_EX_CHECK(str, pos, c, udf)                                    \
+    {                                                                          \
+        c = is_tchar((str)[pos]);                                              \
+        if (!c)                                                                \
+            break;                                                             \
+        udf;                                                                   \
+        pos++;                                                                 \
+    }
+
+#define strtchar_ex(str, len, pos, c, udf)                                     \
+    ({                                                                         \
+        while (pos + 8 <= (len)) {                                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+        }                                                                      \
+        while (pos < (len)) {                                                  \
+            STRTCHAR_EX_CHECK((str), pos, c, udf);                             \
+        }                                                                      \
+        pos;                                                                   \
+    })
+
+#define strtchar(str, len)                                                     \
+    ({                                                                         \
+        size_t pos      = 0;                                                   \
+        unsigned char c = 0;                                                   \
+        strtchar_ex((str), (len), pos, c, STRTCHAR_NOOP);                      \
+    })
+
 static int tchar_lua(lua_State *L)
 {
     size_t len         = 0;
@@ -235,13 +280,9 @@ static int tchar_lua(lua_State *L)
         return error_result_as_false(L, PARSE_EAGAIN, "tchar");
     }
 
-    for (size_t i = 0; i < len; i++) {
-        switch (TCHAR[str[i]]) {
-        case 0:
-        case 1:
-            // illegal byte sequence
-            return error_result_as_false(L, PARSE_EILSEQ, "tchar");
-        }
+    if (strtchar(str, len) != len) {
+        // found non-tchar
+        return error_result_as_false(L, PARSE_EILSEQ, "tchar");
     }
     lua_pushboolean(L, 1);
     return 1;
@@ -780,8 +821,10 @@ static int parameters_lua(lua_State *L)
     size_t len            = 0;
     unsigned char *str    = (unsigned char *)lauxh_checklstring(L, 1, &len);
     const uint16_t maxlen = lauxh_optuint16(L, 3, DEFAULT_STR_MAXLEN);
+    size_t tail           = (len > maxlen) ? maxlen : len;
     size_t cur            = 0;
     size_t head           = 0;
+    unsigned char c       = 0;
 
     // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -791,20 +834,18 @@ static int parameters_lua(lua_State *L)
         return error_result_as_false(L, PARSE_EAGAIN, "parameters");
     }
 
-    // parse parameter-name
+    // parse parameter
 CHECK_PARAM:
     // skip OWS
-    if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
+    if (skip_ws(str, tail, &cur, maxlen) != PARSE_OK) {
         return error_result_as_false(L, PARSE_ELEN, "parameters");
     }
+    // parse parameter-name
     head = cur;
-    for (unsigned char c = TCHAR[str[cur]]; c > 1; c = TCHAR[str[cur]]) {
-        str[cur++] = c;
-        if (cur > maxlen) {
-            return error_result_as_false(L, PARSE_ELEN, "parameters");
-        }
-    }
-    if (str[cur] != '=') {
+    strtchar_ex(str, tail, cur, c, { str[cur] = c; });
+    if (cur == maxlen && len > maxlen) {
+        return error_result_as_false(L, PARSE_ELEN, "parameters");
+    } else if (str[cur] != '=') {
         return error_result_as_false(L, PARSE_EILSEQ, "parameters");
     }
     lua_pushlstring(L, (const char *)str + head, cur - head);
@@ -816,7 +857,7 @@ CHECK_PARAM:
         size_t qlen = maxlen;
         // parse as a quoted-string
         head++;
-        switch (parse_quoted_string(str, len, &cur, &qlen)) {
+        switch (parse_quoted_string(str, tail, &cur, &qlen)) {
         case PARSE_OK:
             lua_pushlstring(L, (const char *)str + head, qlen);
             lua_rawset(L, 2);
@@ -833,17 +874,15 @@ CHECK_PARAM:
         }
     }
     // parse as a token
-    while (TCHAR[str[cur]] > 1) {
-        if (cur >= maxlen) {
-            return error_result_as_false(L, PARSE_ELEN, "parameters");
-        }
-        cur++;
+    cur += strtchar(str + cur, tail - cur);
+    if (cur == maxlen && len > maxlen) {
+        return error_result_as_false(L, PARSE_ELEN, "parameters");
     }
     lua_pushlstring(L, (const char *)str + head, cur - head);
     lua_rawset(L, 2);
 
 CHECK_EOL:
-    if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {
+    if (skip_ws(str, tail, &cur, maxlen) != PARSE_OK) {
         return error_result_as_false(L, PARSE_ELEN, "parameters");
     }
     switch (str[cur]) {
@@ -972,9 +1011,7 @@ CHECK_EXTNAME:
     }
     skip_bws();
     head = cur;
-    while (TCHAR[str[cur]] > 1) {
-        cur++;
-    }
+    cur += strtchar(str + cur, len - cur);
     if (cur == head) {
         // disallow empty ext-name
         return error_result_as_nil(L, PARSE_EEMPTY, "chunksize");
@@ -1031,9 +1068,7 @@ CHECK_EXTNAME:
 
     // parse as a token
     head = cur;
-    while (TCHAR[str[cur]] > 1) {
-        cur++;
-    }
+    cur += strtchar(str + cur, len - cur);
     val  = (const char *)str + head;
     vlen = cur - head;
     switch (str[cur]) {
@@ -1160,49 +1195,45 @@ static int header_value_lua(lua_State *L)
 }
 
 static int parse_hkey(lua_State *L, unsigned char *str, size_t len, size_t *cur,
-                      size_t *maxhdrlen, int push)
+                      size_t *maxhdrlen)
 {
-    int top       = lua_gettop(L);
-    size_t maxlen = (len > *maxhdrlen) ? *maxhdrlen : len;
-    size_t pos    = 0;
-    luaL_Buffer b = {0};
+    int top         = lua_gettop(L);
+    size_t maxlen   = (len > *maxhdrlen) ? *maxhdrlen : len;
+    size_t pos      = 0;
+    unsigned char c = 0;
+    luaL_Buffer b   = {0};
 
-    if (push) {
-        luaL_buffinit(L, &b);
+    luaL_buffinit(L, &b);
+
+    // Use strtchar to find the length of consecutive tchar
+    size_t tchar_len =
+        strtchar_ex(str, maxlen, pos, c, { luaL_addchar(&b, c); });
+
+    if (tchar_len == 0) {
+        // Empty or first character is invalid
+        lua_settop(L, top);
+        return PARSE_EHDRNAME;
     }
 
-    for (; pos < maxlen; pos++) {
-        unsigned char c = TCHAR[str[pos]];
-        switch (c) {
-        // illegal byte sequence
-        case 0:
-            lua_settop(L, top);
-            return PARSE_EHDRNAME;
-
-        // found COLON
-        case 1:
-            // check length
-            if (pos == 0) {
-                lua_settop(L, top);
-                return PARSE_EHDRNAME;
-            }
-
-            *maxhdrlen = pos;
-            *cur       = pos + 1;
-            if (push) {
-                luaL_pushresult(&b);
-            }
+    if (tchar_len < maxlen) {
+        // strtchar stopped before maxlen - check why
+        unsigned char c = str[tchar_len];
+        if (c == ':') {
+            // Found colon - success
+            // Header name already converted to lowercase by strtchar
+            *maxhdrlen = tchar_len;
+            *cur       = tchar_len + 1;
+            luaL_pushresult(&b);
             return PARSE_OK;
-
-        default:
-            if (push) {
-                luaL_addchar(&b, c);
-            }
         }
+        // Non-tchar, non-colon character - error
+        lua_settop(L, top);
+        return PARSE_EHDRNAME;
     }
 
-    // header-length too large
+    // All characters up to maxlen were tchar
     if (len > maxlen) {
+        // More data available but exceeded maxlen
         lua_settop(L, top);
         return PARSE_EHDRLEN;
     }
@@ -1213,23 +1244,21 @@ static int parse_hkey(lua_State *L, unsigned char *str, size_t len, size_t *cur,
 
 static int header_name_lua(lua_State *L)
 {
-    size_t len      = 0;
-    const char *str = lauxh_checklstring(L, 1, &len);
-    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
-    size_t cur      = 0;
-    int rv = parse_hkey(L, (unsigned char *)str, len, &cur, &maxlen, 0);
+    size_t len       = 0;
+    const char *str  = lauxh_checklstring(L, 1, &len);
+    size_t maxhdrlen = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
+    size_t namelen   = 0;
 
-    switch (rv) {
-    case PARSE_EAGAIN:
-        lua_pushboolean(L, 1);
-        return 1;
-
-    case PARSE_OK:
-        // str must not contains the field separator (COLON)
-        rv = PARSE_EHDRNAME;
-    default:
-        return error_result_as_false(L, rv, "header_name");
+    if (len > maxhdrlen) {
+        // header-name too long
+        return error_result_as_false(L, PARSE_EHDRLEN, "header_name");
+    } else if (strtchar((unsigned char *)str, maxhdrlen) != len) {
+        // invalid character found
+        return error_result_as_false(L, PARSE_EHDRNAME, "header_name");
     }
+    // All characters are valid tchar
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 static int parse_header(lua_State *L, unsigned char *str, size_t len,
@@ -1279,7 +1308,7 @@ RETRY:
     head = (uintptr_t)str;
     klen = maxhdrlen;
     // parse key and push to stack
-    rv   = parse_hkey(L, str, len, &pos, &klen, 1);
+    rv   = parse_hkey(L, str, len, &pos, &klen);
     if (rv != PARSE_OK) {
         lua_settop(L, tblidx);
         return rv;
@@ -1660,10 +1689,9 @@ static int parse_status(unsigned char *str, size_t len, size_t *cur,
     } else if (str[STATUS_LEN] != SP) {
         return PARSE_ESTATUS;
     }
-    // TODO: HTTP status code allows 3*DIGIT, but we only validate common status
-    // codes here. Probably, we should support 3*DIGIT and let user to verify
-    // the code.
-    // invalid status code
+    // TODO: HTTP status code allows 3*DIGIT, but we only validate common
+    // status codes here. Probably, we should support 3*DIGIT and let user
+    // to verify the code. invalid status code
     else if (str[0] < '1' || str[0] > '5' || str[1] < '0' || str[1] > '9' ||
              str[2] < '0' || str[2] > '9') {
         return PARSE_ESTATUS;
