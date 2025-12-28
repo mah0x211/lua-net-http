@@ -542,10 +542,10 @@ static int vchar_lua(lua_State *L)
         return error_result_as_false(L, PARSE_EAGAIN, "vchar");
     }
 
-    for (size_t i = 0; i < len; i++) {
-        if (!is_vchar(str[i])) {
-            return error_result_as_false(L, PARSE_EILSEQ, "vchar");
-        }
+    // Use SIMD-accelerated strvchar to check all characters
+    size_t n = strvchar(str, len);
+    if (n != len) {
+        return error_result_as_false(L, PARSE_EILSEQ, "vchar");
     }
     lua_pushboolean(L, 1);
     return 1;
