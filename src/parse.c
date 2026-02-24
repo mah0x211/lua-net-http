@@ -604,16 +604,13 @@ static inline size_t strvchar(const unsigned char *str, size_t len)
 
 static int vchar_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t pos      = 0;
 
     if (!len) {
         return error_result_as_false(L, PARSE_EAGAIN, "vchar");
-    }
-
-    // Use SIMD-accelerated strvchar to check all characters
-    size_t n = strvchar(str, len);
-    if (n != len) {
+    } else if (hwire_parse_vchar(str, len, &pos) != len) {
         return error_result_as_false(L, PARSE_EILSEQ, "vchar");
     }
     lua_pushboolean(L, 1);
