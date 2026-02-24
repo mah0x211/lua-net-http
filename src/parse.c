@@ -767,22 +767,16 @@ static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
 
 static int quoted_string_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_STR_MAXLEN);
-    size_t cur         = 0;
-    int rv             = PARSE_EAGAIN;
-
-    if (len) {
-        rv = parse_quoted_string(str, len, &cur, &maxlen);
-        if (rv == PARSE_OK && cur != len) {
-            // did not parse to the end of string
-            rv = PARSE_EILSEQ;
-        }
-    }
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_STR_MAXLEN);
+    size_t pos      = 0;
+    int rv          = hwire_parse_quoted_string(str, len, &pos, maxlen);
 
     if (rv != PARSE_OK) {
         return error_result_as_false(L, rv, "quoted_string");
+    } else if (pos != len) {
+        return error_result_as_false(L, PARSE_EILSEQ, "quoted_string");
     }
     lua_pushboolean(L, 1);
     return 1;
