@@ -842,27 +842,23 @@ CHECK_AGAIN:
 
 static int header_value_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    size_t maxlen      = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
-    size_t cur         = 0;
-    int rv             = parse_hval((unsigned char *)str, len, &cur, &maxlen);
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t maxlen   = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
+    size_t pos      = 0;
 
-    switch (rv) {
-    case PARSE_EAGAIN:
-        // end with field-content (VCHAR or obs-text)
-        if (is_vchar(str[len - 1])) {
-            lua_pushboolean(L, 1);
-            return 1;
-        }
-
-    case PARSE_OK:
-    case PARSE_EEOL:
-        // str must not contain the end-of-line terminator (CRLF)
-        rv = PARSE_EHDRVAL;
-    default:
-        return error_result_as_false(L, rv, "header_value");
+    if (!len) {
+        return error_result_as_false(L, PARSE_EAGAIN, "header_value");
+    } else if (len > maxlen) {
+        return error_result_as_false(L, PARSE_EHDRLEN, "header_value");
+    } else if (!hwire_is_vchar((unsigned char)str[len - 1])) {
+        // field-content must end with VCHAR or obs-text
+        return error_result_as_false(L, PARSE_EHDRVAL, "header_value");
+    } else if (hwire_parse_fcchar(str, len, &pos) != len) {
+        return error_result_as_false(L, PARSE_EHDRVAL, "header_value");
     }
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 static int parse_hkey(lua_State *L, unsigned char *str, size_t len, size_t *cur,
