@@ -835,17 +835,33 @@ SKIP_NEXT:
  * verify parameters
  */
 
+static int param_cb(hwire_ctx_t *ctx, hwire_param_t *param)
+{
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    lua_State *L       = cb->L;
+    lua_pushlstring(L, ctx->key_lc.buf, ctx->key_lc.len);
+    lua_pushlstring(L, param->value.ptr, param->value.len);
+    lua_rawset(L, cb->tblidx);
+    return 0;
+}
+
 static int parameters_lua(lua_State *L)
 {
-    size_t len            = 0;
-    unsigned char *str    = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    const uint16_t maxlen = lauxh_optuint16(L, 3, DEFAULT_STR_MAXLEN);
-    size_t tail           = (len > maxlen) ? maxlen : len;
-    size_t cur            = 0;
-    size_t head           = 0;
-    unsigned char c       = 0;
+    size_t len                   = 0;
+    const char *str              = lauxh_checklstring(L, 1, &len);
+    uint16_t maxlen              = lauxh_optuint16(L, 3, DEFAULT_STR_MAXLEN);
+    parse_cb_ctx_t cb_ctx        = {.L = L, .tblidx = 2};
+    char buf[DEFAULT_STR_MAXLEN] = {0};
+    // parse context
+    hwire_ctx_t ctx = {
+        .uctx     = &cb_ctx,
+        .key_lc   = {.buf = buf, .size = sizeof(buf)},
+        .param_cb = param_cb,
+    };
+    size_t pos = 0;
+    int rv     = 0;
 
-    // check container table
+    // confirm table argument
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_settop(L, 2);
 
@@ -853,71 +869,21 @@ static int parameters_lua(lua_State *L)
         return error_result_as_false(L, PARSE_EAGAIN, "parameters");
     }
 
-    // parse parameter
-CHECK_PARAM:
-    // skip OWS
-    if (skip_ws(str, tail, &cur, maxlen) != PARSE_OK) {
-        return error_result_as_false(L, PARSE_ELEN, "parameters");
+    if (maxlen > DEFAULT_STR_MAXLEN) {
+        ctx.key_lc.buf  = (char *)lua_newuserdata(L, maxlen);
+        ctx.key_lc.size = maxlen;
     }
-    // parse parameter-name
-    head = cur;
-    strtchar_ex(str, tail, cur, c, { str[cur] = c; });
-    if (cur == maxlen && len > maxlen) {
-        return error_result_as_false(L, PARSE_ELEN, "parameters");
-    } else if (str[cur] != '=') {
+
+    rv = hwire_parse_parameters(&ctx, str, len, &pos, maxlen, UINT8_MAX, 1);
+    if (rv == HWIRE_ECALLBACK) {
+        return error_result_as_false(L, cb_ctx.error, "parameters");
+    } else if (rv != HWIRE_OK) {
+        return error_result_as_false(L, rv, "parameters");
+    } else if (pos < len) {
         return error_result_as_false(L, PARSE_EILSEQ, "parameters");
     }
-    lua_pushlstring(L, (const char *)str + head, cur - head);
-    cur++;
-
-    // parse parameter-value
-    head = cur;
-    if (str[cur] == DQUOTE) {
-        size_t qlen = maxlen;
-        // parse as a quoted-string
-        head++;
-        switch (parse_quoted_string(str, tail, &cur, &qlen)) {
-        case PARSE_OK:
-            lua_pushlstring(L, (const char *)str + head, qlen);
-            lua_rawset(L, 2);
-            goto CHECK_EOL;
-
-        case PARSE_EAGAIN:
-            // more bytes need
-            return error_result_as_false(L, PARSE_EAGAIN, "parameters");
-
-        // PARSE_EILSEQ
-        default:
-            // found illegal byte sequence
-            return error_result_as_false(L, PARSE_EILSEQ, "parameters");
-        }
-    }
-    // parse as a token
-    cur += strtchar(str + cur, tail - cur);
-    if (cur == maxlen && len > maxlen) {
-        return error_result_as_false(L, PARSE_ELEN, "parameters");
-    }
-    lua_pushlstring(L, (const char *)str + head, cur - head);
-    lua_rawset(L, 2);
-
-CHECK_EOL:
-    if (skip_ws(str, tail, &cur, maxlen) != PARSE_OK) {
-        return error_result_as_false(L, PARSE_ELEN, "parameters");
-    }
-    switch (str[cur]) {
-    case 0:
-        lua_pushboolean(L, 1);
-        return 1;
-
-    case ';':
-        // check next parameter
-        cur++;
-        goto CHECK_PARAM;
-
-    default:
-        // found illegal byte sequence
-        return error_result_as_false(L, PARSE_EILSEQ, "parameters");
-    }
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 #define DEFAULT_CHUNKSIZE_MAXLEN 4096
