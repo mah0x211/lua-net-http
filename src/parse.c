@@ -617,154 +617,6 @@ static int vchar_lua(lua_State *L)
     return 1;
 }
 
-/**
- * https://tools.ietf.org/html/rfc7230#section-4.1
- * 4.1.  Chunked Transfer Coding
- *
- * chunked-body   = *chunk
- *                  last-chunk
- *                  trailer-part
- *                  CRLF
- *
- * chunk          = chunk-size [ chunk-ext ] CRLF
- *                  chunk-data CRLF
- * chunk-size     = 1*HEXDIG
- * last-chunk     = 1*("0") [ chunk-ext ] CRLF
- *
- * chunk-data     = 1*OCTET ; a sequence of chunk-size octets
- */
-static const unsigned char HEXDIGIT[256] = {
-    //  ctrl-code: 0-32
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-    //  SP !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    //  0  1  2  3  4  5  6  7  8  9
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-    //  :  ;  <  =  >  ?  @
-    0, 0, 0, 0, 0, 0, 0,
-    //  A   B   C   D   E   F
-    11, 12, 13, 14, 15, 16,
-    //  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X  Y  Z  [  \  ]
-    //  ^  _  `
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,
-    //  a   b   c   d   e   f
-    11, 12, 13, 14, 15, 16,
-    //  g  h  i  j  k  l  m  n  o  p  q  r  s  t  u  v  w  x  y  z  {  |  }
-    //  ~
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-static ssize_t hex2size(unsigned char *str, size_t len, size_t *cur)
-{
-    uint64_t dec = 0;
-
-    if (!len) {
-        return PARSE_EAGAIN;
-    }
-
-    // hex to decimal
-    for (size_t pos = 0; pos < len; pos++) {
-        unsigned char c = HEXDIGIT[str[pos]];
-        if (!c) {
-            // found non hexdigit
-            *cur = pos;
-            return dec;
-        }
-        // accumulate digit
-        dec = (dec << 4) | (c - 1);
-
-        if (dec > (uint64_t)SSIZE_MAX) {
-            // result too large
-            // limit to max value of 32bit (0x7FFFFFFF)
-            return PARSE_ERANGE;
-        }
-    }
-
-    *cur = len;
-    return (ssize_t)dec;
-}
-
-/**
- * 5.6.6. Parameters
- * https://www.ietf.org/archive/id/draft-ietf-httpbis-semantics-16.html#section-5.6.6
- *
- * parameter-value = token / quoted-string
- * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
- * qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
- * quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
- * obs-text       = %x80-FF
- */
-static const unsigned char QDTEXT[256] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0,
-    1, // HTAB
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    1, // 0x20 - 0x21 SP and exclamation mark
-    0, // 0x22 double-quote
-    // 0x23 - 0x5B
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1,
-    0, // 0x5C backslash
-    // 0x5D - 0x7E
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, // DEL 0x7F
-    // all obs-text 0x80 - 0xFF
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1};
-
-static int parse_quoted_string(unsigned char *str, size_t len, size_t *cur,
-                               size_t *maxlen)
-{
-    size_t pos  = *cur;
-    size_t head = pos + 1;
-
-    if (str[pos] != DQUOTE) {
-        return PARSE_EILSEQ;
-    }
-
-    pos++;
-    for (; pos < len; pos++) {
-        unsigned char c = str[pos];
-        if (pos > *maxlen) {
-            return PARSE_ELEN;
-        } else if (!QDTEXT[c]) {
-            switch (c) {
-            case DQUOTE:
-                *maxlen = pos - head;
-                *cur    = pos + 1;
-                return PARSE_OK;
-
-            case BACKSLASH:
-                // quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
-                if (pos + 1 >= len) {
-                    // reach to the end of string, need more bytes
-                    return PARSE_EAGAIN;
-                }
-                c = str[pos + 1];
-                if (is_vchar(c) || c == HT || c == SP) {
-                    // valid quoted-pair
-                    pos += 2;
-                    continue;
-                }
-                // pass-through
-
-            default:
-                // found illegal byte sequence
-                return PARSE_EILSEQ;
-            }
-        }
-    }
-
-    // more bytes need
-    return PARSE_EAGAIN;
-}
-
 static int quoted_string_lua(lua_State *L)
 {
     size_t len      = 0;
@@ -780,31 +632,6 @@ static int quoted_string_lua(lua_State *L)
     }
     lua_pushboolean(L, 1);
     return 1;
-}
-
-static inline int skip_ws(unsigned char *str, size_t len, size_t *cur,
-                          size_t maxlen)
-{
-    size_t pos = *cur;
-
-SKIP_NEXT:
-    if (pos < len) {
-        // length too large
-        if (pos >= maxlen) {
-            return PARSE_ELEN;
-        }
-
-        // skip SP and HT
-        switch (str[pos]) {
-        case SP:
-        case HT:
-            pos++;
-            goto SKIP_NEXT;
-        }
-    }
-
-    *cur = pos;
-    return PARSE_OK;
 }
 
 /**
@@ -886,22 +713,41 @@ static int parameters_lua(lua_State *L)
     return 1;
 }
 
+static int chunksize_cb(hwire_ctx_t *ctx, uint32_t size)
+{
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    cb->chunksize      = (uint64_t)size;
+    return 0;
+}
+
+static int chunksize_ext_cb(hwire_ctx_t *ctx, hwire_chunksize_ext_t *ext)
+{
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    lua_State *L       = cb->L;
+    lua_pushlstring(L, ext->key.ptr, ext->key.len);
+    lua_pushlstring(L, ext->value.ptr, ext->value.len);
+    lua_rawset(L, cb->tblidx);
+    return 0;
+}
+
 #define DEFAULT_CHUNKSIZE_MAXLEN 4096
 
 static int chunksize_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
     size_t maxlen   = (size_t)lauxh_optuint16(L, 3, DEFAULT_CHUNKSIZE_MAXLEN);
-    ssize_t size    = 0;
-    size_t cur      = 0;
-    size_t head     = 0;
-    const char *key = NULL;
-    size_t klen     = 0;
-    const char *val = NULL;
-    size_t vlen     = 0;
+    parse_cb_ctx_t cb_ctx = {.L = L, .tblidx = 2, .chunksize = 0};
+    // parse context
+    hwire_ctx_t ctx = {
+        .uctx             = &cb_ctx,
+        .chunksize_cb     = chunksize_cb,
+        .chunksize_ext_cb = chunksize_ext_cb,
+    };
+    size_t pos = 0;
+    int rv     = 0;
 
-    // check container table
+    // confirm table argument
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_settop(L, 2);
 
@@ -909,176 +755,16 @@ static int chunksize_lua(lua_State *L)
         return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
     }
 
-    // parse chunk-size
-    size = hex2size(str, len, &cur);
-    if (size < 0) {
-        return error_result_as_nil(L, size, "chunksize");
+    rv = hwire_parse_chunksize(&ctx, str, len, &pos, maxlen, UINT8_MAX);
+    if (rv == HWIRE_ECALLBACK) {
+        return error_result_as_nil(L, cb_ctx.error, "chunksize");
+    } else if (rv != HWIRE_OK) {
+        return error_result_as_nil(L, rv, "chunksize");
     }
-
-#define skip_bws()                                                             \
-    do {                                                                       \
-        if (skip_ws(str, len, &cur, maxlen) != PARSE_OK) {                     \
-            return error_result_as_nil(L, PARSE_ELEN, "chunksize");            \
-        } else if (str[cur] == 0) {                                            \
-            /* more bytes need */                                              \
-            return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");          \
-        }                                                                      \
-    } while (0)
-
-    // found tail
-    if (str[cur] == CR) {
-CHECK_EOL:
-        switch (str[cur + 1]) {
-        case 0:
-            // more bytes need
-            return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
-
-        case LF:
-            // push extension
-            if (klen) {
-                lua_pushlstring(L, key, klen);
-                if (vlen) {
-                    lua_pushlstring(L, val, vlen);
-                } else {
-                    lua_pushliteral(L, "");
-                }
-                lua_rawset(L, 2);
-            }
-            // return chunksize and number of bytes consumed
-            lua_pushinteger(L, size);
-            lua_pushnil(L);
-            lua_pushinteger(L, cur + 2);
-            return 3;
-
-        default:
-            // invalid end-of-line terminator
-            return error_result_as_nil(L, PARSE_EEOL, "chunksize");
-        }
-    }
-
-    // parse semicolon
-    skip_bws();
-    if (str[cur] != SEMICOLON) {
-        return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
-    }
-    cur++;
-
-    // 4.1.1.  Chunk Extensions
-    //
-    // chunk-ext    = *( BWS ";" BWS ext-name [ BWS "=" BWS ext-val ] )
-    // ext-name     = token
-    // ext-val      = token / quoted-string
-    //
-    // trailer-part = *( header-field CRLF )
-    //
-    // OWS (Optional Whitespace)        = *( SP / HTAB )
-    // BWS (Must be removed by parser)  = OWS
-    //                                  ; "bad" whitespace
-    //
-    // quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
-    // qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
-    // quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
-    // obs-text       = %x80-FF
-    //
-    // parse chunk-extensions
-CHECK_EXTNAME:
-    // push previous extension
-    if (klen) {
-        lua_pushlstring(L, key, klen);
-        if (vlen) {
-            lua_pushlstring(L, val, vlen);
-        } else {
-            lua_pushliteral(L, "");
-        }
-        lua_rawset(L, 2);
-        klen = 0;
-        vlen = 0;
-    }
-    skip_bws();
-    head = cur;
-    cur += strtchar(str + cur, len - cur);
-    if (cur == head) {
-        // disallow empty ext-name
-        return error_result_as_nil(L, PARSE_EEMPTY, "chunksize");
-    }
-    key  = (const char *)str + head;
-    klen = cur - head;
-
-    // found tail
-    if (str[cur] == CR) {
-        goto CHECK_EOL;
-    }
-    skip_bws();
-
-    switch (str[cur]) {
-    case SEMICOLON:
-        cur++;
-        goto CHECK_EXTNAME;
-
-    case EQ:
-        // parse ext-value
-        cur++;
-        break;
-
-    default:
-        // illegal byte sequence
-        return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
-    }
-
-    // parse ext-val
-    skip_bws();
-    if (str[cur] == DQUOTE) {
-        int rv = 0;
-
-        // parse as a quoted-string
-        head = cur + 1;
-        vlen = maxlen;
-        rv   = parse_quoted_string(str, len, &cur, &vlen);
-        switch (rv) {
-        case PARSE_OK:
-            val = (const char *)str + head;
-            // found tail
-            if (str[cur] == CR) {
-                goto CHECK_EOL;
-            }
-            goto CHECK_EOB;
-
-        default:
-            // PARSE_EAGAIN
-            // PARSE_ELEN
-            // PARSE_EILSEQ
-            return error_result_as_nil(L, rv, "chunksize");
-        }
-    }
-
-    // parse as a token
-    head = cur;
-    cur += strtchar(str + cur, len - cur);
-    val  = (const char *)str + head;
-    vlen = cur - head;
-    switch (str[cur]) {
-    case 0:
-        // more bytes need
-        return error_result_as_nil(L, PARSE_EAGAIN, "chunksize");
-
-    case CR:
-        // found tail
-        goto CHECK_EOL;
-
-    default:
-CHECK_EOB:
-        skip_bws();
-        switch (str[cur]) {
-        case SEMICOLON:
-            cur++;
-            goto CHECK_EXTNAME;
-
-        default:
-            // illegal byte sequence
-            return error_result_as_nil(L, PARSE_EILSEQ, "chunksize");
-        }
-    }
-#undef skip_bws
+    lua_pushinteger(L, cb_ctx.chunksize);
+    lua_pushnil(L);
+    lua_pushinteger(L, pos);
+    return 3;
 }
 
 static int parse_hval(unsigned char *str, size_t len, size_t *cur,
