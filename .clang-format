@@ -3,7 +3,7 @@ Language: Cpp
 BasedOnStyle: LLVM
 AlignAfterOpenBracket: Align
 AlignArrayOfStructures: Left
-AlignConsecutiveAssignments: AcrossComments
+AlignConsecutiveAssignments: true
 AlignConsecutiveBitFields: AcrossComments
 AlignConsecutiveDeclarations: None
 AlignConsecutiveMacros: AcrossComments

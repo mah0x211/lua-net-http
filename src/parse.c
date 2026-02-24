@@ -303,15 +303,13 @@ static inline unsigned char is_tchar(unsigned char c)
 
 static int tchar_lua(lua_State *L)
 {
-    size_t len         = 0;
-    unsigned char *str = (unsigned char *)lauxh_checklstring(L, 1, &len);
+    size_t len      = 0;
+    const char *str = lauxh_checklstring(L, 1, &len);
+    size_t pos      = 0;
 
     if (!len) {
         return error_result_as_false(L, PARSE_EAGAIN, "tchar");
-    }
-
-    if (strtchar(str, len) != len) {
-        // found non-tchar
+    } else if (hwire_parse_tchar(str, len, &pos) != len) {
         return error_result_as_false(L, PARSE_EILSEQ, "tchar");
     }
     lua_pushboolean(L, 1);
