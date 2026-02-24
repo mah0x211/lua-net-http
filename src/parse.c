@@ -29,25 +29,28 @@
 #include <string.h>
 // lua
 #include <lua_error.h>
+// hwire
+#include "hwire.h"
 
 /**
- * return code
+ * return code: values aligned with HWIRE_* for direct passthrough
  */
-#define PARSE_OK       0   // success
-#define PARSE_EAGAIN   -1  // need more bytes
-#define PARSE_EMSG     -2  // invalid message
-#define PARSE_ELEN     -3  // length too large
-#define PARSE_EMETHOD  -4  // method not implemented
-#define PARSE_EVERSION -5  // version not supported
-#define PARSE_EEOL     -6  // invalid end-of-line terminator
-#define PARSE_EHDRNAME -7  // invalid header field-name
-#define PARSE_EHDRVAL  -8  // invalid header field-val
-#define PARSE_EHDRLEN  -9  // header-length too large
-#define PARSE_EHDRNUM  -10 // too many headers
-#define PARSE_ESTATUS  -11 // invalid status code
-#define PARSE_EILSEQ   -12 // illegal byte sequence
-#define PARSE_ERANGE   -13 // result too large
-#define PARSE_EEMPTY   -14 // disallow empty definitions
+#define PARSE_OK       HWIRE_OK        //  0
+#define PARSE_EAGAIN   HWIRE_EAGAIN    // -1
+#define PARSE_ELEN     HWIRE_ELEN      // -2
+#define PARSE_EMETHOD  HWIRE_EMETHOD   // -3
+#define PARSE_EVERSION HWIRE_EVERSION  // -4
+#define PARSE_EEOL     HWIRE_EEOL      // -5
+#define PARSE_EHDRNAME HWIRE_EHDRNAME  // -6
+#define PARSE_EHDRVAL  HWIRE_EHDRVALUE // -7
+#define PARSE_EHDRLEN  HWIRE_EHDRLEN   // -8
+#define PARSE_ESTATUS  HWIRE_ESTATUS   // -9
+#define PARSE_EILSEQ   HWIRE_EILSEQ    // -10
+#define PARSE_ERANGE   HWIRE_ERANGE    // -11
+#define PARSE_EEMPTY   HWIRE_EEXTNAME  // -12
+#define PARSE_EHDRNUM  HWIRE_ENOBUFS   // -14
+#define PARSE_EURI     HWIRE_EURI      // -17
+#define PARSE_EMSG     -100            // no HWIRE equivalent
 static int PARSE_ERR_EAGAIN   = LUA_NOREF;
 static int PARSE_ERR_EMSG     = LUA_NOREF;
 static int PARSE_ERR_ELEN     = LUA_NOREF;
@@ -62,6 +65,7 @@ static int PARSE_ERR_ESTATUS  = LUA_NOREF;
 static int PARSE_ERR_EILSEQ   = LUA_NOREF;
 static int PARSE_ERR_ERANGE   = LUA_NOREF;
 static int PARSE_ERR_EEMPTY   = LUA_NOREF;
+static int PARSE_ERR_EURI     = LUA_NOREF;
 
 static void init_error_types(lua_State *L)
 {
@@ -92,6 +96,7 @@ static void init_error_types(lua_State *L)
     create_error_type(EILSEQ, "illegal byte sequence");
     create_error_type(ERANGE, "result too large");
     create_error_type(EEMPTY, "disallow empty definitions");
+    create_error_type(EURI, "invalid URI character");
 
 #undef create_error_type
 }
@@ -150,6 +155,15 @@ static int error_result_ex(lua_State *L, int err, const char *op, int as_bool)
     case PARSE_EEMPTY:
         lauxh_pushref(L, PARSE_ERR_EEMPTY);
         break;
+    case HWIRE_EEXTVAL: // invalid extension value → EILSEQ
+        lauxh_pushref(L, PARSE_ERR_EILSEQ);
+        break;
+    case HWIRE_EKEYLEN: // key length exceeded → EHDRLEN
+        lauxh_pushref(L, PARSE_ERR_EHDRLEN);
+        break;
+    case PARSE_EURI:
+        lauxh_pushref(L, PARSE_ERR_EURI);
+        break;
 
     default:
         return luaL_error(L, "unknown errtype %d", err);
@@ -165,6 +179,22 @@ static int error_result_ex(lua_State *L, int err, const char *op, int as_bool)
 }
 #define error_result_as_false(L, err, op) error_result_ex(L, err, op, 1)
 #define error_result_as_nil(L, err, op)   error_result_ex(L, err, op, 0)
+
+typedef struct {
+    lua_State *L;
+    int tblidx;
+    int error;
+    int nhdr;
+    int request_line_parsed;
+    uint64_t chunksize;
+    size_t maxmsglen;
+    size_t maxhdrlen;
+} parse_cb_ctx_t;
+
+static inline double hwire_version_to_double(uint16_t ver)
+{
+    return (ver >> 8) + (ver & 0xff) * 0.1;
+}
 
 /* delimiters */
 #define CR        '\r'
@@ -1803,7 +1833,7 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
 
     init_error_types(L);
 
-    lua_createtable(L, 0, sizeof(funcs) / sizeof(struct luaL_Reg) + 12);
+    lua_createtable(L, 0, sizeof(funcs) / sizeof(struct luaL_Reg) + 13);
     do {
         lauxh_pushfn2tbl(L, ptr->name, ptr->func);
         ptr++;
@@ -1838,6 +1868,8 @@ LUALIB_API int luaopen_net_http_parse(lua_State *L)
     lua_setfield(L, -2, "ERANGE");
     lauxh_pushref(L, PARSE_ERR_EEMPTY);
     lua_setfield(L, -2, "EEMPTY");
+    lauxh_pushref(L, PARSE_ERR_EURI);
+    lua_setfield(L, -2, "EURI");
 
     return 1;
 }
