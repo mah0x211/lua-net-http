@@ -1148,32 +1148,6 @@ static int header_lua(lua_State *L)
     return 1;
 }
 
-static int parse_version(unsigned char *str, size_t len, size_t *cur,
-                         double *ver)
-{
-// version length: HTTP/x.x
-#define VER_LEN 8
-
-    if (len < VER_LEN) {
-        // versions string incomplete
-        return PARSE_EAGAIN;
-    }
-
-    // parse version
-    *cur = VER_LEN;
-    if (memcmp(str, "HTTP/1.1", VER_LEN) == 0) {
-        *ver = 1.1;
-        return PARSE_OK;
-    } else if (memcmp(str, "HTTP/1.0", VER_LEN) == 0) {
-        *ver = 1.0;
-        return PARSE_OK;
-    }
-    // invalid version format
-    return PARSE_EVERSION;
-
-#undef VER_LEN
-}
-
 static int request_cb(hwire_ctx_t *ctx, hwire_request_t *req)
 {
     parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
@@ -1238,159 +1212,71 @@ static int request_lua(lua_State *L)
     return error_result_as_nil(L, rv, "request");
 }
 
-static int parse_reason(unsigned char *str, size_t len, size_t *cur,
-                        size_t *maxmsglen)
+static int response_cb(hwire_ctx_t *ctx, hwire_response_t *rsp)
 {
-    size_t maxlen = (len > *maxmsglen) ? *maxmsglen : len;
-    size_t pos    = 0;
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    lua_State *L       = cb->L;
 
-CHECK_NEXT:
-    pos += strvchar(str + pos, maxlen - pos);
-    if (pos < maxlen) {
-        // stop at first non VCHAR/HT/SP/obs-text
-        unsigned char c = str[pos];
-        switch (c) {
-        case HT:
-        case SP:
-            // skip OWS
-            pos++;
-            while (pos < maxlen && (str[pos] == HT || str[pos] == SP)) {
-                pos++;
-            }
-            goto CHECK_NEXT;
-
-        case CR:
-            if (!str[pos + 1]) {
-                // null-terminator
-                break;
-            }
-            if (str[pos + 1] != LF) {
-                // invalid end-of-line terminator
-                return PARSE_EEOL;
-            }
-        case LF:
-            *cur       = pos + 1 + (c == CR);
-            *maxmsglen = pos;
-            return PARSE_OK;
-
-        default:
-            // invalid reason-phrase
-            return PARSE_EMSG;
-        }
+    if (rsp->reason.len > cb->maxmsglen) {
+        cb->error = PARSE_ELEN;
+        return -1;
     }
+    cb->request_line_parsed = 1;
 
-    // phrase-length too large
-    if (len > maxlen) {
-        return PARSE_ELEN;
-    }
+    lauxh_pushnum2tbl(L, "version", hwire_version_to_double(rsp->version));
+    lauxh_pushint2tbl(L, "status", rsp->status);
+    lauxh_pushlstr2tbl(L, "reason", rsp->reason.ptr, rsp->reason.len);
 
-    return PARSE_EAGAIN;
-}
-
-static int parse_status(unsigned char *str, size_t len, size_t *cur,
-                        int *status)
-{
-// status length
-#define STATUS_LEN 3
-
-    if (len <= STATUS_LEN) {
-        return PARSE_EAGAIN;
-    } else if (str[STATUS_LEN] != SP) {
-        return PARSE_ESTATUS;
-    }
-    // TODO: HTTP status code allows 3*DIGIT, but we only validate common
-    // status codes here. Probably, we should support 3*DIGIT and let user
-    // to verify the code. invalid status code
-    else if (str[0] < '1' || str[0] > '5' || str[1] < '0' || str[1] > '9' ||
-             str[2] < '0' || str[2] > '9') {
-        return PARSE_ESTATUS;
-    }
-
-    *cur    = STATUS_LEN + 1;
-    // set status
-    *status = (str[0] - 0x30) * 100 + (str[1] - 0x30) * 10 + (str[2] - 0x30);
-    return PARSE_OK;
-
-#undef STATUS_LEN
+    lua_createtable(L, 0, 0);
+    cb->tblidx = lua_gettop(L);
+    return 0;
 }
 
 static int response_lua(lua_State *L)
 {
-    size_t len          = 0;
-    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
-    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
-    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
-    unsigned char *head = str;
-    size_t cur          = 0;
-    double ver          = 0;
-    int status          = 0;
-    const char *reason  = NULL;
-    size_t rlen         = 0;
-    int rv              = 0;
+    size_t len            = 0;
+    const char *str       = lauxh_checklstring(L, 1, &len);
+    uint16_t maxmsglen    = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
+    uint16_t maxhdrlen    = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum     = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
+    size_t maxlen         = (maxmsglen > maxhdrlen) ? maxmsglen : maxhdrlen;
+    parse_cb_ctx_t cb_ctx = {
+        .L         = L,
+        .maxmsglen = maxmsglen,
+        .maxhdrlen = maxhdrlen,
+    };
+    char buf[DEFAULT_HDR_MAXLEN] = {0};
+    // parse context
+    hwire_ctx_t ctx = {
+        .uctx        = &cb_ctx,
+        .key_lc      = {.buf = buf, .size = sizeof(buf)},
+        .response_cb = response_cb,
+        .header_cb   = header_cb,
+    };
+    size_t pos = 0;
+    int rv     = 0;
 
-    // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_settop(L, 2);
 
-SKIP_NEXT_CRLF:
-    switch (*str) {
-    // need more bytes
-    case 0:
-        return error_result_as_nil(L, PARSE_EAGAIN, "response");
-
-    case CR:
-    case LF:
-        str++;
-        len--;
-        goto SKIP_NEXT_CRLF;
+    if (maxhdrlen > DEFAULT_HDR_MAXLEN) {
+        ctx.key_lc.buf  = (char *)lua_newuserdata(L, maxhdrlen);
+        ctx.key_lc.size = maxhdrlen;
     }
 
-    rv = parse_version(str, len, &cur, &ver);
-    if (rv != PARSE_OK) {
-        return error_result_as_nil(L, rv, "response");
-    } else if (!str[cur]) {
-        return error_result_as_nil(L, PARSE_EAGAIN, "response");
-    } else if (str[cur] != SP) {
-        return error_result_as_nil(L, PARSE_EVERSION, "response");
+    rv = hwire_parse_response(&ctx, str, len, &pos, maxlen, maxhdrnum);
+    if (rv == HWIRE_OK) {
+        lua_setfield(L, 2, "header");
+        lua_settop(L, 1);
+        lua_pushinteger(L, pos);
+        return 1;
+    } else if (rv == HWIRE_ECALLBACK) {
+        return error_result_as_nil(L, cb_ctx.error, "response");
+    } else if (rv == HWIRE_EAGAIN && !cb_ctx.request_line_parsed &&
+               len >= maxmsglen) {
+        return error_result_as_nil(L, PARSE_ELEN, "response");
     }
-    str += cur + 1;
-    len -= cur + 1;
-
-    rv = parse_status(str, len, &cur, &status);
-    if (rv != PARSE_OK) {
-        return error_result_as_nil(L, rv, "response");
-    }
-    str += cur;
-    len -= cur;
-
-    reason = (const char *)str;
-    rlen   = maxmsglen;
-    rv     = parse_reason(str, len, &cur, &rlen);
-    if (rv != PARSE_OK) {
-        return error_result_as_nil(L, rv, "response");
-    }
-
-    // set result to table
-    lauxh_pushnum2tbl(L, "version", ver);
-    lauxh_pushint2tbl(L, "status", status);
-    lauxh_pushlstr2tbl(L, "reason", reason, rlen);
-    // number of bytes consumed
-    str += cur;
-    len -= cur;
-
-    // parse headers
-    lua_createtable(L, 0, (maxhdrnum > 2) ? maxhdrnum / 2 : maxhdrnum);
-    rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
-    if (rv < 0) {
-        return error_result_as_nil(L, rv, "response");
-    }
-    lua_setfield(L, -2, "header");
-    str += cur;
-
-    lua_settop(L, 1);
-    lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
-    return 1;
+    return error_result_as_nil(L, rv, "response");
 }
 
 LUALIB_API int luaopen_net_http_parse(lua_State *L)

@@ -87,10 +87,11 @@ function testcase.parse_methods()
         })
     end
 
-    -- test that cannot parse unsupported request method
-    local pos, err = parse_request('FOO /foo/bar/baz/qux HTTP/1.1\r\n', {})
-    assert.is_nil(pos)
-    assert.equal(err.type, parse.EMETHOD)
+    -- test that parse any tchar method (RFC 9110 compliant)
+    local msg = 'FOO /foo/bar/baz/qux HTTP/1.1\r\n\r\n'
+    local req = {}
+    assert.equal(parse_request(msg, req), #msg)
+    assert.equal(req.method, 'FOO')
 end
 
 function testcase.parse_unsupported_version()
@@ -219,3 +220,10 @@ function testcase.parse_partial_messages()
     })
 end
 
+function testcase.parse_invalid_uri_char()
+    -- test that return EURI for invalid URI character
+    local msg = 'GET /foo' .. string.char(0x01) .. 'bar HTTP/1.1\r\n\r\n'
+    local pos, err = parse_request(msg, {})
+    assert.is_nil(pos)
+    assert.equal(err.type, parse.EURI)
+end
