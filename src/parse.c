@@ -925,6 +925,54 @@ static int header_name_lua(lua_State *L)
     return 1;
 }
 
+static int header_cb(hwire_ctx_t *ctx, hwire_header_t *header)
+{
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    lua_State *L       = cb->L;
+    int tblidx         = cb->tblidx;
+
+    if (header->value.len == 0) {
+        return 0;
+    } else if (header->key.len + 1 + header->value.len > cb->maxhdrlen) {
+        cb->error = PARSE_EHDRLEN;
+        return -1;
+    }
+    cb->nhdr++;
+
+    lua_pushlstring(L, ctx->key_lc.buf, ctx->key_lc.len);
+    lua_pushvalue(L, -1);
+    lua_rawget(L, tblidx);
+
+    switch (lua_type(L, -1)) {
+    default: {
+        lua_pop(L, 1);
+        lua_createtable(L, 3, 0);
+        lauxh_pushint2tbl(L, "idx", cb->nhdr);
+        lua_pushliteral(L, "key");
+        lua_pushlstring(L, header->key.ptr, header->key.len);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "val");
+        lua_createtable(L, 1, 0);
+        lauxh_pushlstr2arr(L, 1, header->value.ptr, header->value.len);
+        lua_rawset(L, -3);
+        lua_pushvalue(L, -2);
+        lua_pushvalue(L, -2);
+        lua_rawset(L, tblidx);
+        lua_rawseti(L, tblidx, cb->nhdr);
+    } break;
+
+    case LUA_TTABLE:
+        lua_pushliteral(L, "val");
+        lua_rawget(L, -2);
+        lauxh_pushlstr2arr(L, lauxh_rawlen(L, -1) + 1, header->value.ptr,
+                           header->value.len);
+        lua_pop(L, 2);
+        break;
+    }
+    lua_pop(L, 1);
+    return 0;
+}
+
 static int parse_header(lua_State *L, unsigned char *str, size_t len,
                         size_t *cur, uint16_t maxhdrlen, uint8_t maxhdrnum)
 {
@@ -1126,171 +1174,68 @@ static int parse_version(unsigned char *str, size_t len, size_t *cur,
 #undef VER_LEN
 }
 
-static int parse_method(unsigned char *str, size_t len, size_t *cur,
-                        size_t *mlen)
+static int request_cb(hwire_ctx_t *ctx, hwire_request_t *req)
 {
-// TODO: a method allows 1*tchar, but we only implement common methods here.
-// Probably, we should support 1*tchar and let user to verify the method
-// string.
-// maximum method length with SP
-#define METHOD_LEN 8
+    parse_cb_ctx_t *cb = (parse_cb_ctx_t *)ctx->uctx;
+    lua_State *L       = cb->L;
 
-    size_t pos    = *cur;
-    size_t maxlen = pos + METHOD_LEN;
-
-    if (len < maxlen) {
-        return PARSE_EAGAIN;
+    if (req->uri.len > cb->maxmsglen) {
+        cb->error = PARSE_ELEN;
+        return -1;
     }
-    while (str[pos] != SP) {
-        pos++;
-        if (pos == maxlen) {
-            // method not implemented
-            return PARSE_EMETHOD;
-        }
-    }
-    len   = pos - *cur;
-    *mlen = len;
-    *cur  = pos + 1;
+    cb->request_line_parsed = 1;
 
-    switch (len) {
-    case 3:
-        if (memcmp(str, "GET", 3) == 0 || memcmp(str, "PUT", 3) == 0) {
-            return PARSE_OK;
-        }
-        return PARSE_EMETHOD;
+    lauxh_pushlstr2tbl(L, "method", req->method.ptr, req->method.len);
+    lauxh_pushlstr2tbl(L, "uri", req->uri.ptr, req->uri.len);
+    lauxh_pushnum2tbl(L, "version", hwire_version_to_double(req->version));
 
-    case 4:
-        if (memcmp(str, "POST", 4) == 0 || memcmp(str, "HEAD", 4) == 0) {
-            return PARSE_OK;
-        }
-        return PARSE_EMETHOD;
-
-    case 5:
-        if (memcmp(str, "TRACE", 5) == 0) {
-            return PARSE_OK;
-        }
-        return PARSE_EMETHOD;
-
-    case 6:
-        if (memcmp(str, "DELETE", 6) == 0) {
-            return PARSE_OK;
-        }
-        return PARSE_EMETHOD;
-
-    case 7:
-        if (memcmp(str, "OPTIONS", 7) == 0 || memcmp(str, "CONNECT", 7) == 0) {
-            return PARSE_OK;
-        }
-        return PARSE_EMETHOD;
-    }
-
-    // method not implemented
-    return PARSE_EMETHOD;
-
-#undef METHOD_LEN
+    lua_createtable(L, 0, 0);
+    cb->tblidx = lua_gettop(L);
+    return 0;
 }
 
 static int request_lua(lua_State *L)
 {
-    size_t len          = 0;
-    unsigned char *str  = (unsigned char *)lauxh_checklstring(L, 1, &len);
-    uint16_t maxmsglen  = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
-    uint16_t maxhdrlen  = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
-    uint8_t maxhdrnum   = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
-    unsigned char *head = str;
-    const char *method  = NULL;
-    size_t mlen         = 0;
-    const char *uri     = NULL;
-    size_t ulen         = 0;
-    double ver          = 0;
-    size_t cur          = 0;
-    int rv              = 0;
+    size_t len            = 0;
+    const char *str       = lauxh_checklstring(L, 1, &len);
+    uint16_t maxmsglen    = lauxh_optuint16(L, 3, DEFAULT_MSG_MAXLEN);
+    uint16_t maxhdrlen    = lauxh_optuint16(L, 4, DEFAULT_HDR_MAXLEN);
+    uint8_t maxhdrnum     = lauxh_optuint8(L, 5, DEFAULT_HDR_MAXNUM);
+    size_t maxlen         = (maxmsglen > maxhdrlen) ? maxmsglen : maxhdrlen;
+    parse_cb_ctx_t cb_ctx = {
+        .L = L, .maxmsglen = maxmsglen, .maxhdrlen = maxhdrlen};
+    char buf[DEFAULT_HDR_MAXLEN] = {0};
+    // parse context
+    hwire_ctx_t ctx = {
+        .uctx       = &cb_ctx,
+        .key_lc     = {.buf = buf, .size = sizeof(buf)},
+        .request_cb = request_cb,
+        .header_cb  = header_cb,
+    };
+    size_t pos = 0;
+    int rv     = 0;
 
-    // check container table
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_settop(L, 2);
 
-SKIP_NEXT_CRLF:
-    switch (*str) {
-    // need more bytes
-    case 0:
-        return error_result_as_nil(L, PARSE_EAGAIN, "request");
-
-    case CR:
-    case LF:
-        str++;
-        len--;
-        goto SKIP_NEXT_CRLF;
+    if (maxhdrlen > DEFAULT_HDR_MAXLEN) {
+        ctx.key_lc.buf  = (char *)lua_newuserdata(L, maxhdrlen);
+        ctx.key_lc.size = maxhdrlen;
     }
 
-    method = (const char *)str;
-    rv     = parse_method(str, len, &cur, &mlen);
-    if (rv != PARSE_OK) {
-        return error_result_as_nil(L, rv, "request");
+    rv = hwire_parse_request(&ctx, str, len, &pos, maxlen, maxhdrnum);
+    if (rv == HWIRE_OK) {
+        lua_setfield(L, 2, "header");
+        lua_settop(L, 1);
+        lua_pushinteger(L, pos);
+        return 1;
+    } else if (rv == HWIRE_ECALLBACK) {
+        return error_result_as_nil(L, cb_ctx.error, "request");
+    } else if (rv == HWIRE_EAGAIN && !cb_ctx.request_line_parsed &&
+               len >= maxmsglen) {
+        return error_result_as_nil(L, PARSE_ELEN, "request");
     }
-    str += cur;
-    len -= cur;
-
-    // parse-uri (find SP delimiter)
-    uri = (const char *)str;
-    if (len > maxmsglen) {
-        if (!(str = memchr(str, SP, maxmsglen))) {
-            return error_result_as_nil(L, PARSE_ELEN, "request");
-        }
-    } else if (!(str = memchr(str, SP, len))) {
-        return error_result_as_nil(L, PARSE_EAGAIN, "request");
-    }
-    ulen = str - (unsigned char *)uri;
-    str++;
-    len -= ulen + 1;
-
-    rv = parse_version(str, len, &cur, &ver);
-    if (rv != PARSE_OK) {
-        return error_result_as_nil(L, rv, "request");
-    }
-    switch (str[cur]) {
-    case 0:
-        return error_result_as_nil(L, PARSE_EAGAIN, "request");
-
-    case CR:
-        // null-terminated
-        if (!str[cur + 1]) {
-            return error_result_as_nil(L, PARSE_EAGAIN, "request");
-        }
-        // invalid end-of-line terminator
-        else if (str[cur + 1] != LF) {
-            return error_result_as_nil(L, PARSE_EEOL, "request");
-        }
-        cur++;
-
-    case LF:
-        cur++;
-        break;
-
-    default:
-        return error_result_as_nil(L, PARSE_EVERSION, "request");
-    }
-
-    // set result to table
-    lauxh_pushlstr2tbl(L, "method", method, mlen);
-    lauxh_pushlstr2tbl(L, "uri", uri, ulen);
-    lauxh_pushnum2tbl(L, "version", ver);
-    // number of bytes consumed
-    str += cur;
-    len -= cur;
-
-    // parse headers
-    lua_createtable(L, 0, (maxhdrnum > 2) ? maxhdrnum / 2 : maxhdrnum);
-    rv = parse_header(L, str, len, &cur, maxhdrlen, maxhdrnum);
-    if (rv < 0) {
-        return error_result_as_nil(L, rv, "request");
-    }
-    lua_setfield(L, -2, "header");
-    str += cur;
-
-    lua_settop(L, 1);
-    lua_pushinteger(L, (uintptr_t)str - (uintptr_t)head);
-    return 1;
+    return error_result_as_nil(L, rv, "request");
 }
 
 static int parse_reason(unsigned char *str, size_t len, size_t *cur,
