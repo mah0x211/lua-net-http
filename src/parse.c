@@ -914,16 +914,13 @@ static int header_name_lua(lua_State *L)
     size_t len       = 0;
     const char *str  = lauxh_checklstring(L, 1, &len);
     size_t maxhdrlen = (size_t)lauxh_optuint16(L, 2, DEFAULT_HDR_MAXLEN);
-    size_t namelen   = 0;
+    size_t pos       = 0;
 
     if (len > maxhdrlen) {
-        // header-name too long
         return error_result_as_false(L, PARSE_EHDRLEN, "header_name");
-    } else if (strtchar((unsigned char *)str, maxhdrlen) != len) {
-        // invalid character found
+    } else if (hwire_parse_tchar(str, len, &pos) != len) {
         return error_result_as_false(L, PARSE_EHDRNAME, "header_name");
     }
-    // All characters are valid tchar
     lua_pushboolean(L, 1);
     return 1;
 }
