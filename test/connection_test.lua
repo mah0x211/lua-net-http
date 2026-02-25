@@ -263,7 +263,7 @@ function testcase.read_request()
     assert.is_nil(err)
     assert.is_true(msg.content.is_chunked)
 
-    -- test that return EMSG if request uri is invalid
+    -- test that return EURI if request uri is invalid
     data = table.concat({
         'GET /foo<bar/baz HTTP/1.1',
         'Host: www.example.com',
@@ -272,7 +272,7 @@ function testcase.read_request()
     }, '\r\n')
     msg, err = c:read_request()
     assert.is_nil(msg)
-    assert(error.is(err, parse.EMSG))
+    assert(error.is(err, parse.EURI))
 
     -- test that return EVERSION if request version is unknown
     data = table.concat({
@@ -434,7 +434,7 @@ function testcase.read_response()
     assert.is_nil(msg)
     assert(error.is(err, parse.ESTATUS))
 
-    -- test that return EMSG if response message is invalid
+    -- test that return EILSEQ if response message has invalid character
     data = table.concat({
         'HTTP/1.1 200 O\vK',
         'Host: www.example.com',
@@ -443,6 +443,6 @@ function testcase.read_response()
     }, '\r\n')
     msg, err = c:read_response()
     assert.is_nil(msg)
-    assert(error.is(err, parse.EMSG))
+    assert(error.is(err, parse.EILSEQ))
 end
 

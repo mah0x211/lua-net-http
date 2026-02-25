@@ -1,3 +1,4 @@
+rockspec_format = "3.0"
 package = "net-http"
 version = "scm-1"
 source = {
@@ -37,8 +38,22 @@ dependencies = {
     "url >= 2.1.0",
     "yyjson >= 0.10.0",
 }
+build_dependencies = {
+    "luarocks-build-hooks",
+}
 build = {
-    type = "builtin",
+    type = 'hooks',
+    before_build = "$(extra-vars)",
+    -- Extra values to append to existing variables
+    extra_variables = {
+        CFLAGS = "-Wall -Wno-trigraphs -Wmissing-field-initializers -Wreturn-type -Wmissing-braces -Wparentheses -Wno-switch -Wunused-function -Wunused-label -Wunused-parameter -Wunused-variable -Wunused-value -Wuninitialized -Wunknown-pragmas -Wshadow -Wsign-compare",
+    },
+    conditional_variables = {
+        NET_HTTP_COVERAGE = {
+            CFLAGS = "--coverage",
+            LIBFLAG = "--coverage",
+        },
+    },
     modules = {
         ["net.http.connection"] = "lib/connection.lua",
         ["net.http.content"] = "lib/content.lua",
@@ -59,6 +74,7 @@ build = {
         ["net.http.parse"] = {
             sources = {
                 "src/parse.c",
+                "src/hwire.c",
             },
         },
         ["net.http.router"] = "lib/router.lua",

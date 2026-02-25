@@ -381,7 +381,7 @@ end
 local new_request = require('metamodule').new(Request, 'net.http.message')
 local message_parse = require('net.http.message').parse
 -- invalid message error
-local EMSG = require('net.http.parse').EMSG
+local EURI = require('net.http.parse').EURI
 
 --- parse a request message from a reader
 --- @param reader net.http.reader
@@ -397,7 +397,7 @@ local function parse(reader, readsize)
         ok, err = req:set_uri(req.uri, true)
         if not ok then
             -- invalid uri format
-            return nil, EMSG:new('failed to request.parse()', err)
+            return nil, EURI:new('failed to request.parse()', err)
         end
         return req
     elseif err then

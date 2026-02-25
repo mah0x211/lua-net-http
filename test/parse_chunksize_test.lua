@@ -61,6 +61,10 @@ function testcase.parse_chunksize()
     size, err = parse_chunksize('ff ; foo', {})
     assert.is_nil(size)
     assert.equal(err.type, parse.EAGAIN)
+    -- CR without LF: incomplete CRLF, need more data
+    size, err = parse_chunksize('1e20 \r', {})
+    assert.is_nil(size)
+    assert.equal(err.type, parse.EAGAIN)
 
     -- test that return EEOL
     size, err = parse_chunksize('ff\r\r', {})
@@ -75,7 +79,6 @@ function testcase.parse_chunksize()
     -- test that return EILSEQ
     for _, line in ipairs({
         'xf\r\n', -- invalid hexdigit
-        '1e20 \r', -- not ';' after BWS
         '1e20 ; foo bar\r', -- not ';' or '=' or CR after ext-name
         '1e20 ; foo = bar =', -- not ';' or CR after ext-value
         '1e20 ; foo = "bar\r', -- invalid quoted-string
