@@ -191,6 +191,7 @@ local function verify_filter_pathinfo(segments, is_static)
         pathname = '/' .. concat(segments, '/'),
         filename = filename,
         name = res[3],
+        ext = res[5] and #res[5] > 0 and res[5] or nil,
         order = res[2] == '-' and '-' or tonumber(res[2]),
         is_static = is_static,
     }
