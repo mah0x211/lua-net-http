@@ -486,8 +486,8 @@ local function create_routepath(pathname, is_scriptfile, mime, trim_extentions)
         return dirname
     end
 
-    if prefix == ':' then
-        -- filename is a parameter segment
+    if prefix == ':' or prefix == '*' then
+        -- parameter or wildcard segment: include full segment in route path
         return dirname .. filename
     end
 
@@ -626,8 +626,9 @@ local function evalfile(r, pathinfo)
             methods[lower(method)] = handler
         end
         return fileinfo, nil, methods
-    elseif pathinfo.type == 'file' or pathinfo.type == 'param' then
-        -- 'file' and 'param' type pathnames require only the fileinfo
+    elseif pathinfo.type == 'file' or pathinfo.type == 'param' or pathinfo.type ==
+        'wildcard' then
+        -- 'file', 'param', and 'wildcard' type pathnames require only the fileinfo
         return fileinfo
     end
 
