@@ -1,6 +1,6 @@
 codefromstrings = false
 runreport = true
-deletestats = true
+deletestats = false
 modules = {
     ["net.http.connection"] = "lib/connection.lua",
     ["net.http.content"] = "lib/content.lua",
@@ -16,6 +16,7 @@ modules = {
     ["net.http.responder"] = "lib/responder.lua",
     ["net.http.router"] = "lib/router.lua",
     ["net.http.router.compiler"] = "lib/router/compiler.lua",
+    ["net.http.router.loadfenv"] = "lib/router/loadfenv.lua",
     ["net.http.router.parse"] = "lib/router/parse.lua",
     ["net.http.server"] = "lib/server.lua",
     ["net.http.status"] = "lib/status.lua",

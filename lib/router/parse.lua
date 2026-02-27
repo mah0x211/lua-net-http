@@ -197,6 +197,33 @@ local function verify_filter_pathinfo(segments, is_static)
     }
 end
 
+-- wildcard/catch-all segment pattern (last segment only)
+local RE_WILDCARD_FILENAME_PAT = '^[*]([a-z0-9_]+)$'
+local RE_WILDCARD_FILENAME = assert(new_regex(RE_WILDCARD_FILENAME_PAT, 'i'))
+
+--- verify_wildcard_pathinfo checks the pathname is the wildcard pathinfo
+--- @param segments string[] pathname segments
+--- @param is_static boolean
+--- @return net.http.router.parse.pathinfo? info
+--- @return any err
+local function verify_wildcard_pathinfo(segments, is_static)
+    local filename = segments[#segments]
+    local res = RE_WILDCARD_FILENAME:match(filename)
+    if not res then
+        return nil,
+               errorf('wildcard segment %q must be matching the pattern %q',
+                      filename, '/' .. RE_WILDCARD_FILENAME_PAT .. '/i')
+    end
+
+    return {
+        type = 'wildcard',
+        pathname = '/' .. concat(segments, '/'),
+        filename = filename,
+        name = res[2],
+        is_static = is_static,
+    }
+end
+
 -- parameter-segment pattern
 local RE_PARAM_SEGMENT_PAT = concat({
     -- must start with ':'
@@ -286,6 +313,9 @@ local function parse(pathname, staticdirs, re_ignore, re_not_ignore)
     elseif prefix == ':' then
         -- parameter segment
         return verify_param_pathinfo(parts, is_static)
+    elseif prefix == '*' then
+        -- wildcard/catch-all segment (last segment only)
+        return verify_wildcard_pathinfo(parts, is_static)
     end
     return verify_file_pathinfo(parts, is_static, re_ignore, re_not_ignore)
 end
