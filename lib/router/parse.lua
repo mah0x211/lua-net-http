@@ -198,7 +198,15 @@ local function verify_filter_pathinfo(segments, is_static)
 end
 
 -- wildcard/catch-all segment pattern (last segment only)
-local RE_WILDCARD_FILENAME_PAT = '^[*]([a-z0-9_]+)$'
+local RE_WILDCARD_FILENAME_PAT = concat({
+    '^[*]',
+    -- name part must start and end with [a-z0-9_]
+    '([a-z0-9_]+)',
+    -- optional extension part (last one will be captured)
+    '(',
+    RE_EXTNAME_PAT,
+    ')$',
+})
 local RE_WILDCARD_FILENAME = assert(new_regex(RE_WILDCARD_FILENAME_PAT, 'i'))
 
 --- verify_wildcard_pathinfo checks the pathname is the wildcard pathinfo
@@ -215,11 +223,13 @@ local function verify_wildcard_pathinfo(segments, is_static)
                       filename, '/' .. RE_WILDCARD_FILENAME_PAT .. '/i')
     end
 
+    local ext = res[3]
     return {
         type = 'wildcard',
         pathname = '/' .. concat(segments, '/'),
         filename = filename,
         name = res[2],
+        ext = ext and #ext > 0 and ext or nil,
         is_static = is_static,
     }
 end

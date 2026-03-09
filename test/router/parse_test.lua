@@ -265,6 +265,17 @@ function testcase.parse_wildcard_segment()
     assert.equal(info.ext, nil)
 end
 
+function testcase.parse_wildcard_segment_with_extension()
+    -- test that '*'-prefixed last segment with extension returns wildcard type with ext
+    local info = assert(parse('/foo/*path.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE))
+    assert.equal(info.type, 'wildcard')
+    assert.equal(info.pathname, '/foo/*path.html')
+    assert.equal(info.filename, '*path.html')
+    assert.equal(info.name, 'path')
+    assert.equal(info.ext, '.html')
+end
+
 function testcase.parse_wildcard_segment_invalid_name()
     -- test that '*' with invalid name (hyphen) returns error
     local _, err =
