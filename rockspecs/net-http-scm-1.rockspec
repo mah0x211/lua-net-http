@@ -79,6 +79,7 @@ build = {
         },
         ["net.http.router"] = "lib/router.lua",
         ["net.http.router.compiler"] = "lib/router/compiler.lua",
+        ["net.http.router.fs"] = "lib/router/fs.lua",
         ["net.http.router.loadfenv"] = "lib/router/loadfenv.lua",
         ["net.http.router.parse"] = "lib/router/parse.lua",
     },
