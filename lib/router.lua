@@ -23,7 +23,6 @@ local next = next
 local pairs = pairs
 local ipairs = ipairs
 local lower = string.lower
-local find = string.find
 local match = string.match
 local sub = string.sub
 local gsub = string.gsub
@@ -85,27 +84,16 @@ local function regex_compile_patterns(patterns)
 end
 
 --- @class net.http.router.options
---- @field rootdir string
---- @field follow_symlink boolean
 --- @field trim_extentions string[]
 --- @field mimetypes string
 --- @field staticdirs string[]
 --- @field ignore string[]
 --- @field no_ignore string[]
---- @field loadfenv fun():table<string, string|function|table>
---- @field compiler fun(pathname:string, fenv:table):table<string, function>
---- @field precheck function
 
 local new_mime = require('mime').new
 local new_plut = require('plut').new
-local new_basedir = require('basedir').new
-local DEFAULT_LOADFENV = require('net.http.router.loadfenv')
-local DEFAULT_COMPILER = require('net.http.router.compiler')
 
 --- @alias plut userdata
---- @alias basedir userdata
---- @alias loadfenv fun():table<string, string|function|table>
---- @alias compiler fun(pathname:string, fenv:table):table<string, function>
 
 --- @class net.http.router
 --- @field mime mime
@@ -113,10 +101,6 @@ local DEFAULT_COMPILER = require('net.http.router.compiler')
 --- @field staticdirs table<string, boolean>
 --- @field re_ignore regex
 --- @field re_no_ignore regex
---- @field basedir? basedir safe directory access by treating rootdir as '/'.
---- @field compiler compiler? compile the file specified by the pathname.
---- @field loadfenv loadfenv? load the environment for the handler when the file is evaluated by the compiler.
---- @field precheck function? precheck function that is called before the handler is registered.
 --- @field plut plut routing table
 --- @field dirty boolean true if the routing table is dirty
 --- @field filternames table<string, string> prevent dupulicate filter name
@@ -198,24 +182,6 @@ function Router:init(opts)
         else
             self.re_no_ignore = re
         end
-    end
-
-    -- create virtual filesystem accessor
-    if checkopt.str(opts.rootdir, nil, 'opts.rootdir') then
-        self.basedir = new_basedir(opts.rootdir, checkopt.bool(
-                                       opts.follow_symlink, false,
-                                       'opts.follow_symlink'))
-
-        -- use default handler environment loader if not specified
-        self.loadfenv = checkopt.callable(opts.loadfenv, DEFAULT_LOADFENV,
-                                          'opts.loadfenv')
-
-        -- use default handler compiler if not specified
-        self.compiler = checkopt.callable(opts.compiler, DEFAULT_COMPILER,
-                                          'opts.compiler')
-
-        -- check precheck function is specified as a function or not
-        self.precheck = checkopt.callable(opts.precheck, nil, 'opts.precheck')
     end
 
     -- create router that is used for managing routes
@@ -569,74 +535,6 @@ local function validate_method_handler(method, handler)
     return true
 end
 
---- evalfile evalulates the file specified by the pathinfo
---- if the file is a lua script, then it loads the method handlers from the file
---- @param r net.http.router
---- @param pathinfo net.http.router.parse.pathinfo
---- @return table fileinfo
---- @return any err
---- @return table<string, function>? methods
-local function evalfile(r, pathinfo)
-    if not r.basedir then
-        return nil, errorf(
-                   'cannot evaluate file specified by the pathname %q: opts.rootdir is not specified',
-                   pathinfo.pathname)
-    end
-
-    -- get fileinfo from the basedir
-    local fileinfo, err = r.basedir:stat(pathinfo.pathname)
-    if not fileinfo then
-        return nil, errorf('failed to get file info %q', pathinfo.pathname,
-                           err or 'file not found')
-    elseif fileinfo.type ~= 'file' then
-        return nil, errorf('pathname %q is not a file', pathinfo.pathname)
-    end
-
-    -- file is treated as static file by configuration
-    if pathinfo.is_static then
-        if pathinfo.type == 'file' or pathinfo.type == 'param' then
-            return fileinfo
-        end
-        return nil, errorf(
-                   'attempted to register the %s handler from file %q, but it is treated as a static file according to the configuration',
-                   pathinfo.type, pathinfo.pathname)
-    end
-
-    -- load method handlers from the file if it extension is '.lua'
-    if pathinfo.ext and find(pathinfo.ext, '%.lua$') then
-        local tbl
-        tbl, err = r.compiler(fileinfo.pathname, r.loadfenv())
-        if err then
-            return nil, errorf('failed to load handler from %q',
-                               pathinfo.pathname, err)
-        elseif type(tbl) ~= 'table' or not next(tbl) then
-            return nil, errorf('%q must return non-empty method table',
-                               pathinfo.pathname)
-        end
-
-        -- validate the method table
-        local methods = {}
-        for method, handler in pairs(tbl) do
-            local ok
-            ok, err = validate_method_handler(method, handler)
-            if not ok then
-                return nil, err
-            end
-            -- convert method to lowercase
-            methods[lower(method)] = handler
-        end
-        return fileinfo, nil, methods
-    elseif pathinfo.type == 'file' or pathinfo.type == 'param' or pathinfo.type ==
-        'wildcard' then
-        -- 'file', 'param', and 'wildcard' type pathnames require only the fileinfo
-        return fileinfo
-    end
-
-    -- 'content' and 'filter' type pathnames require the fileinfo and methods table
-    return nil, errorf(
-               'the extension of the "content" and "filter" handler files must be %q: %q',
-               '.lua', pathinfo.pathname)
-end
 
 local parse_pathname = require('net.http.router.parse')
 
@@ -677,7 +575,6 @@ function Router:register(pathname, method, handler)
                                                          self.trim_extentions)
         local ok
         ok, err = self:disable_filter_handler(pathinfo, {
-            -- all method handlers are disabled as default
             method or '@all',
         })
         if not ok then
@@ -686,44 +583,23 @@ function Router:register(pathname, method, handler)
         return
     end
 
-    -- register the handler for the specified pathname
-    if method ~= nil or handler ~= nil then
-        -- method and handler must be specified together
-        local ok
-        ok, err = validate_method_handler(method, handler)
-        if not ok then
-            fatalf(2, 'failed to validate method handler: %s', err)
-        end
-        -- convert method to lowercase
-        method = lower(method)
+    -- method and handler must be specified together
+    local ok
+    ok, err = validate_method_handler(method, handler)
+    if not ok then
+        fatalf(2, 'failed to validate method handler: %s', err)
     end
-
-    local is_scriptfile = false
-    local methods = method and {
-        [method] = handler,
-    } or nil
-    local fileinfo
-    if not method then
-        -- get fileinfo and methods from the pathname
-        fileinfo, err, methods = evalfile(self, pathinfo)
-        if not fileinfo then
-            fatalf(2, 'failed to evaluate file specified by the pathname %q',
-                   pathname, err)
-        end
-        is_scriptfile = methods ~= nil
-    end
+    method = lower(method)
+    local methods = {[method] = handler}
 
     -- create the route-path from the pathname without the filename
-    pathinfo.route, pathinfo.mime = create_routepath(pathinfo.pathname,
-                                                     is_scriptfile, self.mime,
+    pathinfo.route, pathinfo.mime = create_routepath(pathinfo.pathname, false,
+                                                     self.mime,
                                                      self.trim_extentions)
     local ok
     if pathinfo.type == 'filter' then
         ok, err = self:register_filter_handler(pathinfo, methods)
-    elseif not methods then
-        ok, err = self:register_file(pathinfo, fileinfo)
     else
-        -- methods are loaded from the file, so it is treated as content handlers
         ok, err = self:register_content_handler(pathinfo, methods)
     end
 
