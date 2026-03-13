@@ -2,6 +2,7 @@ require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
 local new_regex = require('regex').new
+local new_mime = require('mime').new
 local parse = require('net.http.router.parse')
 
 -- Default regex patterns matching router.lua defaults
@@ -13,6 +14,21 @@ local RE_NOT_IGNORE_NONE = assert(new_regex('(?!)', 'i')) -- never matches
 
 local EMPTY_STATIC = {}
 
+-- shared MIME detector with common types
+local MIME = new_mime()
+assert(MIME:read([[
+    text/html html;
+    text/css css;
+    image/png png;
+    application/javascript js;
+]]))
+
+-- trim .html and .htm
+local TRIM = {
+    ['.html'] = true,
+    ['.htm'] = true,
+}
+
 -- ============================================================
 -- parse()
 -- ============================================================
@@ -23,6 +39,7 @@ function testcase.parse_root_path()
     assert.equal(info.type, 'file')
     assert.equal(info.pathname, '/')
     assert.equal(info.is_static, nil)
+    assert.equal(info.route, '/')
 end
 
 function testcase.parse_root_path_with_static()
@@ -31,6 +48,7 @@ function testcase.parse_root_path_with_static()
         ['/'] = true,
     }, RE_IGNORE, RE_NOT_IGNORE))
     assert.equal(info.is_static, true)
+    assert.equal(info.route, '/')
 end
 
 function testcase.parse_pathname_no_leading_slash()
@@ -50,7 +68,7 @@ end
 -- ============================================================
 
 function testcase.parse_file_with_extension()
-    -- test that file with extension returns correct pathinfo
+    -- test that file with extension returns correct pathinfo (no trim = route keeps ext)
     local info = assert(parse('/index.html', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'file')
@@ -59,6 +77,8 @@ function testcase.parse_file_with_extension()
     assert.equal(info.name, 'index')
     assert.equal(info.ext, '.html')
     assert.equal(info.is_static, nil)
+    assert.equal(info.route, '/index.html')
+    assert.equal(info.mime, nil)
 end
 
 function testcase.parse_file_without_extension()
@@ -69,6 +89,7 @@ function testcase.parse_file_without_extension()
     assert.equal(info.filename, 'robots')
     assert.equal(info.name, 'robots')
     assert.equal(info.ext, nil)
+    assert.equal(info.route, '/robots')
 end
 
 function testcase.parse_file_multi_extension()
@@ -79,6 +100,7 @@ function testcase.parse_file_multi_extension()
     assert.equal(info.filename, 'archive.tar.gz')
     assert.equal(info.name, 'archive')
     assert.equal(info.ext, '.tar.gz')
+    assert.equal(info.route, '/archive.tar.gz')
 end
 
 function testcase.parse_file_in_nested_path()
@@ -89,6 +111,7 @@ function testcase.parse_file_in_nested_path()
     assert.equal(info.pathname, '/foo/bar/baz.html')
     assert.equal(info.filename, 'baz.html')
     assert.equal(info.name, 'baz')
+    assert.equal(info.route, '/foo/bar/baz.html')
 end
 
 function testcase.parse_file_ignored()
@@ -118,6 +141,7 @@ function testcase.parse_file_in_static_dir()
     local info = assert(parse('/static/foo.png', staticdirs, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.is_static, true)
+    assert.equal(info.route, '/static/foo.png')
 end
 
 function testcase.parse_file_in_nested_static_dir()
@@ -128,6 +152,7 @@ function testcase.parse_file_in_nested_static_dir()
     local info = assert(parse('/static/img/logo.png', staticdirs, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.is_static, true)
+    assert.equal(info.route, '/static/img/logo.png')
 end
 
 function testcase.parse_file_not_in_static_dir()
@@ -138,6 +163,70 @@ function testcase.parse_file_not_in_static_dir()
     local info = assert(parse('/api/handler.lua', staticdirs, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.is_static, nil)
+    assert.equal(info.route, '/api/handler.lua')
+end
+
+function testcase.parse_file_route_with_trim_extension()
+    -- test that trim_extentions removes extension from route
+    local info = assert(parse('/foo.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, TRIM))
+    assert.equal(info.type, 'file')
+    assert.equal(info.ext, '.html')
+    assert.equal(info.route, '/foo')
+    assert.equal(info.mime, nil)
+end
+
+function testcase.parse_file_route_index_with_trim()
+    -- test that index file with trim routes to parent directory
+    local info = assert(parse('/index.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, TRIM))
+    assert.equal(info.route, '/')
+end
+
+function testcase.parse_file_route_index_in_subdir_with_trim()
+    -- test that index file in subdir with trim routes to subdir
+    local info = assert(parse('/foo/bar/index.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, TRIM))
+    assert.equal(info.route, '/foo/bar')
+end
+
+function testcase.parse_file_route_multi_trim()
+    -- test that multiple extensions are trimmed when all are in the trim list
+    local trim = {
+        ['.html'] = true,
+        ['.gz'] = true,
+    }
+    local info = assert(parse('/foo.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, trim))
+    assert.equal(info.route, '/foo')
+    -- only the last extension is trimmed at each pass; .gz not applicable here
+    local info2 = assert(parse('/archive.tar.gz', EMPTY_STATIC, RE_IGNORE,
+                               RE_NOT_IGNORE, nil, trim))
+    assert.equal(info2.route, '/archive.tar')
+end
+
+function testcase.parse_file_mime_type()
+    -- test that mime field is set when mime detector and extension match
+    local info = assert(parse('/image.png', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, MIME, nil))
+    assert.equal(info.mime, 'image/png')
+    assert.equal(info.route, '/image.png')
+end
+
+function testcase.parse_file_mime_type_with_trim()
+    -- test that mime is from the original last extension (before trimming)
+    local info = assert(parse('/page.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, MIME, TRIM))
+    assert.equal(info.mime, 'text/html')
+    assert.equal(info.route, '/page')
+end
+
+function testcase.parse_file_mime_unknown_extension()
+    -- test that mime is nil when extension has no registered MIME type
+    local info = assert(parse('/data.xyz', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, MIME, nil))
+    assert.equal(info.mime, nil)
+    assert.equal(info.route, '/data.xyz')
 end
 
 -- ============================================================
@@ -154,6 +243,8 @@ function testcase.parse_content_handler()
     assert.equal(info.name, 'index')
     assert.equal(info.ext, nil)
     assert.equal(info.is_static, nil)
+    -- '@index' has no extension; after prefix removal filename='index' → routes to parent
+    assert.equal(info.route, '/foo')
 end
 
 function testcase.parse_content_handler_with_extension()
@@ -163,6 +254,25 @@ function testcase.parse_content_handler_with_extension()
     assert.equal(info.type, 'content')
     assert.equal(info.name, 'handler')
     assert.equal(info.ext, '.lua')
+    assert.equal(info.route, '/foo/handler.lua')
+end
+
+function testcase.parse_content_handler_with_trim()
+    -- test that '@'-prefixed filename with trimmed extension routes correctly
+    local info = assert(parse('/foo/@baz.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, TRIM))
+    assert.equal(info.type, 'content')
+    assert.equal(info.name, 'baz')
+    assert.equal(info.ext, '.html')
+    assert.equal(info.route, '/foo/baz')
+end
+
+function testcase.parse_content_handler_index_with_trim()
+    -- test that '@index.html' with trim routes to parent directory
+    local info = assert(parse('/foo/@index.html', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE, nil, TRIM))
+    assert.equal(info.type, 'content')
+    assert.equal(info.route, '/foo')
 end
 
 function testcase.parse_content_handler_invalid_name()
@@ -176,7 +286,7 @@ end
 -- ============================================================
 
 function testcase.parse_param_segment()
-    -- test that ':'-prefixed last segment returns param type
+    -- test that ':'-prefixed last segment returns param type with route=pathname
     local info = assert(parse('/foo/:bar', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'param')
@@ -184,15 +294,17 @@ function testcase.parse_param_segment()
     assert.equal(info.filename, ':bar')
     assert.equal(info.name, 'bar')
     assert.equal(info.ext, nil)
+    assert.equal(info.route, '/foo/:bar')
 end
 
 function testcase.parse_param_segment_with_extension()
-    -- test that ':'-prefixed segment with extension returns correct ext
+    -- test that ':'-prefixed segment with extension returns correct ext and route=pathname
     local info = assert(parse('/foo/:bar.html', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'param')
     assert.equal(info.name, 'bar')
     assert.equal(info.ext, '.html')
+    assert.equal(info.route, '/foo/:bar.html')
 end
 
 function testcase.parse_param_segment_invalid_name()
@@ -207,7 +319,7 @@ end
 -- ============================================================
 
 function testcase.parse_filter_handler()
-    -- test that '#order.name' returns filter type
+    -- test that '#order.name' returns filter type with route=parent-dir
     local info = assert(parse('/foo/#1.myfilter', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'filter')
@@ -216,6 +328,23 @@ function testcase.parse_filter_handler()
     assert.equal(info.name, 'myfilter')
     assert.equal(info.ext, nil)
     assert.equal(info.order, 1)
+    assert.equal(info.route, '/foo/')
+end
+
+function testcase.parse_filter_handler_at_root()
+    -- test that filter at root level routes to '/'
+    local info =
+        assert(parse('/#5.foo', EMPTY_STATIC, RE_IGNORE, RE_NOT_IGNORE))
+    assert.equal(info.type, 'filter')
+    assert.equal(info.route, '/')
+end
+
+function testcase.parse_filter_handler_in_nested_path()
+    -- test that filter in deep path routes to its parent directory
+    local info = assert(parse('/foo/bar/#2.bar', EMPTY_STATIC, RE_IGNORE,
+                              RE_NOT_IGNORE))
+    assert.equal(info.type, 'filter')
+    assert.equal(info.route, '/foo/bar/')
 end
 
 function testcase.parse_filter_handler_with_extension()
@@ -226,6 +355,7 @@ function testcase.parse_filter_handler_with_extension()
     assert.equal(info.name, 'myfilter.lua')
     assert.equal(info.ext, '.lua')
     assert.equal(info.order, 5)
+    assert.equal(info.route, '/foo/')
 end
 
 function testcase.parse_filter_disable()
@@ -235,6 +365,7 @@ function testcase.parse_filter_disable()
     assert.equal(info.type, 'filter')
     assert.equal(info.name, 'myfilter')
     assert.equal(info.order, '-')
+    assert.equal(info.route, '/foo/')
 end
 
 function testcase.parse_filter_handler_invalid_order()
@@ -255,7 +386,7 @@ end
 -- ============================================================
 
 function testcase.parse_wildcard_segment()
-    -- test that '*'-prefixed last segment returns wildcard type
+    -- test that '*'-prefixed last segment returns wildcard type with route=pathname
     local info = assert(parse('/foo/*path', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'wildcard')
@@ -263,10 +394,11 @@ function testcase.parse_wildcard_segment()
     assert.equal(info.filename, '*path')
     assert.equal(info.name, 'path')
     assert.equal(info.ext, nil)
+    assert.equal(info.route, '/foo/*path')
 end
 
 function testcase.parse_wildcard_segment_with_extension()
-    -- test that '*'-prefixed last segment with extension returns wildcard type with ext
+    -- test that '*'-prefixed last segment with extension returns wildcard type with ext and route=pathname
     local info = assert(parse('/foo/*path.html', EMPTY_STATIC, RE_IGNORE,
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'wildcard')
@@ -274,6 +406,7 @@ function testcase.parse_wildcard_segment_with_extension()
     assert.equal(info.filename, '*path.html')
     assert.equal(info.name, 'path')
     assert.equal(info.ext, '.html')
+    assert.equal(info.route, '/foo/*path.html')
 end
 
 function testcase.parse_wildcard_segment_invalid_name()
@@ -293,6 +426,7 @@ function testcase.parse_param_middle_segment()
                               RE_NOT_IGNORE))
     assert.equal(info.type, 'file')
     assert.equal(info.pathname, '/:bar/baz.html')
+    assert.equal(info.route, '/:bar/baz.html')
 end
 
 function testcase.parse_param_middle_segment_invalid()

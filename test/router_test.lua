@@ -1,7 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
-local new_router = require('net.http.router').new
+local new_router = require('net.http.router')
 
 function testcase.new()
     -- test that create a new router instance
@@ -211,6 +211,7 @@ function testcase.register_content_handler()
         filename = 'index.html',
         name = 'index',
         ext = '.html',
+        mime = 'text/html',
         handlers = {
             get = {
                 type = 'content',
@@ -388,6 +389,7 @@ function testcase.register_handler_with_content_segment()
         filename = '@baz.html',
         name = 'baz',
         ext = '.html',
+        mime = 'text/html',
         handlers = {
             get = {
                 type = 'content',
@@ -409,6 +411,7 @@ function testcase.register_handler_with_content_segment()
         filename = '@index.html',
         name = 'index',
         ext = '.html',
+        mime = 'text/html',
         handlers = {
             get = {
                 type = 'content',
@@ -779,6 +782,5 @@ function testcase.build()
 
     -- test that it returns false if the dispatch table is already built
     assert.is_false(r:build())
-
 end
 

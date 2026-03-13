@@ -22,6 +22,7 @@
 -- modules
 local concat = table.concat
 local gmatch = string.gmatch
+local match = string.match
 local sub = string.sub
 local tonumber = tonumber
 local errorf = require('error').format
@@ -58,15 +59,85 @@ local RE_FILENAME = assert(new_regex('^' .. RE_FILENAME_PAT, 'i'))
 --- @field route string route pathname
 --- @field mime string? MIME type of the file
 
+--- get_mimetype returns the MIME type for the given extension string.
+--- @param mime mime? MIME type detector
+--- @param ext string? extension string (e.g. '.html' or '.html.gz')
+--- @return string? mimetype
+local function get_mimetype(mime, ext)
+    if not mime or not ext or ext == '' then
+        return nil
+    end
+    local last = match(ext, '[^.]+$')
+    return last and mime:getmime(last) or nil
+end
+
+--- trim_filename removes trimmable extensions from the end of a filename.
+--- @param filename string filename (e.g. 'index.html' or 'page.html.gz')
+--- @param ext string? full extension string already extracted (e.g. '.html.gz')
+--- @param trim_extentions table<string, boolean>? extensions to remove
+--- @return string filename trimmed filename
+local function trim_filename(filename, ext, trim_extentions)
+    if not ext or ext == '' or not trim_extentions then
+        return filename
+    end
+    local v = match(ext, '%.[^.]+$')
+    while v and trim_extentions[v] do
+        filename = sub(filename, 1, #filename - #v)
+        ext = sub(ext, 1, #ext - #v)
+        v = match(ext, '%.[^.]+$')
+    end
+    return filename
+end
+
+--- create_filecontent_pathinfo builds a file or content pathinfo table.
+--- The caller is responsible for validation; this function only constructs the result.
+--- @param ptype string 'file' or 'content'
+--- @param segments string[] pathname segments
+--- @param filename string original filename (e.g. 'index.html' or '@index.html')
+--- @param basename string filename with any prefix stripped, used for route computation
+--- @param name string name part of the filename captured by regex (e.g. 'index')
+--- @param ext string extension part of the filename captured by regex (e.g. '.html')
+--- @param is_static boolean
+--- @param mime mime? MIME type detector
+--- @param trim_extentions table<string, boolean>? extensions to remove from route
+--- @return net.http.router.parse.pathinfo info
+local function create_filecontent_pathinfo(ptype, segments, filename, basename,
+                                           name, ext, is_static, mime,
+                                           trim_extentions)
+    local dirname = '/' .. concat(segments, '/', 1, #segments - 1)
+    local mimetype = get_mimetype(mime, ext)
+    local fname = trim_filename(basename, ext, trim_extentions)
+    local route
+    if fname == 'index' then
+        route = dirname
+    elseif dirname == '/' then
+        route = '/' .. fname
+    else
+        route = dirname .. '/' .. fname
+    end
+    return {
+        type = ptype,
+        pathname = '/' .. concat(segments, '/'),
+        filename = filename,
+        name = name,
+        ext = #ext > 0 and ext or nil,
+        is_static = is_static,
+        route = route,
+        mime = mimetype,
+    }
+end
+
 --- verify_file_pathinfo checks the pathname is the file pathinfo
 --- @param segments string[] pathname segments
 --- @param is_static boolean
 --- @param re_ignore regex
 --- @param re_not_ignore regex
+--- @param mime mime? MIME type detector
+--- @param trim_extentions table<string, boolean>? extensions to remove from route
 --- @return net.http.router.parse.pathinfo? info
 --- @return any err
 local function verify_file_pathinfo(segments, is_static, re_ignore,
-                                    re_not_ignore)
+                                    re_not_ignore, mime, trim_extentions)
     local filename = segments[#segments]
     local res = RE_FILENAME:match(filename)
     if not res then
@@ -76,24 +147,20 @@ local function verify_file_pathinfo(segments, is_static, re_ignore,
     elseif re_ignore:test(filename) and not re_not_ignore:test(filename) then
         return nil, errorf('filename %q is ignored by configuration', filename)
     end
-
-    local ext = res[3]
-    return {
-        type = 'file',
-        pathname = '/' .. concat(segments, '/'),
-        filename = filename,
-        name = res[2],
-        ext = #ext > 0 and ext or nil,
-        is_static = is_static,
-    }
+    return create_filecontent_pathinfo('file', segments, filename, filename,
+                                       res[2], res[3], is_static, mime,
+                                       trim_extentions)
 end
 
 --- verify_content_pathinfo checks the pathname is the content pathinfo
 --- @param segments string[] pathname segments
 --- @param is_static boolean
+--- @param mime mime? MIME type detector
+--- @param trim_extentions table<string, boolean>? extensions to remove from route
 --- @return net.http.router.parse.pathinfo? info
 --- @return any err
-local function verify_content_pathinfo(segments, is_static)
+local function verify_content_pathinfo(segments, is_static, mime,
+                                       trim_extentions)
     local filename = segments[#segments]
     local res = RE_FILENAME:match(sub(filename, 2))
     if not res then
@@ -102,16 +169,9 @@ local function verify_content_pathinfo(segments, is_static)
                    'content handler filename %q must be matching the pattern %q',
                    filename, '/^@' .. RE_FILENAME_PAT .. '/i')
     end
-
-    local ext = res[3]
-    return {
-        type = 'content',
-        pathname = '/' .. concat(segments, '/'),
-        filename = filename,
-        name = res[2],
-        ext = #ext > 0 and ext or nil,
-        is_static = is_static,
-    }
+    return create_filecontent_pathinfo('content', segments, filename,
+                                       sub(filename, 2), res[2], res[3],
+                                       is_static, mime, trim_extentions)
 end
 
 -- filename pattern
@@ -143,13 +203,15 @@ local function verify_param_pathinfo(segments, is_static)
     end
 
     local ext = res[3]
+    local pathname = '/' .. concat(segments, '/')
     return {
         type = 'param',
-        pathname = '/' .. concat(segments, '/'),
+        pathname = pathname,
         filename = filename,
         name = res[2],
         ext = ext and #ext > 0 and ext or nil,
         is_static = is_static,
+        route = pathname,
     }
 end
 
@@ -186,6 +248,9 @@ local function verify_filter_pathinfo(segments, is_static)
                    filename, '/' .. RE_FILTER_NAME_PAT .. '/i')
     end
 
+    -- filter route is its parent directory (with trailing slash for non-root)
+    local dirname = '/' .. concat(segments, '/', 1, #segments - 1)
+    local route = dirname == '/' and dirname or dirname .. '/'
     return {
         type = 'filter',
         pathname = '/' .. concat(segments, '/'),
@@ -194,6 +259,7 @@ local function verify_filter_pathinfo(segments, is_static)
         ext = res[5] and #res[5] > 0 and res[5] or nil,
         order = res[2] == '-' and '-' or tonumber(res[2]),
         is_static = is_static,
+        route = route,
     }
 end
 
@@ -224,13 +290,15 @@ local function verify_wildcard_pathinfo(segments, is_static)
     end
 
     local ext = res[3]
+    local pathname = '/' .. concat(segments, '/')
     return {
         type = 'wildcard',
-        pathname = '/' .. concat(segments, '/'),
+        pathname = pathname,
         filename = filename,
         name = res[2],
         ext = ext and #ext > 0 and ext or nil,
         is_static = is_static,
+        route = pathname,
     }
 end
 
@@ -258,15 +326,19 @@ local RE_SEGMENT = assert(new_regex(RE_SEGMENT_PAT, 'i'))
 --- @param staticdirs table<string,boolean>
 --- @param re_ignore regex
 --- @param re_not_ignore regex
+--- @param mime mime? MIME type detector
+--- @param trim_extentions table<string, boolean>? extensions to remove from route
 --- @return net.http.router.parse.pathinfo? info
 --- @return any? err
-local function parse(pathname, staticdirs, re_ignore, re_not_ignore)
+local function parse(pathname, staticdirs, re_ignore, re_not_ignore, mime,
+                     trim_extentions)
     -- check the pathname is the root
     if pathname == '/' then
         return {
             type = 'file',
             pathname = pathname,
             is_static = staticdirs['/'],
+            route = '/',
         }
     end
 
@@ -319,7 +391,7 @@ local function parse(pathname, staticdirs, re_ignore, re_not_ignore)
         return verify_filter_pathinfo(parts, is_static)
     elseif prefix == '@' then
         -- contents handler segment
-        return verify_content_pathinfo(parts, is_static)
+        return verify_content_pathinfo(parts, is_static, mime, trim_extentions)
     elseif prefix == ':' then
         -- parameter segment
         return verify_param_pathinfo(parts, is_static)
@@ -327,7 +399,8 @@ local function parse(pathname, staticdirs, re_ignore, re_not_ignore)
         -- wildcard/catch-all segment (last segment only)
         return verify_wildcard_pathinfo(parts, is_static)
     end
-    return verify_file_pathinfo(parts, is_static, re_ignore, re_not_ignore)
+    return verify_file_pathinfo(parts, is_static, re_ignore, re_not_ignore,
+                                mime, trim_extentions)
 end
 
 return parse

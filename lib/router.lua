@@ -23,9 +23,7 @@ local next = next
 local pairs = pairs
 local ipairs = ipairs
 local lower = string.lower
-local match = string.match
 local sub = string.sub
-local gsub = string.gsub
 local concat = table.concat
 local sort = table.sort
 local fatalf = require('error').fatalf
@@ -425,77 +423,6 @@ function Router:disable_filter_handler(pathinfo, methods)
     return self:register_routeinfo(routeinfo)
 end
 
---- create_routepath
---- @param pathname string
---- @param is_scriptfile boolean
---- @param mime mime
---- @param trim_extentions table<string, boolean>
---- @return string rpath
---- @return string? mimetype
-local function create_routepath(pathname, is_scriptfile, mime, trim_extentions)
-    if pathname == '/' then
-        return pathname
-    end
-
-    -- get the filename from the pathname
-    local filename = match(pathname, '[^/]+$') or ''
-    -- get the dirname from the pathname
-    local dirname = sub(pathname, 1, #pathname - #filename)
-    local prefix = sub(filename, 1, 1)
-
-    if prefix == '#' then
-        -- filename is a filter segment
-        -- if dirname ~= '/' and sub(dirname, -1) == '/' then
-        --     -- remove last '/' from the dirname
-        --     dirname = sub(dirname, 1, #dirname - 1)
-        -- end
-        return dirname
-    end
-
-    if prefix == ':' or prefix == '*' then
-        -- parameter or wildcard segment: include full segment in route path
-        return dirname .. filename
-    end
-
-    if prefix == '@' then
-        -- remove the '@' prefix if the filename is a content segment
-        filename = sub(filename, 2)
-    end
-
-    local mimetype
-    -- get the extname from the filename
-    local ext = match(filename, '%.[^/]+$')
-    if ext then
-        if is_scriptfile then
-            -- remove last '.lua' extension if the file is a lua script
-            filename = gsub(filename, '%.lua$', '')
-            ext = gsub(ext, '%.lua$', '')
-        end
-
-        -- get the MIME type from the last extension
-        local v = match(ext, '%.[^.]+$')
-        if v then
-            mimetype = mime:getmime(v)
-        end
-
-        -- remove the last extension from the filename if it is in
-        -- the trim_extentions list
-        while v and trim_extentions[v] do
-            filename = sub(filename, 1, #filename - #v)
-            ext = sub(ext, 1, #ext - #v)
-            v = match(ext, '%.[^.]+$')
-        end
-    end
-
-    if filename == 'index' then
-        -- index is a special filename that routing to the directory
-        -- remove last '/' from the dirname
-        return dirname == '/' and dirname or sub(dirname, 1, #dirname - 1)
-    end
-
-    return dirname .. filename, mimetype
-end
-
 local RE_METHODNAME_PAT = '^@?[a-z](_*[a-z]+)*$'
 local RE_METHODNAME = assert(new_regex(RE_METHODNAME_PAT, 'i'))
 
@@ -535,7 +462,6 @@ local function validate_method_handler(method, handler)
     return true
 end
 
-
 local parse_pathname = require('net.http.router.parse')
 
 --- register
@@ -548,7 +474,8 @@ function Router:register(pathname, method, handler)
     end
 
     local pathinfo, err = parse_pathname(pathname, self.staticdirs,
-                                         self.re_ignore, self.re_no_ignore)
+                                         self.re_ignore, self.re_no_ignore,
+                                         self.mime, self.trim_extentions)
     if not pathinfo then
         fatalf(2, 'failed to parse pathname %q', pathname, err)
     end
@@ -569,10 +496,6 @@ function Router:register(pathname, method, handler)
             end
         end
 
-        -- create the route-path from the pathname without the filename
-        pathinfo.route, pathinfo.mime = create_routepath(pathinfo.pathname,
-                                                         false, self.mime,
-                                                         self.trim_extentions)
         local ok
         ok, err = self:disable_filter_handler(pathinfo, {
             method or '@all',
@@ -590,13 +513,10 @@ function Router:register(pathname, method, handler)
         fatalf(2, 'failed to validate method handler: %s', err)
     end
     method = lower(method)
-    local methods = {[method] = handler}
+    local methods = {
+        [method] = handler,
+    }
 
-    -- create the route-path from the pathname without the filename
-    pathinfo.route, pathinfo.mime = create_routepath(pathinfo.pathname, false,
-                                                     self.mime,
-                                                     self.trim_extentions)
-    local ok
     if pathinfo.type == 'filter' then
         ok, err = self:register_filter_handler(pathinfo, methods)
     else
@@ -792,6 +712,4 @@ function Router:lookup(pathname)
     return routeinfo, glob
 end
 
-return {
-    new = require('metamodule').new(Router),
-}
+return require('metamodule').new(Router)
