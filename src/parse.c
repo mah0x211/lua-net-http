@@ -24,13 +24,17 @@
  *  Created by Masatoshi Teruya on 18/06/04.
  */
 
+// project
+#include "hwire.h"
+// depend
+#include "lauxhlib.h"
+#include "lua_error.h"
+// lua
+#include <lauxlib.h>
+// system
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
-// lua
-#include <lua_error.h>
-// hwire
-#include "hwire.h"
 
 /**
  * return code: values aligned with HWIRE_* for direct passthrough
