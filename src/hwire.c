@@ -24,11 +24,12 @@
  *  Zero-Allocation HTTP Parser
  */
 
+// project
 #include "hwire.h"
+// system
 #include <assert.h>
 #include <limits.h>
 #include <string.h>
-#include <sys/types.h>
 
 // ALIGNED(n): compiler-portable alignment specifier.
 // Standard alignas/`_Alignas` is preferred when available (C++11 / C11).

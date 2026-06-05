@@ -60,7 +60,7 @@ jobs:
     -
       name: Install
       run: |
-        luarocks make
+        NET_HTTP_COVERAGE=1 luarocks make
     -
       name: Run Test
       run: |

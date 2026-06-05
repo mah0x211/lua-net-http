@@ -12,9 +12,9 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
+    "errno >= 0.3.0",
     "base64mix >= 1.0.0",
     "basedir >= 0.5.1",
-    "errno >= 0.3.0",
     "bufio >= 0.9.0",
     "error >= 0.12.0",
     "form ~> 0.5.0",
@@ -39,7 +39,7 @@ dependencies = {
     "yyjson >= 0.10.0",
 }
 build_dependencies = {
-    "luarocks-build-hooks",
+    "luarocks-build-hooks >= 0.8.0",
 }
 build = {
     type = 'hooks',
@@ -75,6 +75,10 @@ build = {
             sources = {
                 "src/parse.c",
                 "src/hwire.c",
+            },
+            incdirs = {
+                "$(DEP_ERROR_INCDIR)",
+                "$(DEP_LAUXHLIB_INCDIR)",
             },
         },
         ["net.http.router"] = "lib/router.lua",
